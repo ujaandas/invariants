@@ -1,0 +1,79 @@
+\section{Evaluation}
+
+The evaluation aims to measure both the correctness and
+computational efficiency of the proposed neuro-symbolic decoding
+architecture. In particular, the experiments evaluate how effectively the
+Syntax Oracle reduces structural and semantic errors during generation while
+minimizing runtime interventions.
+
+\subsection{Target Domain}
+All experiments will focus on structured JSON generation governed by
+a specification language with CSI annotations to form our abstract machine.
+These annotations express cross-field constraints such as arithmetic relationships (e.g.,
+\texttt{max\_items} $\geq$ \texttt{min\_items}), conditional dependencies,
+and referential integrity between identifiers.
+
+Evaluation datasets will consist of natural language prompts paired with
+target JSON outputs, drawing from benchmarks such as BIRD~\cite{li2023can} for relational 
+complexity and specialized schema-following tasks. Samples will be drawn from both Oracle-generated
+synthetic schemas and instruction-conditioned tasks to ensure coverage of
+diverse structural configurations.
+
+\subsection{Performance Metrics}
+System performance will be evaluated using several complementary metrics.
+
+\begin{enumerate}
+\item Oracle Intervention Rate (OIR).
+
+The primary metric introduced in this work measures how frequently the
+Syntax Oracle must intervene during generation through masking, semantic
+validation failure, or rollback. Lower intervention rates indicate that the
+model has internalized more of the schema constraints.
+
+To normalize for task difficulty, OIR will be entropy-scaled using the model's 
+token distribution $H(p_t)$, a technique adapted from predictive coding 
+metrics:
+
+\begin{equation}
+\text{OIR}*{norm} =
+\frac{\text{Oracle interventions}}
+{\sum*{t=1}^{T} H(p_t)}
+\end{equation}
+
+\item Semantic Validity Rate.
+
+The proportion of generated outputs that satisfy all schema constraints when
+validated by the Oracle, similar to the "Pass@k" metric used in code generation 
+benchmarks~\cite{chen2021evaluating}.
+
+\item Inference Efficiency.
+
+Computational overhead will be measured using standard LLM performance
+benchmarks, including decoding latency (ms/token) and generation throughput 
+(tokens/second), utilizing the benchmarking methodology defined 
+in~\cite{miao2024specinfer}.
+
+\end{enumerate}
+
+\subsection{Constraint Complexity Scaling}
+To evaluate scalability, experiments will vary schema complexity by
+increasing the number of fields, semantic constraints, and dependency depth.
+We will specifically analyze the "Semantic Wall" phenomenon 
+identified in~\cite{valmeekam2023planning}, quantifying how 
+constraint density affects both neural prediction behavior and 
+verification workload.
+
+\subsection{Baseline Comparisons}
+The proposed system will be compared against several baseline approaches:
+
+\begin{itemize}
+\item unconstrained autoregressive generation
+\item prompt-based schema enforcement
+\item syntax-only FSM masking
+\item LoRA fine-tuning without runtime verification
+\end{itemize}
+
+These baselines represent the dominant strategies for structured generation.
+Additional ablation experiments will isolate the contribution of syntactic
+masking, semantic rollback, and Oracle-guided training within the proposed
+framework.

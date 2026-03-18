@@ -1,0 +1,32 @@
+\begin{abstract}
+
+  Large Language Models (LLMs) are increasingly deployed in safety-critical
+  domains to generate structured outputs, but they struggle to satisfy complex,
+  context-sensitive semantic invariants. While constrained decoding can enforce
+  context-free grammars, it cannot guarantee richer typed or state-dependent
+  constraints without incurring large inference overheads.
+  We propose a dual-objective neuro-symbolic framework that integrates 
+  runtime formal verification with structural fine-tuning. A deterministic
+  \textit{Syntax Oracle}, an abstract verification machine, will maintain 
+  specification state during decoding, and projects invalid proposals onto the
+  admissable constraint spaec via dynamic logit masking. This mechanism provides
+  formal structural guarantees, while acting only as a minimal-intervention
+  safety controller.
+  In parallel, we introduce a semantic internalization pipeline using
+  parameter-efficient fine-tuning with Low-Rank Adaptation (LoRA), training the
+  LLM to internalize structural invariants and thereby reduce reliance on
+  deterministic correction.
+  We evaluate the framework using an entropy-normalized Oracle Intervention
+  Rate, alongside latency and throughput benchmarks. This approach aims to
+  provide formally-verified, low-latency structured generation, while
+  quantifying the trade-off between learned structural competence and runtime
+  intervention.
+
+\end{abstract}
+
+\begin{IEEEkeywords}
+  Neural networks, Language models, Formal verification, Runtime verification,
+  Programming languages
+\end{IEEEkeywords}
+
+

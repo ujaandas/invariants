@@ -28,8 +28,9 @@ nix build .#proposal
 The resulting PDF and build artifacts will be available in the `result/`
 symlink.
 
-> For active writing with live-reloads, using `latexmk` or an editor like
-> VSCode, you can enter the development shell:
+> For active writing with live-reloads, use the `watchdog` app I've packaged in
+> the flake. When running it, ensure to give the relevant target source:
 > ```bash
-> nix develop
+> nix run .#watchdog -- proposal
 > ```
+> Personally, I just use this and Vim + Tmux for any given doc. 

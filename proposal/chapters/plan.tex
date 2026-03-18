@@ -1,0 +1,103 @@
+\section{Project Plan}
+
+To ensure the systematic development and evaluation of the proposed dual-objective 
+framework within the allotted research timeframe, the project will be executed using 
+structured work packages, defined milestones, and proactive risk management protocols.
+
+\subsection{Key Tasks}
+The research methodology is partitioned into five sequential and logically dependent 
+tasks.
+
+\begin{enumerate}
+
+\item \textbf{Infrastructure and Environment Provisioning}
+
+\textbf{Objectives:} Establish a deterministic, hardware-agnostic execution environment.
+
+\textbf{Tasks:}
+\begin{itemize}
+\item Deploy the base open-weights model (e.g., Llama-3-8B) on the target GPU 
+infrastructure utilizing the vLLM serving engine.
+\item Establish baseline latency metrics for unconstrained generation.
+\end{itemize}
+
+\item \textbf{Schema Compiler and Syntax Oracle Engineering}
+
+\textbf{Objectives:} Develop the C++ backend for the symbolic constraint engine.
+
+\textbf{Tasks:}
+\begin{itemize}
+\item Construct the Schema Compiler to parse the specification language for JSON Schemas.
+\item Implement the FSM generator for the CFG mask.
+\item Develop the topological-sort engine for evaluating the Cross-Field 
+Dependency Graph ($G$).
+\item Compile the \texttt{pybind11} bridges and verify inter-operatability.
+\end{itemize}
+
+\item \textbf{Cascaded Verification and Cache Rollback Mechanism}
+
+\textbf{Objectives:} Integrate the Syntax Oracle into the autoregressive decoding loop.
+
+\textbf{Tasks:}
+\begin{itemize}
+\item Subclass the \texttt{LogitsProcessor} to inject the token-level $O(1)$ FSM mask.
+\item Implement the element-level trigger hooks.
+\item Engineer the speculative cache rollback mechanism to 
+truncate and regenerate upon Context-Sensitive Invariant (CSI) violations.
+\end{itemize}
+
+\item \textbf{Data Synthesis and Semantic Internalization}
+
+\textbf{Objectives:} Align the neural policy to the target Domain-Specific Language (DSL).
+
+\textbf{Tasks:}
+\begin{itemize}
+\item Utilize the Oracle to run coverage-guided random walks, 
+synthesizing a mathematically perfect dataset $D$.
+\item Execute Supervised Fine-Tuning (SFT) using Low-Rank 
+Adaptation (LoRA) with optimized rank capacity ($r=16, \alpha=32$).
+\end{itemize}
+
+\item \textbf{Evaluation, Benchmarking, and Writing}
+
+\textbf{Objectives:} Quantify the architectural synergy and draft the final dissertation.
+
+\textbf{Tasks:}
+\begin{itemize}
+\item Measure the Entropy-Normalized Oracle Intervention Rate (OIR) 
+across unaligned versus LoRA-aligned models.
+\item Benchmark system throughput (tokens/second).
+\item Finalize the manuscript/thesis.
+\end{itemize}
+\end{enumerate}
+
+\subsection{Project Constraints}
+To ensure the feasibility and scientific reproducibility of the framework, several boundary conditions are established:
+
+\begin{itemize}
+    \item  
+    The framework will be evaluated against a restricted subset of a production DSL 
+    (e.g., OpenAPI 3.0).
+
+    \item  
+    The training phase is computationally bounded by available GPU VRAM. 
+    The use of PEFT (LoRA)~\cite{hu2021lora} specifically mitigates this 
+    constraint, allowing adaptation to occur on a single consumer-grade 
+    GPU or via standard university-provisioned SLURM clusters.
+
+    \item  The Syntax Oracle is strictly coupled to the specific Byte-Pair Encoding 
+    (BPE) vocabulary of the base model (e.g., Llama-3). 
+    Any modification to the model's tokenizer requires a full recompilation of 
+    the FSM transition table.
+    
+    \item  
+    To maintain deterministic performance, the Semantic Evaluator is 
+    constrained to \textit{local state invariants} present within the 
+    current generation context. Verification against external, asynchronous 
+    data sources (e.g., live database lookups) is outside the current research scope.
+
+    \item  The speculative rollback mechanism is limited by the transformer's 
+    effective context window. To prevent infinite loops 
+    or "generation deadlocks," the system will impose a maximum retry threshold 
+    for any single DSL element.
+\end{itemize}

@@ -59,6 +59,7 @@
 
             # Utilities
             xstring
+            xcolor
             xkeyval
             mweights
             fontaxes
@@ -86,7 +87,7 @@
               runHook preBuild
 
               latexmk -C
-              latexmk -interaction=nonstopmode -pdf -bibtex main.tex
+              latexmk -pdf -bibtex -file-line-error -halt-on-error main.tex
 
               runHook postBuild
             '';
@@ -104,8 +105,21 @@
       {
         formatter = pkgs.nixfmt-tree;
 
+        apps.watchdog = {
+          type = "app";
+          program = "${pkgs.writeShellScript "watchdog" ''
+            target="''${1:-proposal}"
+            exec ${pkgs.watchexec}/bin/watchexec \
+              --exts tex,bib,cls,sty \
+              --watch . \
+              -- nix build .#"$target"
+          ''}";
+        };
+
         packages = {
-          template = buildTex ./template;
+          empty = buildTex ./empty;
+          proposal = buildTex ./proposal;
+          ieee = buildTex ./ieee;
         };
 
         devShells.default = pkgs.mkShell {

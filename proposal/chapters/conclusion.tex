@@ -1,0 +1,29 @@
+\section{Conclusion}
+This proposal outlines a neuro-symbolic decoding framework that integrates a
+compiled Syntax Oracle as an abstract machine into the generation loop of a language 
+model, supported by Oracle-guided fine-tuning. The objective is to enforce 
+structural and semantic correctness without collapsing generation
+flexibility or incurring prohibitive inference-time overhead. By combining
+token-syntax-level masking, element-level semantic validation, and targeted LoRA
+adaptation, the system aims to shift part of the verification burden from the
+symbolic engine into the model's predictive distribution.
+
+Naturally, several difficulties are expected. The interaction between the Oracle and the
+model's internal priors may produce unstable decoding behaviour, especially in
+schemas with deep dependency chains. Also, rollback mechanisms, while necessary, risk
+introducing latency spikes if the model repeatedly proposes invalid spans. The
+quality and coverage of Oracle-generated training data will directly affect how
+well the model internalizes constraints, and poorly balanced datasets may lead
+to brittle or overfitted adapters. Finally, co-ordinating a C++ verification
+engine with Python-based inference introduces practical engineering challenges
+around synchronization and memory access that may limit throughput.
+
+Even with these limitations, the approach provides a concrete path toward
+quantifying and reducing the symbolic workload during structured generation.
+Rather than treating verification as an external filter, the framework treats it
+as an active component of the decoding process and a source of training signal.
+
+If successful, this work will demonstrate that formally constrained generation
+can be achieved through a tighter coupling between neural prediction and
+symbolic structure, offering a more reliable alternative to prompt-based
+heuristics and post-hoc validation.
