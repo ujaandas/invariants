@@ -10,7 +10,7 @@ $$
 
 - $M_{syn}$ is the syntactic module, a deterministic finite automaton
   derived from the grammar to handle token-level masking.
-- ${E_{sem}$ is the semantic module, a dependancy graph that evaluates
+- $E_{sem}$ is the semantic module, a dependancy graph that evaluates
   cross-field invariants (ie; context-_sensitive_ constraints) that a CFG cannot
   cpature.
 
@@ -38,7 +38,7 @@ switch from the syntactic module to the semantic. For instance:
    the model finished typin the avlue for a certain field)
 2. The oracle checks the semantic module's dependency graph - are all variables
    for this invariant populated?
-3. If so, it can validate the field. If not, wait till the dependency 
+3. If so, it can validate the field. If not, wait till the dependency
    requirements are met.
 
 ## Syntax
@@ -60,6 +60,7 @@ shipment. Each `BulkOrder` object will have a `unit_price`, `quantity`,
 `total_price`, and `currency`.
 
 The spec might look like this in JSON:
+
 ```json
 {
   "openapi": "3.0.0",
@@ -101,8 +102,7 @@ spec BulkOrder {
     }
 
     invariant bulk_discount {
-        this.quantity > 500 -> this.total_price < (this.unit_price *
-        this.quantity);
+        this.quantity > 500 -> this.total_price < (this.unit_price * this.quantity);
     }
 }
 ```
