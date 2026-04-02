@@ -13,46 +13,93 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        project = pkgs.stdenv.mkDerivation {
+
+        dev-configure = pkgs.writeShellApplication {
+          name = "dev-configure";
+          runtimeInputs = with pkgs; [
+            clang
+            cmake
+            ninja
+          ];
+          text = ''
+            set -euo pipefail
+            cmake -S lang -B .nix-dev/build
+          '';
+        };
+
+        dev-test = pkgs.writeShellApplication {
+          name = "dev-test";
+          runtimeInputs = with pkgs; [
+            cmake
+            ninja
+          ];
+          text = ''
+            set -euo pipefail
+            if [ ! -f .nix-dev/build/build.ninja ]; then
+              ${dev-configure}/bin/dev-configure
+            fi
+            cmake --build .nix-dev/build
+            ctest --test-dir .nix-dev/build --output-on-failure
+          '';
+        };
+
+        invariants = pkgs.stdenv.mkDerivation {
           pname = "invariants";
           version = "0.1.0";
-          src = ./.;
-          sourceRoot = "lang";
-          meta.mainProgram = "hello_world";
+          src = ./lang;
+          meta = {
+            mainProgram = "hello_world";
+            description = "Constrained LLM generation via semantic invariants and refinement types.";
+          };
 
-          nativeBuildInputs = [
-            pkgs.cmake
-            pkgs.ninja
+          nativeBuildInputs = with pkgs; [
+            cmake
+            ninja
           ];
 
-          buildInputs = [
-            pkgs.gtest
+          buildInputs = with pkgs; [
+            gtest
           ];
         };
       in
       {
-        packages.default = project;
+        packages.default = invariants;
 
-        checks.default = project;
-
-        apps.default = {
-          type = "app";
-          program = "${project}/bin/hello_world";
+        checks = {
+          default = invariants;
+          tests = invariants;
         };
 
-        formatter = pkgs.nixfmt;
+        apps = {
+          default = utils.lib.mkApp { drv = invariants; };
+
+          configure = {
+            type = "app";
+            program = "${dev-configure}/bin/dev-configure";
+            meta.description = "Configure clangd environment.";
+          };
+
+          test = {
+            type = "app";
+            program = "${dev-test}/bin/dev-test";
+            meta.description = "Run test suite with Ctest.";
+          };
+        };
 
         devShells.default = pkgs.mkShell {
           packages = with pkgs; [
             clang-tools
             cmake
             cppcheck
+            include-what-you-use
             gtest
             ninja
             nixfmt
             prek
           ];
         };
+
+        formatter = pkgs.nixfmt;
       }
     );
 }

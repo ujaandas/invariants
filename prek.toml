@@ -1,0 +1,20 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+# TODO: Fix this and install into .git/hooks!
+
+fail_fast = true
+
+[[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "nix-flake-check",
+    name = "nix flake check",
+    entry = "nix flake check",
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-commit"]
+  }
+]

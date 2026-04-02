@@ -11,7 +11,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Enable compile commands for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-
 find_package(GTest REQUIRED)
 
 add_executable(hello_world src/main.cpp)
