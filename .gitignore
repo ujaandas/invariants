@@ -1,3 +1,10 @@
+# Nix
+result
+
+# Direnv
+.direnv
+.envrc
+
 # Prerequisites
 *.d
 
