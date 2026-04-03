@@ -1,2 +1,2 @@
 CompileFlags:
-  CompilationDatabase: .nix-dev/build
+  CompilationDatabase: .nix-dev
