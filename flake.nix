@@ -29,7 +29,7 @@
           '';
         };
 
-        invariants = pkgs.stdenv.mkDerivation {
+        invariants = pkgs.clangStdenv.mkDerivation {
           pname = "invariants";
           version = "0.1.0";
           src = ./lang;
