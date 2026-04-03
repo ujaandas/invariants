@@ -1,0 +1,27 @@
+# Configuration file for `prek`, a git hook framework written in Rust.
+# See https://prek.j178.dev for more information.
+#:schema https://www.schemastore.org/prek.json
+
+fail_fast = false
+
+[[repos]]
+repo = "https://github.com/pocc/pre-commit-hooks"
+rev = "v1.3.5"
+hooks = [
+  {
+    id = "clang-format",
+    args = ["--style=Google"]
+  },
+  { 
+    id = "clang-tidy",
+    args = ["-p=.nix-dev/build"]
+  },
+  {
+    id = "cppcheck",
+    args = [
+      "--enable=all",
+      "--inline-suppr",
+      "--error-exitcode=1"
+    ]
+  }
+]

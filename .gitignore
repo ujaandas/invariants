@@ -1,3 +1,11 @@
+# Nix
+result
+.nix-dev/
+
+# Direnv
+.direnv
+.envrc
+
 # Prerequisites
 *.d
 
@@ -39,3 +47,6 @@
 
 # debug information files
 *.dwo
+
+# Generated compile database for editor tooling
+lang/compile_commands.json
