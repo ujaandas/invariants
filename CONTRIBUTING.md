@@ -6,7 +6,7 @@ This is a solo monorepo, but discipline here writes the thesis methodology chapt
 
 ## 1. Employ TDD!
 Do not write any C++ without a failing test. Use red/green testing. 
-1. Write the GTest in `tests/*` first and watch it fail.
+1. Write the GTest in `lang/tests/*` first and watch it fail.
 2. Write the absolute bare minimum C++ to pass it.
 3. Clean up memory stuff, optimize, and document.
 
