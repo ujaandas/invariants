@@ -64,11 +64,15 @@ field currency: string {
 
 ## Booleans
 
-Booleans are strict binary `true` or `false` types. They evaluate directly to C++ `bool` primitives and can be used directly in logical implication statements without secondary comparisons.
+Booleans are strict binary types. The `invariants` scanner recognizes `true` and `false` as reserved keywords, evaluating them directly to C++ `bool` primitives. They can be used directly in logical implication statements without secondary comparisons.
+
+## Null
+
+To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserved keyword. This allows for native empty-state checks (eg; `check: value != null;`).
 
 ## Arrays
 
-Arrays are homogeneous lists of elements. Because mixed types are forbidden, array types must explicitly declare their inner type using bracket notation (eg; `Array[string]` or `Array[BulkOrder]`).
+Arrays are homogeneous lists of elements. The `invariants` parser treats `Array` as a standard base type identifier, but allows for structural parameterization via bracket notation to define the inner type (eg; `Array[string]` or `Array[BulkOrder]`).
 
 Similar to strings, bounds constraints like OAS's `minItems` and `maxItems` are handled dynamically via the `.length` property on the array value.
 

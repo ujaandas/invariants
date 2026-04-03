@@ -19,3 +19,9 @@ More details about operator precedence and implicit identifiers (like `this` and
 `invariant` aims to maintain parity with the OpenAPI 3.0 spec. As the lexer reads atomic literals (like `500` or `"USD"`), the syntax oracle maps these directly to foundational C++ types to ensure high performance during the decoding loop. This also covers how complex, recursive structures like arrays and objects are handled.
 
 More details about data types and bounds can be found in [data_types.md](data_types.md).
+
+## 4. Comments
+
+The DSL uses standard C-style double slashes (`//`) for single-line comments.
+
+> Example: `// Ensure the total price includes the bulk discount`
