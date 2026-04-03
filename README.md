@@ -2,34 +2,18 @@
 
 Constrained LLM generation via semantic invariants and refinement types.
 
-`invariants` is a research project exploring how to guide large language model
-decoding by encoding semantic constraints as refinement types and verifiable
-invariants. The core runtime is written in C++ (`lang/`), with Python bindings
+`invariants` aims to guide large language model decoding by encoding semantic
+constraints as refinement types and verifiable invariants. 
+The core runtime and DSL is written in C++ (`lang/`), with Python bindings
 planned for integration into LLM inference pipelines.
-
-> **Status:** early-stage — build tooling and project skeleton are in place;
-> core language features are under active development.
-
----
 
 ## Prerequisites
 
-[Nix](https://nixos.org/download/) with flakes enabled is the only hard
-requirement. All compilers, build tools, and test dependencies are provided by
-the flake.
+[Nix](https://nixos.org/download/) with flakes enabled is highly recommended. 
+All compilers, build tools, and test dependencies are provided by the flake.
 
-<details>
-<summary>Enable flakes if you haven't already</summary>
-
-Add the following to `~/.config/nix/nix.conf` (or `/etc/nix/nix.conf`):
-
-```
-experimental-features = nix-command flakes
-```
-
-</details>
-
----
+However, you are free to build and compile it yourself with CMake. 
+Read through the `flake.nix` to get an understanding of build-time requirements and whatnot.
 
 ## Getting started
 
@@ -39,8 +23,7 @@ experimental-features = nix-command flakes
 nix develop
 ```
 
-This drops you into a shell with Clang, CMake, Ninja, GoogleTest,
-`clang-tools`, `cppcheck`, and `prek` available.
+This drops you into a shell with all relevant developer tooling available.
 
 ### Configure the local build directory
 
@@ -51,9 +34,8 @@ nix run .#configure
 ```
 
 This generates `.nix-dev/build/` with a `compile_commands.json` that both
-clangd and the `clang-tidy` pre-commit hook read.
-
----
+clangd and the `clang-tidy` pre-commit hook read. This is also required for `clangd`, 
+if you use it.
 
 ## Building & testing
 
@@ -61,12 +43,8 @@ clangd and the `clang-tidy` pre-commit hook read.
 |---|---|
 | Build & run all tests (Nix sandbox) | `nix build` |
 | Run the `hello_world` executable | `nix run` |
-| Incremental build (inside devshell) | `cmake --build .nix-dev/build` |
-| Run tests (inside devshell) | `ctest --test-dir .nix-dev/build --output-on-failure` |
 
 CI runs `nix build` on every push and pull request targeting `main`.
-
----
 
 ## Pre-commit hooks
 
@@ -80,8 +58,6 @@ prek install
 The hooks run `clang-format` (Google style), `clang-tidy`, and `cppcheck` on
 every commit. The `clang-tidy` hook requires the build directory to exist --
 run `nix run .#configure` first if it doesn't.
-
----
 
 ## Project layout
 
