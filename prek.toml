@@ -10,11 +10,13 @@ rev = "v1.3.5"
 hooks = [
   {
     id = "clang-format",
-    args = ["--style=Google"]
+    args = ["--style=file"],
+    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
   },
   { 
     id = "clang-tidy",
-    args = ["-p=.nix-dev/build"]
+    args = ["-p=.nix-dev/build"],
+    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
   },
   {
     id = "cppcheck",
@@ -22,6 +24,7 @@ hooks = [
       "--enable=all",
       "--inline-suppr",
       "--error-exitcode=1"
-    ]
+    ],
+    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
   }
 ]
