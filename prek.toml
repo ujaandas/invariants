@@ -25,6 +25,6 @@ hooks = [
       "--inline-suppr",
       "--error-exitcode=1"
     ],
-    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
+    files = "\\.(c|cc|cpp|cxx)$"
   }
 ]
