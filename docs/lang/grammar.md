@@ -1,4 +1,4 @@
-# Lexical Grammar & Tokens
+# Lexical Grammar 
 
 I figured it might help to note down the foundational tokens recognized by the `invariants` lexer.
 
@@ -19,9 +19,15 @@ Some names are reserved to refer to higher-level contracts, such as `this`, whic
 
 ## 3. Literals/Types
 
+`invariant` aims to maintain parity with the OpenAPI 3.0 spec. More details
+about data types can be found in [data_types.md](data_types.md).
+
 - **Numbers:** Integers and floating-point values (e.g., `1`, `0.0`, `500`).
 - **Strings:** Text enclosed in double quotes (e.g., `"USD"`).
-- **Booleans:**: Boolean values, so either `true` or `false`.
+- **Booleans:**: Either `true` or `false`.
+- **Array:**: A list of elements of some arbitrary type/object.
+- **Objects:**: Objects are just external `spec` contracts, so operate largely
+  the same.
 
 ## 4. Operators & Symbols
 
