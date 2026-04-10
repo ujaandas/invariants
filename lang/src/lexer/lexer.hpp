@@ -11,9 +11,9 @@ class Lexer {
  private:
   const std::string source;
   std::vector<Token> tokens;
-  size_t start;
-  size_t curr;
-  size_t line;
+  size_t start = 0;
+  size_t curr = 0;
+  size_t line = 1;
 
   void scanToken();
   char advance();

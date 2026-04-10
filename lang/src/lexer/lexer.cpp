@@ -8,8 +8,7 @@
 
 using namespace ::invariants::lexer;
 
-Lexer::Lexer(std::string source)
-    : source(std::move(source)), start(0), curr(0), line(1) {}
+Lexer::Lexer(std::string source) : source(std::move(source)) {}
 
 char Lexer::advance() { return source[curr++]; }
 
@@ -23,7 +22,15 @@ void Lexer::addToken(TokenType type, Literal literal) {
 void Lexer::scanToken() {
   char c = advance();
 
+  auto peekNextToken = [this](char expected) {
+    if (curr >= source.length()) return false;
+    if (source.at(curr) != expected) return false;
+    curr++;
+    return true;
+  };
+
   switch (c) {
+    // Single-character tokens
     case '[':
       addToken(TokenType::LEFT_BRACKET);
       break;
@@ -60,6 +67,11 @@ void Lexer::scanToken() {
     case '%':
       addToken(TokenType::PERCENTAGE);
       break;
+    // Operators/possibly multi-char tokens
+    case '!':
+      addToken(peekNextToken('=') ? TokenType::BANG_EQUAL : TokenType::BANG);
+      break;
+
     default:
       // TODO: replace this with proper error handling
       throw std::invalid_argument("received invalid token");
