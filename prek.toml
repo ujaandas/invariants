@@ -5,6 +5,19 @@
 fail_fast = false
 
 [[repos]]
+repo = "local"
+hooks = [
+  {
+    id = "nix-dev-configure",
+    name = "nix run .#configure",
+    entry = "nix run .#configure",
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-commit"]
+  }
+]
+
+[[repos]]
 repo = "https://github.com/pocc/pre-commit-hooks"
 rev = "v1.3.5"
 hooks = [
