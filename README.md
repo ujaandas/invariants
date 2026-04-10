@@ -37,6 +37,18 @@ This generates `.nix-dev/build/` with a `compile_commands.json` that both
 clangd and the `clang-tidy` pre-commit hook read. This is also required for `clangd`, 
 if you use it.
 
+### Run test suite
+
+We also provide a Nix app to run the test suite automatically:
+
+```bash
+nix run .#test
+```
+
+This also auto-generates the compilation database, but also runs `ctest` with the right arguments afterwards.
+
+> Note that both of these are _impure_, and are no better than simple Bash scripts! Be careful!
+
 ## Building & testing
 
 | Task | Command |
@@ -57,7 +69,8 @@ prek install
 
 The hooks run `clang-format` (Google style), `clang-tidy`, and `cppcheck` on
 every commit. The `clang-tidy` hook requires the build directory to exist --
-run `nix run .#configure` first if it doesn't.
+run `nix run .#configure` first if it doesn't (but this should be done automatically, 
+as it itself is the first hook run!).
 
 ## Project layout
 
