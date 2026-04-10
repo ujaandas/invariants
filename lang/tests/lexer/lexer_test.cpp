@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <iterator>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -15,10 +14,9 @@ using invariants::lexer::TokenType;
 namespace {
 
 std::vector<std::string> stringify(const std::vector<Token>& tokens) {
-  std::vector<std::string> out;
-  out.reserve(tokens.size());
+  std::vector<std::string> out(tokens.size());
 
-  std::transform(tokens.begin(), tokens.end(), std::back_inserter(out),
+  std::transform(tokens.begin(), tokens.end(), out.begin(),
                  [](const Token& t) { return t.toString(); });
 
   return out;
