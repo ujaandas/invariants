@@ -1,0 +1,62 @@
+#include "lexer.hpp"
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <iterator>
+#include <stdexcept>
+#include <string>
+#include <vector>
+
+using invariants::lexer::Lexer;
+using invariants::lexer::Token;
+using invariants::lexer::TokenType;
+
+namespace {
+
+std::vector<std::string> stringify(const std::vector<Token>& tokens) {
+  std::vector<std::string> out;
+  out.reserve(tokens.size());
+
+  std::transform(tokens.begin(), tokens.end(), std::back_inserter(out),
+                 [](const Token& t) { return t.toString(); });
+
+  return out;
+}
+
+}  // namespace
+
+TEST(LexerTest, ScansSingleBracketAndEof) {
+  Lexer lexer("[");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::LEFT_BRACKET)) + " [ nil",
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
+TEST(LexerTest, ScansSimplePunctuationSequence) {
+  Lexer lexer("[]+;");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::LEFT_BRACKET)) + " [ nil",
+      std::to_string(static_cast<int>(TokenType::RIGHT_BRACKET)) + " ] nil",
+      std::to_string(static_cast<int>(TokenType::PLUS)) + " + nil",
+      std::to_string(static_cast<int>(TokenType::SEMICOLON)) + " ; nil",
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
+TEST(LexerTest, ThrowsOnInvalidToken) {
+  Lexer lexer("@");
+
+  EXPECT_THROW(lexer.scanTokens(), std::invalid_argument);
+}

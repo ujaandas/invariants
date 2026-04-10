@@ -21,7 +21,7 @@ class Lexer {
   void addToken(TokenType type, Literal literal);
 
  public:
-  Lexer(std::string source);
+  explicit Lexer(std::string source);
   std::vector<Token> scanTokens();
 };
 
