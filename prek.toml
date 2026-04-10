@@ -20,11 +20,12 @@ hooks = [
   },
   {
     id = "cppcheck",
+    pass_filenames = false,
     args = [
+      "--project=.nix-dev/build/compile_commands.json",
       "--enable=all",
       "--inline-suppr",
       "--error-exitcode=1"
     ],
-    files = "\\.(c|cc|cpp|cxx)$"
   }
 ]
