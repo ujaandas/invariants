@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "token.hpp"
+
 using invariants::lexer::Lexer;
 using invariants::lexer::Token;
 using invariants::lexer::TokenType;
@@ -57,4 +59,31 @@ TEST(LexerTest, ThrowsOnInvalidToken) {
   Lexer lexer("@");
 
   EXPECT_THROW(lexer.scanTokens(), std::invalid_argument);
+}
+
+TEST(LexerTest, ScansSingleBangAndEof) {
+  Lexer lexer("!");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::BANG)) + " ! nil",
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
+TEST(LexerTest, ScansSingleBangEqualAndEof) {
+  Lexer lexer("!=");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::BANG_EQUAL)) + " != nil",
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+  ;
 }
