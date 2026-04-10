@@ -29,6 +29,21 @@
           '';
         };
 
+        dev-test = pkgs.writeShellApplication {
+          name = "dev-test";
+          meta.description = "Run test suite.";
+          runtimeInputs = with pkgs; [
+            cmake
+            ninja
+          ];
+          text = ''
+            set -euo pipefail
+            cmake -S lang -B .nix-dev/build
+            cmake --build .nix-dev/build
+            ctest --test-dir .nix-dev/build --output-on-failure
+          '';
+        };
+
         invariants = pkgs.clangStdenv.mkDerivation {
           pname = "invariants";
           version = "0.1.0";
@@ -71,6 +86,12 @@
             type = "app";
             program = "${dev-configure}/bin/dev-configure";
             meta.description = "Configure the local CMake build directory.";
+          };
+
+          test = {
+            type = "app";
+            program = "${dev-test}/bin/dev-test";
+            meta.description = "Run test suites.";
           };
         };
 
