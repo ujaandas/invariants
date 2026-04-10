@@ -16,6 +16,14 @@ hooks = [
     stages = ["pre-commit"]
   },
   {
+    id = "nix-test-configure",
+    name = "run test suite",
+    entry = "nix run .#test",
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-commit"]
+  },
+  {
     id = "clang-format",
     name = "run clang-format",
     entry = "nix develop -c clang-format",
