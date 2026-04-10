@@ -7,7 +7,7 @@
 using invariants::lexer::Token;
 using invariants::lexer::TokenType;
 
-TEST(TokenToStringTest, UsesLexemeAndStringLiteral) {
+TEST(TokenToStringTest, FormatsStringLiteral) {
   const Token token(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
                     1);
 
