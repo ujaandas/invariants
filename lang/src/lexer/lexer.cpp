@@ -27,12 +27,12 @@ void Lexer::scanToken() {
     if (curr >= source.length()) return false;
     if (source[curr] != expected) return false;
 
-    curr++;
+    advance();
 
     return true;
   };
 
-  // Lookahead - advance, but don't consume
+  // Lookahead without consuming
   auto peek = [this]() {
     if (curr >= source.length()) return '\0';
     return source[curr];
