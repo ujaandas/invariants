@@ -88,3 +88,58 @@ TEST(LexerTest, ScansSingleBangEqualAndEof) {
 
   EXPECT_EQ(tokens, expected);
 }
+
+TEST(LexerTest, ScansSingleDivideAndEof) {
+  Lexer lexer("/");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::SLASH)) + " / nil",
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
+TEST(LexerTest, ScansCommentAndEof) {
+  Lexer lexer("// this is a comment");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
+// TEST(LexerTest, ScansMultilineCommentAndEof) {
+//   Lexer lexer(
+//       "// this is a comment"
+//       "// this is another comment");
+
+//   const auto tokens = stringify(lexer.scanTokens());
+
+//   const std::vector<std::string> expected = {
+//       std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+//   };
+
+//   EXPECT_EQ(tokens, expected);
+// }
+
+// TEST(LexerTest, ScansMultilineCommentAndDivideAndEof) {
+//   Lexer lexer(
+//       "// this is a comment\n"
+//       "// this is another comment\n"
+//       "/");
+
+//   const auto tokens = stringify(lexer.scanTokens());
+
+//   const std::vector<std::string> expected = {
+//       std::to_string(static_cast<int>(TokenType::SLASH)) + " / nil",
+//       std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+//   };
+
+//   EXPECT_EQ(tokens, expected);
+// }
