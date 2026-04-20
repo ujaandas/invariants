@@ -26,6 +26,8 @@ std::vector<std::string> stringify(const std::vector<Token>& tokens) {
 
 }  // namespace
 
+// TODO: add tests for each token type
+
 TEST(LexerTest, ScansSingleBracketAndEof) {
   Lexer lexer("[");
 
@@ -85,5 +87,4 @@ TEST(LexerTest, ScansSingleBangEqualAndEof) {
   };
 
   EXPECT_EQ(tokens, expected);
-  ;
 }
