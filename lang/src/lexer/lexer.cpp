@@ -22,11 +22,20 @@ void Lexer::addToken(TokenType type, Literal literal) {
 void Lexer::scanToken() {
   char c = advance();
 
-  auto peekNextToken = [this](char expected) {
+  // Only consume the next token if its equal to what we expected
+  auto match = [this](char expected) {
     if (curr >= source.length()) return false;
-    if (source.at(curr) != expected) return false;
+    if (source[curr] != expected) return false;
+
     curr++;
+
     return true;
+  };
+
+  // Lookahead - advance, but don't consume
+  auto peek = [this]() {
+    if (curr >= source.length()) return '\0';
+    return source[curr];
   };
 
   switch (c) {
@@ -58,18 +67,44 @@ void Lexer::scanToken() {
     case '+':
       addToken(TokenType::PLUS);
       break;
-    case '/':
-      addToken(TokenType::SLASH);
-      break;
+    // case '/':
+    //   addToken(TokenType::SLASH);
+    //   break;
     case '*':
       addToken(TokenType::STAR);
       break;
     case '%':
       addToken(TokenType::PERCENTAGE);
       break;
+
     // Operators/possibly multi-char tokens
     case '!':
-      addToken(peekNextToken('=') ? TokenType::BANG_EQUAL : TokenType::BANG);
+      addToken(match('=') ? TokenType::BANG_EQUAL : TokenType::BANG);
+      break;
+    case '=':
+      addToken(match('=') ? TokenType::EQUAL_EQUAL : TokenType::EQUAL);
+      break;
+    case '>':
+      addToken(match('=') ? TokenType::GREATER_EQUAL : TokenType::GREATER);
+      break;
+    case '<':
+      addToken(match('=') ? TokenType::LESS_EQUAL : TokenType::LESS);
+      break;
+    case '-':
+      addToken(match('>') ? TokenType::ARROW : TokenType::MINUS);
+      break;
+
+    // Comment or divide?
+    case '/':
+      if (match('/')) {
+        // If next char is also '/', consume comment
+        while (peek() != '\n' && curr < source.length()) {
+          advance();
+        }
+      } else {
+        // Otherwise it's just a slash token
+        addToken(TokenType::SLASH);
+      }
       break;
 
     default:
