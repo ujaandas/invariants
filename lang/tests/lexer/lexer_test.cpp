@@ -114,6 +114,18 @@ TEST(LexerTest, ScansCommentAndEof) {
   EXPECT_EQ(tokens, expected);
 }
 
+TEST(LexerTest, ScannerIgnoresWhitespace) {
+  Lexer lexer(" ");
+
+  const auto tokens = stringify(lexer.scanTokens());
+
+  const std::vector<std::string> expected = {
+      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  };
+
+  EXPECT_EQ(tokens, expected);
+}
+
 // TEST(LexerTest, ScansMultilineCommentAndEof) {
 //   Lexer lexer(
 //       "// this is a comment"
