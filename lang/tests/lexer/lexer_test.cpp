@@ -84,7 +84,7 @@ TEST(LexerTest, ScansComment) {
   EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-TEST(LexerTest, ScannerIgnoresWhitespace) {
+TEST(LexerTest, ScansIgnoresWhitespace) {
   Lexer lexer(" ");
 
   const auto tokens = lexer.scanTokens();
@@ -93,19 +93,38 @@ TEST(LexerTest, ScannerIgnoresWhitespace) {
   EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-// TEST(LexerTest, ScansMultilineComment) {
-//   Lexer lexer(
-//       "// this is a comment"
-//       "// this is another comment");
+TEST(LexerTest, ScansNewline) {
+  Lexer lexer("\n");
 
-//   const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-//   const std::vector<std::string> expected = {
-//       std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-//   };
+  EXPECT_EQ(tokens.size(), 1);
+  EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 2));
+}
 
-//   EXPECT_EQ(tokens, expected);
-// }
+TEST(LexerTest, ScansMultipleCommentedLines) {
+  Lexer lexer(
+      "// this is a comment\n"
+      "// this is another comment\n");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 1);
+  EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 3));
+}
+
+TEST(LexerTest, ScansDivideAfterComments) {
+  Lexer lexer(
+      "// this is a comment\n"
+      "// this is another comment\n"
+      "/");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::SLASH, "/", 3));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 3));
+}
 
 // TEST(LexerTest, ScansMultilineCommentAndDivide) {
 //   Lexer lexer(
