@@ -126,18 +126,13 @@ TEST(LexerTest, ScansDivideAfterComments) {
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 3));
 }
 
-// TEST(LexerTest, ScansMultilineCommentAndDivide) {
-//   Lexer lexer(
-//       "// this is a comment\n"
-//       "// this is another comment\n"
-//       "/");
+TEST(LexerTest, ScansStringLiteral) {
+  Lexer lexer("\"Hello, World!\"");
 
-//   const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-//   const std::vector<std::string> expected = {
-//       std::to_string(static_cast<int>(TokenType::SLASH)) + " / nil",
-//       std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-//   };
-
-//   EXPECT_EQ(tokens, expected);
-// }
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_STRING, "\"Hello, World!\"",
+                             "Hello, World!", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}

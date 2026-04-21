@@ -114,10 +114,29 @@ void Lexer::scanToken() {
       break;
     case '\t':
       break;
-
     case '\n':
       line++;
       break;
+
+    // Handle string literals
+    case '"': {
+      while (peek() != '"' && curr < source.length()) {
+        if (peek() == '\n') line++;
+        advance();
+      }
+
+      if (curr >= source.length()) {
+        // TODO: replace with proper error handling
+        throw std::range_error("unterminated string");
+      }
+
+      // Consume closing quote
+      advance();
+      auto value = source.substr(start + 1, curr - start - 2);
+      addToken(TokenType::LIT_STRING, value);
+
+      break;
+    }
 
     default:
       // TODO: replace this with proper error handling
