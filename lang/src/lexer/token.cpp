@@ -32,6 +32,12 @@ Token::Token(TokenType type, std::string lexeme, Literal literal,
       literal(std::move(literal)),
       line(line) {}
 
+Token::Token(TokenType type, std::string lexeme, std::size_t line)
+    : type(type),
+      lexeme(std::move(lexeme)),
+      literal(std::monostate{}),
+      line(line) {}
+
 bool Token::operator==(const Token& other) const {
   return this->type == other.type && this->lexeme == other.lexeme &&
          this->literal == other.literal && this->line == other.line;

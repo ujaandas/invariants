@@ -3,9 +3,17 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <variant>
 
 using invariants::lexer::Token;
 using invariants::lexer::TokenType;
+
+TEST(TokenTest, NoLiteralCtorMatch) {
+  const Token token1(TokenType::EOF_TOKEN, "", 1);
+  const Token token2(TokenType::EOF_TOKEN, "", std::monostate{}, 1);
+
+  EXPECT_EQ(token1, token2);
+}
 
 TEST(TokenOperatorTest, EqualWhenAllFieldsMatch) {
   const Token token1(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
