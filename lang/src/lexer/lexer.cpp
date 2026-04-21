@@ -107,6 +107,18 @@ void Lexer::scanToken() {
       }
       break;
 
+    // Handle newline/whitespace
+    case ' ':
+      break;
+    case '\r':
+      break;
+    case '\t':
+      break;
+
+    case '\n':
+      line++;
+      break;
+
     default:
       // TODO: replace this with proper error handling
       throw std::invalid_argument("received invalid token");
