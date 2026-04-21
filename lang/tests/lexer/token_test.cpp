@@ -7,6 +7,45 @@
 using invariants::lexer::Token;
 using invariants::lexer::TokenType;
 
+TEST(TokenOperatorTest, EqualWhenAllFieldsMatch) {
+  const Token token1(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
+                     1);
+  const Token token2(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
+                     1);
+
+  EXPECT_EQ(token1, token2);
+}
+
+TEST(TokenOperatorTest, NotEqualWhenTypeDiffers) {
+  const Token token1(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
+                     1);
+  const Token token2(TokenType::LIT_NUMBER, "\"hello\"", std::string("hello"),
+                     1);
+
+  EXPECT_NE(token1, token2);
+}
+
+TEST(TokenOperatorTest, NotEqualWhenLexemeDiffers) {
+  Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
+  Token b(TokenType::LIT_STRING, "\"world\"", std::string("hello"), 1);
+
+  EXPECT_NE(a, b);
+}
+
+TEST(TokenOperatorTest, NotEqualWhenLiteralDiffers) {
+  Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
+  Token b(TokenType::LIT_STRING, "\"hello\"", std::string("world"), 1);
+
+  EXPECT_NE(a, b);
+}
+
+TEST(TokenOperatorTest, NotEqualWhenLineDiffers) {
+  Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
+  Token b(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 2);
+
+  EXPECT_NE(a, b);
+}
+
 TEST(TokenToStringTest, FormatsStringLiteral) {
   const Token token(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
                     1);

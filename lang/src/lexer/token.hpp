@@ -79,6 +79,8 @@ class Token {
 
  public:
   Token(TokenType type, std::string lexeme, Literal literal, std::size_t line);
+  bool operator==(const Token& other) const;
+  bool operator!=(const Token& other) const;
   std::string toString() const;
 };
 
