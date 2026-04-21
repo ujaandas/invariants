@@ -15,7 +15,7 @@ TEST(TokenTest, NoLiteralCtorMatch) {
   EXPECT_EQ(token1, token2);
 }
 
-TEST(TokenOperatorTest, EqualWhenAllFieldsMatch) {
+TEST(TokenTest, EqualWhenAllFieldsMatch) {
   const Token token1(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
                      1);
   const Token token2(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
@@ -24,7 +24,7 @@ TEST(TokenOperatorTest, EqualWhenAllFieldsMatch) {
   EXPECT_EQ(token1, token2);
 }
 
-TEST(TokenOperatorTest, NotEqualWhenTypeDiffers) {
+TEST(TokenTest, NotEqualWhenTypeDiffers) {
   const Token token1(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
                      1);
   const Token token2(TokenType::LIT_NUMBER, "\"hello\"", std::string("hello"),
@@ -33,28 +33,28 @@ TEST(TokenOperatorTest, NotEqualWhenTypeDiffers) {
   EXPECT_NE(token1, token2);
 }
 
-TEST(TokenOperatorTest, NotEqualWhenLexemeDiffers) {
+TEST(TokenTest, NotEqualWhenLexemeDiffers) {
   Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
   Token b(TokenType::LIT_STRING, "\"world\"", std::string("hello"), 1);
 
   EXPECT_NE(a, b);
 }
 
-TEST(TokenOperatorTest, NotEqualWhenLiteralDiffers) {
+TEST(TokenTest, NotEqualWhenLiteralDiffers) {
   Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
   Token b(TokenType::LIT_STRING, "\"hello\"", std::string("world"), 1);
 
   EXPECT_NE(a, b);
 }
 
-TEST(TokenOperatorTest, NotEqualWhenLineDiffers) {
+TEST(TokenTest, NotEqualWhenLineDiffers) {
   Token a(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 1);
   Token b(TokenType::LIT_STRING, "\"hello\"", std::string("hello"), 2);
 
   EXPECT_NE(a, b);
 }
 
-TEST(TokenToStringTest, FormatsStringLiteral) {
+TEST(TokenTest, FormatsStringLiteral) {
   const Token token(TokenType::LIT_STRING, "\"hello\"", std::string("hello"),
                     1);
 
@@ -64,7 +64,7 @@ TEST(TokenToStringTest, FormatsStringLiteral) {
   EXPECT_EQ(token.toString(), expected);
 }
 
-TEST(TokenToStringTest, FormatsNumberLiteral) {
+TEST(TokenTest, FormatsNumberLiteral) {
   const Token token(TokenType::LIT_NUMBER, "3.5", 3.5, 2);
 
   const std::string expected =
@@ -72,7 +72,7 @@ TEST(TokenToStringTest, FormatsNumberLiteral) {
   EXPECT_EQ(token.toString(), expected);
 }
 
-TEST(TokenToStringTest, FormatsBooleanLiterals) {
+TEST(TokenTest, FormatsBooleanLiterals) {
   const Token trueToken(TokenType::LIT_BOOLEAN, "true", true, 3);
   const Token falseToken(TokenType::LIT_BOOLEAN, "false", false, 4);
 
@@ -85,7 +85,7 @@ TEST(TokenToStringTest, FormatsBooleanLiterals) {
   EXPECT_EQ(falseToken.toString(), falseExpected);
 }
 
-TEST(TokenToStringTest, FormatsNullLiteralAsNil) {
+TEST(TokenTest, FormatsNullLiteralAsNil) {
   const Token token(TokenType::LIT_NULL, "null", std::monostate{}, 5);
 
   const std::string expected =
