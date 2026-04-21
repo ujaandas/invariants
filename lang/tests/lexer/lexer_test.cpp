@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -13,45 +12,29 @@ using invariants::lexer::Lexer;
 using invariants::lexer::Token;
 using invariants::lexer::TokenType;
 
-namespace {
-
-std::vector<std::string> stringify(const std::vector<Token>& tokens) {
-  std::vector<std::string> out(tokens.size());
-
-  std::transform(tokens.begin(), tokens.end(), out.begin(),
-                 [](const Token& t) { return t.toString(); });
-
-  return out;
-}
-
-}  // namespace
-
 // TODO: add tests for each token type
 
-TEST(LexerTest, ScansSingleBracketAndEof) {
+TEST(LexerTest, ScansSingleBracket) {
   Lexer lexer("[");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::LEFT_BRACKET)) + " [ nil",
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LEFT_BRACKET, "[", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
 TEST(LexerTest, ScansSimplePunctuationSequence) {
   Lexer lexer("[]+;");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::LEFT_BRACKET)) + " [ nil",
-      std::to_string(static_cast<int>(TokenType::RIGHT_BRACKET)) + " ] nil",
-      std::to_string(static_cast<int>(TokenType::PLUS)) + " + nil",
-      std::to_string(static_cast<int>(TokenType::SEMICOLON)) + " ; nil",
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
+  const std::vector<Token> expected = {
+      Token(TokenType::LEFT_BRACKET, "[", 1),
+      Token(TokenType::RIGHT_BRACKET, "]", 1),
+      Token(TokenType::PLUS, "+", 1),
+      Token(TokenType::SEMICOLON, ";", 1),
+      Token(TokenType::EOF_TOKEN, "", 1),
   };
 
   EXPECT_EQ(tokens, expected);
@@ -59,74 +42,58 @@ TEST(LexerTest, ScansSimplePunctuationSequence) {
 
 TEST(LexerTest, ThrowsOnInvalidToken) {
   Lexer lexer("@");
-
   EXPECT_THROW(lexer.scanTokens(), std::invalid_argument);
 }
 
-TEST(LexerTest, ScansSingleBangAndEof) {
+TEST(LexerTest, ScansSingleBang) {
   Lexer lexer("!");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::BANG)) + " ! nil",
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::BANG, "!", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-TEST(LexerTest, ScansSingleBangEqualAndEof) {
+TEST(LexerTest, ScansBangEqual) {
   Lexer lexer("!=");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::BANG_EQUAL)) + " != nil",
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::BANG_EQUAL, "!=", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-TEST(LexerTest, ScansSingleDivideAndEof) {
+TEST(LexerTest, ScansSingleDivide) {
   Lexer lexer("/");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::SLASH)) + " / nil",
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::SLASH, "/", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-TEST(LexerTest, ScansCommentAndEof) {
+TEST(LexerTest, ScansComment) {
   Lexer lexer("// this is a comment");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 1);
+  EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
 TEST(LexerTest, ScannerIgnoresWhitespace) {
   Lexer lexer(" ");
 
-  const auto tokens = stringify(lexer.scanTokens());
+  const auto tokens = lexer.scanTokens();
 
-  const std::vector<std::string> expected = {
-      std::to_string(static_cast<int>(TokenType::EOF_TOKEN)) + "  nil",
-  };
-
-  EXPECT_EQ(tokens, expected);
+  EXPECT_EQ(tokens.size(), 1);
+  EXPECT_EQ(tokens[0], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
-// TEST(LexerTest, ScansMultilineCommentAndEof) {
+// TEST(LexerTest, ScansMultilineComment) {
 //   Lexer lexer(
 //       "// this is a comment"
 //       "// this is another comment");
@@ -140,7 +107,7 @@ TEST(LexerTest, ScannerIgnoresWhitespace) {
 //   EXPECT_EQ(tokens, expected);
 // }
 
-// TEST(LexerTest, ScansMultilineCommentAndDivideAndEof) {
+// TEST(LexerTest, ScansMultilineCommentAndDivide) {
 //   Lexer lexer(
 //       "// this is a comment\n"
 //       "// this is another comment\n"
