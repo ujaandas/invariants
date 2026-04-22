@@ -39,7 +39,8 @@ enum class TokenType : std::uint8_t {
   LIT_STRING,      // "hello there"
   LIT_NUMBER,      // 6.7
   LIT_INTEGER,     // 67
-  LIT_BOOLEAN,     // true/false
+  LIT_BOOLEAN_T,   // true
+  LIT_BOOLEAN_F,   // false
   LIT_NULL,        // null
 
   // Structural keywords

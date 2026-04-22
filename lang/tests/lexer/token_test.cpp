@@ -73,13 +73,14 @@ TEST(TokenTest, FormatsNumberLiteral) {
 }
 
 TEST(TokenTest, FormatsBooleanLiterals) {
-  const Token trueToken(TokenType::LIT_BOOLEAN, "true", true, 3);
-  const Token falseToken(TokenType::LIT_BOOLEAN, "false", false, 4);
+  const Token trueToken(TokenType::LIT_BOOLEAN_T, "true", true, 3);
+  const Token falseToken(TokenType::LIT_BOOLEAN_F, "false", false, 4);
 
   const std::string trueExpected =
-      std::to_string(static_cast<int>(TokenType::LIT_BOOLEAN)) + " true true";
+      std::to_string(static_cast<int>(TokenType::LIT_BOOLEAN_T)) + " true true";
   const std::string falseExpected =
-      std::to_string(static_cast<int>(TokenType::LIT_BOOLEAN)) + " false false";
+      std::to_string(static_cast<int>(TokenType::LIT_BOOLEAN_F)) +
+      " false false";
 
   EXPECT_EQ(trueToken.toString(), trueExpected);
   EXPECT_EQ(falseToken.toString(), falseExpected);
