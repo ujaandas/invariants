@@ -20,7 +20,7 @@ TEST(LexerTest, ScansSingleBracket) {
   const auto tokens = lexer.scanTokens();
 
   EXPECT_EQ(tokens.size(), 2);
-  EXPECT_EQ(tokens[0], Token(TokenType::LEFT_PAREN, "[", 1));
+  EXPECT_EQ(tokens[0], Token(TokenType::LEFT_BRACKET, "[", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
@@ -30,8 +30,8 @@ TEST(LexerTest, ScansSimplePunctuationSequence) {
   const auto tokens = lexer.scanTokens();
 
   const std::vector<Token> expected = {
-      Token(TokenType::LEFT_PAREN, "[", 1),
-      Token(TokenType::RIGHT_PAREN, "]", 1),
+      Token(TokenType::LEFT_BRACKET, "[", 1),
+      Token(TokenType::RIGHT_BRACKET, "]", 1),
       Token(TokenType::PLUS, "+", 1),
       Token(TokenType::SEMICOLON, ";", 1),
       Token(TokenType::EOF_TOKEN, "", 1),
