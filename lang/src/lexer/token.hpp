@@ -9,6 +9,8 @@ namespace invariants::lexer {
 
 enum class TokenType : std::uint8_t {
   // Single-character tokens
+  LEFT_PAREN,     // (
+  RIGHT_PAREN,    // )
   LEFT_BRACKET,   // [
   RIGHT_BRACKET,  // ]
   LEFT_BRACE,     // {
