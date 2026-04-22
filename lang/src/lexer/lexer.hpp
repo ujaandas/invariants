@@ -40,7 +40,7 @@ class Lexer {
   void addToken(TokenType type, Literal literal);
 
  public:
-  explicit Lexer(std::string source);
+  explicit Lexer(std::string_view source);
   std::vector<Token> scanTokens();
 };
 

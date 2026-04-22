@@ -9,7 +9,7 @@
 
 using namespace ::invariants::lexer;
 
-Lexer::Lexer(std::string source) : source(std::move(source)) {}
+Lexer::Lexer(std::string_view source) : source(std::move(source)) {}
 
 char Lexer::advance() { return source[curr++]; }
 
