@@ -143,7 +143,7 @@ TEST(LexerTest, ScansIntegerLiteral) {
   const auto tokens = lexer.scanTokens();
 
   EXPECT_EQ(tokens.size(), 2);
-  EXPECT_EQ(tokens[0], Token(TokenType::LIT_NUMBER, "123", 123.0, 1));
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_INTEGER, "123", 123, 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 

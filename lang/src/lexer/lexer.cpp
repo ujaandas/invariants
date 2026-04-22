@@ -154,16 +154,22 @@ void Lexer::scanToken() {
     default:
       // Can we clean this up? Put it into its own case?
       if (std::isdigit(static_cast<unsigned char>(c))) {
+        TokenType type = TokenType::LIT_INTEGER;
+
         while (std::isdigit(peek())) advance();
 
         if (peek() == '.' &&
             std::isdigit(static_cast<unsigned char>(peekNext()))) {
           advance();
+          type = TokenType::LIT_NUMBER;
           while (std::isdigit(static_cast<unsigned char>(peek()))) advance();
         }
 
-        addToken(TokenType::LIT_NUMBER,
-                 std::stod(source.substr(start, curr - start)));
+        if (type == TokenType::LIT_INTEGER) {
+          addToken(type, std::stoi(source.substr(start, curr - start)));
+        } else {
+          addToken(type, std::stod(source.substr(start, curr - start)));
+        }
 
       } else if (std::isalpha(static_cast<unsigned char>(c))) {
         while (std::isalnum(static_cast<unsigned char>(peek()))) advance();

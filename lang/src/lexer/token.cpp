@@ -17,6 +17,8 @@ std::string literalToString(const Literal& lit) {
           return value;
         } else if constexpr (std::is_same_v<T, double>) {
           return std::to_string(value);
+        } else if constexpr (std::is_same_v<T, int>) {
+          return std::to_string(value);
         } else if constexpr (std::is_same_v<T, bool>) {
           return value ? "true" : "false";
         }

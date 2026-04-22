@@ -69,6 +69,7 @@ enum class TokenType : std::uint8_t {
 
 using Literal = std::variant<std::monostate,  // null
                              std::string,     // identifiers + strings
+                             int,             // integers
                              double,          // numbers
                              bool             // booleans
                              >;
