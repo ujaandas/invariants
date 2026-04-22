@@ -157,7 +157,29 @@ void Lexer::scanToken() {
 
         addToken(TokenType::LIT_NUMBER,
                  std::stod(source.substr(start, curr - start)));
-      } else {
+
+      } else if (std::isalpha(c)) {
+        while (std::isalnum(peek())) advance();
+
+        std::string text = source.substr(start, curr - start);
+        TokenType type = keywords.contains(text) ? keywords.at(text)
+                                                 : TokenType::LIT_IDENTIFIER;
+
+        // Check if boolean and if so, add relevant literals
+        if (type == TokenType::LIT_BOOLEAN_T) {
+          addToken(type, true);
+          return;
+        }
+
+        if (type == TokenType::LIT_BOOLEAN_F) {
+          addToken(type, false);
+          return;
+        }
+
+        addToken(type);
+      }
+
+      else {
         // TODO: replace this with proper error handling
         throw std::invalid_argument("received invalid token");
       }

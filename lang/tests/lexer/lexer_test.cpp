@@ -171,3 +171,55 @@ TEST(LexerTest, ScansDoubleLiteral) {
 //   EXPECT_EQ(tokens[0], Token(TokenType::LIT_NUMBER, ".456", .456, 1));
 //   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 // }
+
+TEST(LexerTest, ScansIdentifier) {
+  Lexer lexer("foobar");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_IDENTIFIER, "foobar", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansSpecKeyword) {
+  Lexer lexer("spec");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_SPEC, "spec", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansBooleanKeyword) {
+  Lexer lexer("Boolean");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_BOOLEAN, "Boolean", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, DifferentiatesKeywordLiteralBooleanT) {
+  Lexer lexer("Boolean true");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 3);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_BOOLEAN, "Boolean", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::LIT_BOOLEAN_T, "true", true, 1));
+  EXPECT_EQ(tokens[2], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, DifferentiatesKeywordLiteralBooleanF) {
+  Lexer lexer("Boolean false");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 3);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_BOOLEAN, "Boolean", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::LIT_BOOLEAN_F, "false", false, 1));
+  EXPECT_EQ(tokens[2], Token(TokenType::EOF_TOKEN, "", 1));
+}
