@@ -1,5 +1,6 @@
 #include "lexer.hpp"
 
+#include <cctype>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -36,6 +37,12 @@ void Lexer::scanToken() {
   auto peek = [this]() {
     if (curr >= source.length()) return '\0';
     return source[curr];
+  };
+
+  // Lookahead + 1 without consuming
+  auto peekNext = [this]() {
+    if (curr + 1 >= source.length()) return '\0';
+    return source[curr + 1];
   };
 
   switch (c) {
@@ -139,8 +146,21 @@ void Lexer::scanToken() {
     }
 
     default:
-      // TODO: replace this with proper error handling
-      throw std::invalid_argument("received invalid token");
+      // Can we clean this up? Put it into its own case?
+      if (std::isdigit(c)) {
+        while (std::isdigit(peek())) advance();
+
+        if (peek() == '.' && std::isdigit(peekNext())) {
+          advance();
+          while (std::isdigit(peek())) advance();
+        }
+
+        addToken(TokenType::LIT_NUMBER,
+                 std::stod(source.substr(start, curr - start)));
+      } else {
+        // TODO: replace this with proper error handling
+        throw std::invalid_argument("received invalid token");
+      }
   }
 }
 

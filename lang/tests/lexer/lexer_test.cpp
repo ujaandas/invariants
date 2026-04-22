@@ -136,3 +136,38 @@ TEST(LexerTest, ScansStringLiteral) {
                              "Hello, World!", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
+
+TEST(LexerTest, ScansIntegerLiteral) {
+  Lexer lexer("123");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_NUMBER, "123", 123.0, 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansDoubleLiteral) {
+  Lexer lexer("123.456");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_NUMBER, "123.456", 123.456, 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+// TEST(LexerTest, LeadingDecimalIllegal) {
+//   Lexer lexer(".456");
+
+//   const auto tokens = lexer.scanTokens();
+
+//   for (auto& token : tokens) {
+//     std::cout << token.toString() << ",\n";
+//   }
+
+//   // .456 actually evaluates to tokens DOT, 456.000..., EOF
+//   EXPECT_EQ(tokens.size(), 3);
+//   EXPECT_EQ(tokens[0], Token(TokenType::LIT_NUMBER, ".456", .456, 1));
+//   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+// }
