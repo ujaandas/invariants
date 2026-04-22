@@ -153,19 +153,20 @@ void Lexer::scanToken() {
 
     default:
       // Can we clean this up? Put it into its own case?
-      if (std::isdigit(c)) {
+      if (std::isdigit(static_cast<unsigned char>(c))) {
         while (std::isdigit(peek())) advance();
 
-        if (peek() == '.' && std::isdigit(peekNext())) {
+        if (peek() == '.' &&
+            std::isdigit(static_cast<unsigned char>(peekNext()))) {
           advance();
-          while (std::isdigit(peek())) advance();
+          while (std::isdigit(static_cast<unsigned char>(peek()))) advance();
         }
 
         addToken(TokenType::LIT_NUMBER,
                  std::stod(source.substr(start, curr - start)));
 
-      } else if (std::isalpha(c)) {
-        while (std::isalnum(peek())) advance();
+      } else if (std::isalpha(static_cast<unsigned char>(c))) {
+        while (std::isalnum(static_cast<unsigned char>(peek()))) advance();
 
         std::string text = source.substr(start, curr - start);
         TokenType type = keywords.contains(text) ? keywords.at(text)
