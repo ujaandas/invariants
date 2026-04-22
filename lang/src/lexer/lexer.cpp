@@ -187,6 +187,8 @@ void Lexer::scanToken() {
 }
 
 std::vector<Token> Lexer::scanTokens() {
+  tokens.clear();
+
   while (curr < source.length()) {
     start = curr;
     scanToken();
