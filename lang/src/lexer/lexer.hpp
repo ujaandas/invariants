@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -30,9 +32,9 @@ class Lexer {
       {"NIN", TokenType::KW_NOT_IN},
       {"NI", TokenType::KW_CONTAINS},
   };
-  size_t start = 0;
-  size_t curr = 0;
-  size_t line = 1;
+  std::size_t start = 0;
+  std::size_t curr = 0;
+  std::size_t line = 1;
 
   void scanToken();
   char advance();
