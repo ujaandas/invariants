@@ -156,7 +156,7 @@ void Lexer::scanToken() {
       if (std::isdigit(static_cast<unsigned char>(c))) {
         TokenType type = TokenType::LIT_INTEGER;
 
-        while (std::isdigit(peek())) advance();
+        while (std::isdigit(static_cast<unsigned char>(peek()))) advance();
 
         if (peek() == '.' &&
             std::isdigit(static_cast<unsigned char>(peekNext()))) {
