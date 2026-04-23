@@ -22,6 +22,7 @@
             clang
             cmake
             ninja
+            gtest
           ];
           text = ''
             set -euo pipefail
@@ -33,8 +34,10 @@
           name = "dev-test";
           meta.description = "Run test suite.";
           runtimeInputs = with pkgs; [
+            clang
             cmake
             ninja
+            gtest
           ];
           text = ''
             set -euo pipefail
