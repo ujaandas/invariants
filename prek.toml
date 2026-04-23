@@ -5,26 +5,57 @@
 fail_fast = false
 
 [[repos]]
-repo = "https://github.com/pocc/pre-commit-hooks"
-rev = "v1.3.5"
+repo = "local"
 hooks = [
   {
-    id = "clang-format",
-    args = ["--style=file"],
-    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
+    id = "nix-dev-configure",
+    name = "run nix dev configure",
+    entry = "nix run .#configure",
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-commit"]
   },
-  { 
+  {
+    id = "clang-format",
+    name = "run clang-format",
+    entry = "nix develop -c clang-format",
+    args = ["--style=file", "-i"],
+    language = "system",
+    files = "\\.(c|cc|cpp|cxx|h|hpp)$",
+    stages = ["pre-commit"]
+  },
+  {
     id = "clang-tidy",
+    name = "run clang-tidy",
+    entry = "nix develop -c clang-tidy",
     args = ["-p=.nix-dev/build"],
-    files = "\\.(c|cc|cpp|cxx|h|hpp)$"
+    language = "system",
+    files = "\\.(c|cc|cpp|cxx|h|hpp)$",
+    stages = ["pre-commit"]
   },
   {
     id = "cppcheck",
+    name = "run cppcheck",
+    entry = "nix develop -c cppcheck",
     args = [
+      "--project=.nix-dev/build/compile_commands.json",
       "--enable=all",
       "--inline-suppr",
-      "--error-exitcode=1"
+      "--error-exitcode=1",
+      "--suppress=missingIncludeSystem",
+      "--suppress=unusedFunction",
+      "--suppress=unmatchedSuppression"
     ],
-    files = "\\.(c|cc|cpp|cxx)$"
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-commit"]
+  },
+  {
+    id = "nix-test-configure",
+    name = "run test suite",
+    entry = "nix run .#test",
+    language = "system",
+    pass_filenames = false,
+    stages = ["pre-push"]
   }
 ]
