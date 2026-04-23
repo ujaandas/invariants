@@ -57,10 +57,7 @@ bool Token::operator==(const Token& other) const {
          this->literal == other.literal && this->line == other.line;
 }
 
-bool Token::operator!=(const Token& other) const {
-  return !(this->type == other.type && this->lexeme == other.lexeme &&
-           this->literal == other.literal && this->line == other.line);
-}
+bool Token::operator!=(const Token& other) const { return !(*this == other); }
 
 std::string Token::toString() const {
   return std::to_string(static_cast<int>(type)) + " " + lexeme + " " +
