@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <sstream>
 #include <string>
 #include <variant>
 
@@ -92,4 +93,33 @@ TEST(TokenTest, FormatsNullLiteralAsNil) {
   const std::string expected =
       std::to_string(static_cast<int>(TokenType::LIT_NULL)) + " null null";
   EXPECT_EQ(token.toString(), expected);
+}
+
+TEST(TokenTest, FormatsIntegerLiteral) {
+  const Token token(TokenType::LIT_INTEGER, "42", 42, 9);
+
+  const std::string expected =
+      std::to_string(static_cast<int>(TokenType::LIT_INTEGER)) + " 42 42";
+  EXPECT_EQ(token.toString(), expected);
+}
+
+TEST(TokenTest, FormatsIdentifierWithNoLiteralAsNull) {
+  const Token token(TokenType::LIT_IDENTIFIER, "user_name", 11);
+
+  const std::string expected =
+      std::to_string(static_cast<int>(TokenType::LIT_IDENTIFIER)) +
+      " user_name null";
+  EXPECT_EQ(token.toString(), expected);
+}
+
+TEST(TokenTest, StreamOperatorIncludesTypeLexemeAndLine) {
+  const Token token(TokenType::KW_SPEC, "spec", 7);
+  std::ostringstream os;
+
+  os << token;
+
+  const std::string expected =
+      "Token{type=" + std::to_string(static_cast<int>(TokenType::KW_SPEC)) +
+      ", lexeme=\"spec\", line=7}";
+  EXPECT_EQ(os.str(), expected);
 }
