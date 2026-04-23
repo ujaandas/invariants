@@ -193,6 +193,11 @@ void Lexer::scanToken() {
           return;
         }
 
+        if (type == TokenType::LIT_IDENTIFIER) {
+          addToken(type, text);
+          return;
+        }
+
         addToken(type);
       }
 

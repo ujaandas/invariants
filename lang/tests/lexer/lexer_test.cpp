@@ -275,8 +275,8 @@ TEST(LexerTest, ScansIdentifiersWithUnderscoresAfterFirstChar) {
   Lexer lexer("foo_bar bar_2");
 
   const std::vector<Token> expected = {
-      Token{TokenType::LIT_IDENTIFIER, "foo_bar", 1},
-      Token{TokenType::LIT_IDENTIFIER, "bar_2", 1},
+      Token{TokenType::LIT_IDENTIFIER, "foo_bar", "foo_bar", 1},
+      Token{TokenType::LIT_IDENTIFIER, "bar_2", "bar_2", 1},
       Token{TokenType::EOF_TOKEN, "", 1},
   };
 
@@ -294,7 +294,7 @@ TEST(LexerTest, DifferentiatesKeywordAndIdentifierPrefixes) {
 
   const std::vector<Token> expected = {
       Token{TokenType::KW_SPEC, "spec", 1},
-      Token{TokenType::LIT_IDENTIFIER, "specX", 1},
+      Token{TokenType::LIT_IDENTIFIER, "specX", "specX", 1},
       Token{TokenType::KW_BOOLEAN, "Boolean", 1},
       Token{TokenType::LIT_BOOLEAN_T, "true", true, 1},
       Token{TokenType::LIT_BOOLEAN_F, "false", false, 1},
@@ -320,14 +320,14 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
 
   const std::vector<Token> expected = {
       Token{TokenType::KW_SPEC, "spec", 1},
-      Token{TokenType::LIT_IDENTIFIER, "User", 1},
+      Token{TokenType::LIT_IDENTIFIER, "User", "User", 1},
       Token{TokenType::LEFT_BRACE, "{", 1},
       Token{TokenType::KW_FIELD, "field", 2},
-      Token{TokenType::LIT_IDENTIFIER, "age", 2},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 2},
       Token{TokenType::COLON, ":", 2},
       Token{TokenType::KW_INTEGER, "Integer", 2},
       Token{TokenType::KW_CHECK, "check", 3},
-      Token{TokenType::LIT_IDENTIFIER, "age", 3},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 3},
       Token{TokenType::GREATER_EQUAL, ">=", 3},
       Token{TokenType::LIT_INTEGER, "18", 18, 3},
       Token{TokenType::RIGHT_BRACE, "}", 4},
@@ -342,7 +342,7 @@ TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
 
   const std::vector<Token> expected = {
       Token{TokenType::KW_CHECK, "check", 1},
-      Token{TokenType::LIT_IDENTIFIER, "age", 1},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
       Token{TokenType::GREATER_EQUAL, ">=", 1},
       Token{TokenType::LIT_INTEGER, "18", 18, 1},
       Token{TokenType::EOF_TOKEN, "", 1},
