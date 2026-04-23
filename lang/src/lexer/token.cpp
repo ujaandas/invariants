@@ -1,5 +1,6 @@
 #include "token.hpp"
 
+#include <ostream>
 #include <string>
 #include <variant>
 
@@ -26,6 +27,15 @@ std::string literalToString(const Literal& lit) {
       lit);
 }
 }  // namespace
+
+namespace invariants::lexer {
+
+std::ostream& operator<<(std::ostream& os, const Token& token) {
+  return os << "Token{type=" << static_cast<int>(token.type) << ", lexeme=\""
+            << token.lexeme << "\", line=" << token.line << "}";
+};
+
+}  // namespace invariants::lexer
 
 Token::Token(TokenType type, std::string lexeme, Literal literal,
              std::size_t line)

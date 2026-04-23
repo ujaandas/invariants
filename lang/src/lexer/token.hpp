@@ -87,6 +87,8 @@ class Token {
   bool operator==(const Token& other) const;
   bool operator!=(const Token& other) const;
   std::string toString() const;
+
+  friend std::ostream& operator<<(std::ostream& os, const Token& token);
 };
 
 }  // namespace invariants::lexer
