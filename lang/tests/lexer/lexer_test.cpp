@@ -23,9 +23,9 @@ void PrintTo(const TokenCase& tc, std::ostream* os) { *os << tc.name; }
 
 }  // namespace
 
-class LexerTest : public testing::TestWithParam<TokenCase> {};
+class LexerScansTokenTest : public testing::TestWithParam<TokenCase> {};
 
-TEST_P(LexerTest, ScansToken) {
+TEST_P(LexerScansTokenTest, ScansToken) {
   const auto& param = GetParam();
 
   Lexer lexer(param.input);
@@ -35,7 +35,7 @@ TEST_P(LexerTest, ScansToken) {
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    SingleChar, LexerTest,
+    SingleChar, LexerScansTokenTest,
     testing::Values(TokenCase{"(",
                               {Token{TokenType::LEFT_PAREN, "(", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -94,7 +94,7 @@ INSTANTIATE_TEST_SUITE_P(
                               "Percentage"}));
 
 INSTANTIATE_TEST_SUITE_P(
-    MultiChar, LexerTest,
+    MultiChar, LexerScansTokenTest,
     testing::Values(TokenCase{"!=",
                               {Token{TokenType::BANG_EQUAL, "!=", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -117,7 +117,7 @@ INSTANTIATE_TEST_SUITE_P(
                               "Arrow"}));
 
 INSTANTIATE_TEST_SUITE_P(
-    StructuralKeywords, LexerTest,
+    StructuralKeywords, LexerScansTokenTest,
     testing::Values(TokenCase{"spec",
                               {Token{TokenType::KW_SPEC, "spec", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -136,7 +136,7 @@ INSTANTIATE_TEST_SUITE_P(
                               "Invariant"}));
 
 INSTANTIATE_TEST_SUITE_P(
-    TypeKeywords, LexerTest,
+    TypeKeywords, LexerScansTokenTest,
     testing::Values(TokenCase{"Boolean",
                               {Token{TokenType::KW_BOOLEAN, "Boolean", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -163,7 +163,7 @@ INSTANTIATE_TEST_SUITE_P(
                               "Integer"}));
 
 INSTANTIATE_TEST_SUITE_P(
-    Operators, LexerTest,
+    Operators, LexerScansTokenTest,
     testing::Values(TokenCase{"IN",
                               {Token{TokenType::KW_IN, "IN", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
