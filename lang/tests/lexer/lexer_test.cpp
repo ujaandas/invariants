@@ -116,6 +116,25 @@ INSTANTIATE_TEST_SUITE_P(
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Arrow"}));
 
+INSTANTIATE_TEST_SUITE_P(
+    StructuralKeywords, LexerTest,
+    testing::Values(TokenCase{"spec",
+                              {Token{TokenType::KW_SPEC, "spec", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Spec"},
+                    TokenCase{"field",
+                              {Token{TokenType::KW_FIELD, "field", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Field"},
+                    TokenCase{"check",
+                              {Token{TokenType::KW_CHECK, "check", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Check"},
+                    TokenCase{"invariant",
+                              {Token{TokenType::KW_INVARIANT, "invariant", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Invariant"}));
+
 // TEST(LexerTest, ScansSimplePunctuationSequence) {
 //   Lexer lexer("[]+;");
 
