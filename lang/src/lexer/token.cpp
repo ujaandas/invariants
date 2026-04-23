@@ -12,7 +12,7 @@ std::string literalToString(const Literal& lit) {
         using T = std::decay_t<decltype(value)>;
 
         if constexpr (std::is_same_v<T, std::monostate>) {
-          return "nil";
+          return "null";
         } else if constexpr (std::is_same_v<T, std::string>) {
           return value;
         } else if constexpr (std::is_same_v<T, double>) {

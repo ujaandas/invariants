@@ -90,6 +90,6 @@ TEST(TokenTest, FormatsNullLiteralAsNil) {
   const Token token(TokenType::LIT_NULL, "null", std::monostate{}, 5);
 
   const std::string expected =
-      std::to_string(static_cast<int>(TokenType::LIT_NULL)) + " null nil";
+      std::to_string(static_cast<int>(TokenType::LIT_NULL)) + " null null";
   EXPECT_EQ(token.toString(), expected);
 }
