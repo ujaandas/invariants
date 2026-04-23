@@ -175,8 +175,10 @@ void Lexer::scanToken() {
         while (std::isalnum(static_cast<unsigned char>(peek()))) advance();
 
         std::string text = source.substr(start, curr - start);
-        TokenType type = keywords.contains(text) ? keywords.at(text)
-                                                 : TokenType::LIT_IDENTIFIER;
+
+        auto it = keywords.find(text);
+        TokenType type =
+            (it != keywords.end()) ? it->second : TokenType::LIT_IDENTIFIER;
 
         // Check if boolean and if so, add relevant literals
         if (type == TokenType::LIT_BOOLEAN_T) {

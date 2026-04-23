@@ -12,7 +12,7 @@ class Lexer {
  private:
   const std::string source;
   std::vector<Token> tokens;
-  std::unordered_map<std::string, TokenType> keywords{
+  inline static const std::unordered_map<std::string_view, TokenType> keywords{
       {"spec", TokenType::KW_SPEC},
       {"field", TokenType::KW_FIELD},
       {"check", TokenType::KW_CHECK},
