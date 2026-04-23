@@ -162,6 +162,21 @@ INSTANTIATE_TEST_SUITE_P(
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Integer"}));
 
+INSTANTIATE_TEST_SUITE_P(
+    Operators, LexerTest,
+    testing::Values(TokenCase{"IN",
+                              {Token{TokenType::KW_IN, "IN", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "In"},
+                    TokenCase{"NIN",
+                              {Token{TokenType::KW_NOT_IN, "NIN", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Not in"},
+                    TokenCase{"NI",
+                              {Token{TokenType::KW_CONTAINS, "NI", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Contains"}));
+
 // TEST(LexerTest, ScansSimplePunctuationSequence) {
 //   Lexer lexer("[]+;");
 
