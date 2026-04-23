@@ -336,3 +336,18 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
 
   EXPECT_EQ(lexer.scanTokens(), expected);
 }
+
+TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
+  Lexer lexer("check age >= 18");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::KW_CHECK, "check", 1},
+      Token{TokenType::LIT_IDENTIFIER, "age", 1},
+      Token{TokenType::GREATER_EQUAL, ">=", 1},
+      Token{TokenType::LIT_INTEGER, "18", 18, 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
+  };
+
+  EXPECT_EQ(lexer.scanTokens(), expected);
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
