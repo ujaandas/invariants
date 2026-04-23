@@ -172,7 +172,9 @@ void Lexer::scanToken() {
         }
 
       } else if (std::isalpha(static_cast<unsigned char>(c))) {
-        while (std::isalnum(static_cast<unsigned char>(peek()))) advance();
+        while (std::isalnum(static_cast<unsigned char>(peek())) ||
+               peek() == '_')
+          advance();
 
         std::string text = source.substr(start, curr - start);
 

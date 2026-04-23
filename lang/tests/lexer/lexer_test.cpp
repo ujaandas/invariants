@@ -182,6 +182,31 @@ TEST(LexerTest, ScansIdentifier) {
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
+TEST(LexerTest, ScansIdentifierPrependUnderscore) {
+  Lexer lexer("_foobar");
+  EXPECT_THROW(lexer.scanTokens(), std::invalid_argument);
+}
+
+TEST(LexerTest, ScansIdentifierAppendUnderscore) {
+  Lexer lexer("foobar_");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_IDENTIFIER, "foobar_", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansIdentifierMiddleUnderscore) {
+  Lexer lexer("foo_bar");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_IDENTIFIER, "foo_bar", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
 TEST(LexerTest, ScansSpecKeyword) {
   Lexer lexer("spec");
 
