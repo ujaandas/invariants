@@ -135,6 +135,33 @@ INSTANTIATE_TEST_SUITE_P(
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Invariant"}));
 
+INSTANTIATE_TEST_SUITE_P(
+    TypeKeywords, LexerTest,
+    testing::Values(TokenCase{"Boolean",
+                              {Token{TokenType::KW_BOOLEAN, "Boolean", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Boolean"},
+                    TokenCase{"Array",
+                              {Token{TokenType::KW_ARRAY, "Array", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Array"},
+                    TokenCase{"Null",
+                              {Token{TokenType::KW_NULL, "Null", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Null"},
+                    TokenCase{"String",
+                              {Token{TokenType::KW_STRING, "String", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "String"},
+                    TokenCase{"Number",
+                              {Token{TokenType::KW_NUMBER, "Number", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Number"},
+                    TokenCase{"Integer",
+                              {Token{TokenType::KW_INTEGER, "Integer", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Integer"}));
+
 // TEST(LexerTest, ScansSimplePunctuationSequence) {
 //   Lexer lexer("[]+;");
 
