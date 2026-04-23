@@ -2,6 +2,8 @@
 
 #include <ostream>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <variant>
 
 using namespace invariants::lexer;
