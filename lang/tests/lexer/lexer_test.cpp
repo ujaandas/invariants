@@ -14,13 +14,144 @@ using invariants::lexer::TokenType;
 
 // TODO: add tests for each token type
 
-TEST(LexerTest, ScansSingleBracket) {
+// Test each TokenType
+TEST(LexerTest, ScansTokens_LeftParen) {
+  Lexer lexer("(");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LEFT_PAREN, "(", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_RightParen) {
+  Lexer lexer(")");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::RIGHT_PAREN, ")", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_LeftBracket) {
   Lexer lexer("[");
 
   const auto tokens = lexer.scanTokens();
 
   EXPECT_EQ(tokens.size(), 2);
   EXPECT_EQ(tokens[0], Token(TokenType::LEFT_BRACKET, "[", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_RightBracket) {
+  Lexer lexer("]");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::RIGHT_BRACKET, "]", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_LeftBrace) {
+  Lexer lexer("{");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LEFT_BRACE, "{", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_RightBrace) {
+  Lexer lexer("}");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::RIGHT_BRACE, "}", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Colon) {
+  Lexer lexer(":");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::COLON, ":", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Comma) {
+  Lexer lexer(",");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::COMMA, ",", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Dot) {
+  Lexer lexer(".");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::DOT, ".", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Semicolon) {
+  Lexer lexer(";");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::SEMICOLON, ";", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Plus) {
+  Lexer lexer("+");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::PLUS, "+", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Slash) {
+  Lexer lexer("/");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::SLASH, "/", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Star) {
+  Lexer lexer("*");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::STAR, "*", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansTokens_Percentage) {
+  Lexer lexer("%");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::PERCENTAGE, "%", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
@@ -62,6 +193,86 @@ TEST(LexerTest, ScansBangEqual) {
 
   EXPECT_EQ(tokens.size(), 2);
   EXPECT_EQ(tokens[0], Token(TokenType::BANG_EQUAL, "!=", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansSingleEqual) {
+  Lexer lexer("=");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::EQUAL, "=", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansEqualEqual) {
+  Lexer lexer("==");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::EQUAL_EQUAL, "==", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansSingleGreater) {
+  Lexer lexer(">");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::GREATER, ">", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansGreaterEqual) {
+  Lexer lexer(">=");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::GREATER_EQUAL, ">=", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansSingleLess) {
+  Lexer lexer("<");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LESS, "<", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansLessEqual) {
+  Lexer lexer("<=");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LESS_EQUAL, "<=", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansSingleMinus) {
+  Lexer lexer("-");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::MINUS, "-", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansArrow) {
+  Lexer lexer("->");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::ARROW, "->", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
@@ -217,6 +428,36 @@ TEST(LexerTest, ScansSpecKeyword) {
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
+TEST(LexerTest, ScansFieldKeyword) {
+  Lexer lexer("field");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_FIELD, "field", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansCheckKeyword) {
+  Lexer lexer("check");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_CHECK, "check", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansInvariantKeyword) {
+  Lexer lexer("invariant");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_INVARIANT, "invariant", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
 TEST(LexerTest, ScansBooleanKeyword) {
   Lexer lexer("Boolean");
 
@@ -224,6 +465,86 @@ TEST(LexerTest, ScansBooleanKeyword) {
 
   EXPECT_EQ(tokens.size(), 2);
   EXPECT_EQ(tokens[0], Token(TokenType::KW_BOOLEAN, "Boolean", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansArrayKeyword) {
+  Lexer lexer("Array");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_ARRAY, "Array", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansNullKeyword) {
+  Lexer lexer("Null");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_NULL, "Null", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansStringKeyword) {
+  Lexer lexer("String");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_STRING, "String", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansNumberKeyword) {
+  Lexer lexer("Number");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_NUMBER, "Number", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansIntegerKeyword) {
+  Lexer lexer("Integer");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_INTEGER, "Integer", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansInKeyword) {
+  Lexer lexer("IN");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_IN, "IN", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansNotInKeyword) {
+  Lexer lexer("NIN");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_NOT_IN, "NIN", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansContainsKeyword) {
+  Lexer lexer("NI");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::KW_CONTAINS, "NI", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
 
@@ -247,4 +568,34 @@ TEST(LexerTest, DifferentiatesKeywordLiteralBooleanF) {
   EXPECT_EQ(tokens[0], Token(TokenType::KW_BOOLEAN, "Boolean", 1));
   EXPECT_EQ(tokens[1], Token(TokenType::LIT_BOOLEAN_F, "false", false, 1));
   EXPECT_EQ(tokens[2], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansLiteralBooleanTrue) {
+  Lexer lexer("true");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_BOOLEAN_T, "true", true, 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansLiteralBooleanFalse) {
+  Lexer lexer("false");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_BOOLEAN_F, "false", false, 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
+}
+
+TEST(LexerTest, ScansLiteralNull) {
+  Lexer lexer("null");
+
+  const auto tokens = lexer.scanTokens();
+
+  EXPECT_EQ(tokens.size(), 2);
+  EXPECT_EQ(tokens[0], Token(TokenType::LIT_NULL, "null", 1));
+  EXPECT_EQ(tokens[1], Token(TokenType::EOF_TOKEN, "", 1));
 }
