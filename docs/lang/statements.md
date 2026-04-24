@@ -38,7 +38,7 @@ An `invariant` operates at the `spec` level. It declares a **context-sensitive**
 
 ```
 invariant bulk_discount {
-    this.quantity > 500 -> this.total_price < (this.unit_price \* this.quantity);
+    this.quantity > 500 -> this.total_price < (this.unit_price * this.quantity);
 }
 ```
 

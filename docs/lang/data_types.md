@@ -1,6 +1,6 @@
 # Data Types
 
-`invariant` aims to maintain parity with the OpenAPI 3.0 spec. As such, the
+`invariants` aims to maintain parity with the OpenAPI 3.0 spec. As such, the
 supported types are also largely the same. The typical complexity of managing
 the custom "object" type defined by the OAS 3 is largely mitigated by the entire DSL
 being focused around `spec`s, which are basically just objects. This therefore
@@ -16,7 +16,7 @@ a type is as simple as follows:
 
 ## Mixed Types
 
-Mixed types (ie; to define a list with many possible types) is not supported.
+Mixed types (ie; to define a list with many possible types) are not supported.
 Prefer defining another `spec` and set that as your list type.
 
 ## Numbers

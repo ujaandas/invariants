@@ -8,7 +8,7 @@ spec BulkOrder {
         check: value <= 1000;
     }
 
-    field currency: number {
+    field currency: string {
         check: value in ["USD", "EUR", "GBP"];
     }
 
@@ -17,8 +17,6 @@ spec BulkOrder {
     invariant valid_total_price {
         this.total_price == this.unit_price * this.quantity;
     }
-
-    field quantity: integer { }
 
     invariant bulk_discount {
         this.quantity > 500 -> this.total_price < (this.unit_price * this.quantity);
