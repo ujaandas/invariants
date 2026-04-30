@@ -38,7 +38,6 @@ unary
     | "-" ), unary
     | postfix;
 
-(* TODO: Support array-indexing in lexer *)
 postfix
     = primary, { ".", IDENTIFIER
     | "[", expression, "]" };

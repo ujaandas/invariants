@@ -1,0 +1,18 @@
+(* Define possible types for checks *)
+type
+    = primitive_type
+    | array_type
+    | named_type;
+
+primitive_type
+    = "number"
+    | "integer"
+    | "string"
+    | "boolean";
+
+array_type
+    = "array", "<", type, ">";
+
+(* Support for specs as types *)
+named_type
+    = IDENTIFIER;
