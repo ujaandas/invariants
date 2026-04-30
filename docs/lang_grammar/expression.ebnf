@@ -1,0 +1,59 @@
+(* Expressions evaluated within checks and invariants *)
+expression
+    = implication;
+
+implication
+    = disjunction, { "->", disjunction };
+
+disjunction
+    = conjunction, { "||", conjunction };
+
+conjunction
+    = equality, { "&&", equality };
+
+equality
+    = comparison, { ( "=="
+    | "!=" ), comparison };
+
+comparison
+    = membership, { ( ">"
+    | ">="
+    | "<"
+    | "<=" ), membership };
+
+membership
+    = term, { "in", term };
+
+term
+    = factor, { ( "+"
+    | "-" ), factor };
+
+factor
+    = unary, { ( "*"
+    | "/" ), unary };
+
+unary
+    = ( "!"
+    | "-" ), unary
+    | postfix;
+
+postfix
+    = primary, { ".", IDENTIFIER };
+
+primary
+    = literal
+    | IDENTIFIER (* includes "value" *)
+    | "this"
+    | list
+    | "(", expression, ")";
+
+literal
+    = NUMBER
+    | INTEGER
+    | STRING
+    | "true"
+    | "false"
+    | "null";
+
+list
+    = "[", [ expression, { ",", expression } ], "]";
