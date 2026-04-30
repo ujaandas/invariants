@@ -3,7 +3,7 @@ expression
     = implication;
 
 implication
-    = disjunction, { "->", disjunction };
+    = disjunction, [ "->", implication ];
 
 disjunction
     = conjunction, { "||", conjunction };
@@ -22,7 +22,8 @@ comparison
     | "<=" ), membership };
 
 membership
-    = term, { "in", term };
+    = term, { ( "in"
+    | "not", "in" ), term };
 
 term
     = factor, { ( "+"
@@ -37,19 +38,21 @@ unary
     | "-" ), unary
     | postfix;
 
+(* TODO: Support array-indexing in lexer *)
 postfix
-    = primary, { ".", IDENTIFIER };
+    = primary, { ".", IDENTIFIER
+    | "[", expression, "]" };
 
 primary
     = literal
-    | IDENTIFIER (* includes "value" *)
     | "this"
+    | IDENTIFIER (* includes "value" *)
     | list
     | "(", expression, ")";
 
+(* TODO: Collapse number/integer into single number in lexer, store as double *)
 literal
     = NUMBER
-    | INTEGER
     | STRING
     | "true"
     | "false"
