@@ -1,7 +1,10 @@
 (* Top-level structural statements *)
 spec
-    = "spec", IDENTIFIER, "{", { field
-    | invariant }, "}";
+    = "spec", IDENTIFIER, "{", { spec_member }, "}";
+
+spec_member
+    = field
+    | invariant;
 
 field
     = "field", IDENTIFIER, ":", type, "{", { check }, "}";
