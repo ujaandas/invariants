@@ -1,4 +1,7 @@
 (* Top-level structural statements *)
+module
+    = { spec };
+
 spec
     = "spec", IDENTIFIER, "{", { spec_member }, "}";
 
@@ -7,10 +10,10 @@ spec_member
     | invariant;
 
 field
-    = "field", IDENTIFIER, ":", type, "{", { check }, "}";
-
-check
-    = "check", ":", expression, ";";
+    = "field", IDENTIFIER, ":", type, "{", { constraint }, "}";
 
 invariant
-    = "invariant", IDENTIFIER, "{", expression, ";", "}";
+    = "invariant", IDENTIFIER, "{", { constraint }, "}";
+
+constraint
+    = expression, ";";

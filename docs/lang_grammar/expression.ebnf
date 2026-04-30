@@ -22,8 +22,8 @@ comparison
     | "<=" ), membership };
 
 membership
-    = term, { ( "in"
-    | "not", "in" ), term };
+    = term, [ ( "in"
+    | "not", "in" ), term ];
 
 term
     = factor, { ( "+"
@@ -39,13 +39,16 @@ unary
     | postfix;
 
 postfix
-    = primary, { ".", IDENTIFIER
-    | "[", expression, "]" };
+    = primary, { postfix_op };
+
+postfix_op
+    = ".", IDENTIFIER
+    | "[", expression, "]";
 
 primary
     = literal
-    | "this"
     | IDENTIFIER (* includes "value" *)
+    | "this"
     | list
     | "(", expression, ")";
 
@@ -58,4 +61,4 @@ literal
     | "null";
 
 list
-    = "[", [ expression, { ",", expression } ], "]";
+    = "[", [ expression ], "]";

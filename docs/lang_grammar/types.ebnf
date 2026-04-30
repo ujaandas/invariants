@@ -1,18 +1,25 @@
 (* Define possible types for checks *)
 type
-    = primitive_type
-    | array_type
-    | named_type;
+    = union_type;
 
-primitive_type
+union_type
+    = intersection_type, { "|", intersection_type };
+
+primary_type
+    = simple_type
+    | array_type
+    | map_type
+    | "(", type, ")";
+
+simple_type
     = "number"
     | "integer"
     | "string"
-    | "boolean";
+    | "boolean"
+    | IDENTIFIER;
 
 array_type
     = "array", "<", type, ">";
 
-(* Support for specs as types *)
-named_type
-    = IDENTIFIER;
+map_type
+    = "map", "<", type, ",", type, ">";
