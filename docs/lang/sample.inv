@@ -1,15 +1,15 @@
 spec BulkOrder {
     field unit_price: Number {
-        check: value > 0.0;
+        value > 0.0;
     }
 
     field quantity: Integer {
-        check: value >= 1;
-        check: value <= 1000;
+        value >= 1;
+        value <= 1000;
     }
 
     field currency: String {
-        check: value in ["USD", "EUR", "GBP"];
+        value in ["USD", "EUR", "GBP"];
     }
 
     field total_price: Number { }
