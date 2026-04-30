@@ -1,0 +1,13 @@
+(* Top-level structural statements *)
+spec
+    = "spec", IDENTIFIER, "{", { field
+    | invariant }, "}";
+
+field
+    = "field", IDENTIFIER, ":", type, "{", { check }, "}";
+
+check
+    = "check", ":", expression, ";";
+
+invariant
+    = "invariant", IDENTIFIER, "{", expression, ";", "}";
