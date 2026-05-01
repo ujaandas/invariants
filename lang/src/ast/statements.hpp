@@ -7,30 +7,30 @@
 
 namespace invariants::ast {
 
-struct Constraint : Node {
+struct ConstraintStmt : Node {
   ExprPtr expression;
 };
 
-struct Invariant : Node {
+struct InvariantStmt : Node {
   IdentifierPtr identifier;
-  std::vector<Constraint> constraints;
+  std::vector<ConstraintStmt> constraints;
 };
 
-struct Field : Node {
+struct FieldStmt : Node {
   std::string identifier;
   TypePtr type;
-  std::vector<Constraint> constraints;
+  std::vector<ConstraintStmt> constraints;
 };
 
-using SpecMember = std::variant<Field, Invariant>;
+using SpecMember = std::variant<FieldStmt, InvariantStmt>;
 
-struct Spec : Node {
+struct SpecStmt : Node {
   std::string identifier;
   std::vector<SpecMember> members;
 };
 
-struct Module : Node {
-  std::vector<Spec> specs;
+struct ModuleStmt : Node {
+  std::vector<SpecStmt> specs;
 };
 
 }  // namespace invariants::ast
