@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <vector>
 
 #include "expression.hpp"
@@ -8,12 +7,8 @@
 
 namespace invariants::ast {
 
-struct Node {
-  virtual ~Node() = default;
-};
-
 struct Constraint : Node {
-  std::unique_ptr<Expr> expression;
+  ExprPtr expression;
 };
 
 struct Invariant : Node {
@@ -22,7 +17,7 @@ struct Invariant : Node {
 };
 
 struct Field : Node {
-  std::string identifier;
+  IdentifierPtr identifier;
   TypePtr type;
   std::vector<Constraint> constraints;
 };
@@ -30,7 +25,7 @@ struct Field : Node {
 using SpecMember = std::variant<Field, Invariant>;
 
 struct Spec : Node {
-  std::string identifier;
+  IdentifierPtr identifier;
   std::vector<SpecMember> members;
 };
 

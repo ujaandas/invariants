@@ -2,11 +2,12 @@
 
 #include <cstdint>
 #include <memory>
-#include <string>
-#include <variant>
+
+#include "expression.hpp"
+
 namespace invariants::ast {
 
-struct Type {
+struct Type : Node {
   virtual ~Type() = default;
 };
 
@@ -14,8 +15,12 @@ using TypePtr = std::unique_ptr<Type>;
 
 enum class BuiltinType : std::uint8_t { Number, Integer, String, Boolean };
 
+struct NamedType : Type {
+  std::string name;
+};
+
 struct SimpleType : Type {
-  std::variant<BuiltinType, std::string> value;
+  BuiltinType builtin;
 };
 
 // TODO: define constructors with std::move for Array and Map types
