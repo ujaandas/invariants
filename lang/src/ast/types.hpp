@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <variant>
 
 #include "expression.hpp"
 
@@ -15,12 +17,9 @@ using TypePtr = std::unique_ptr<Type>;
 
 enum class BuiltinType : std::uint8_t { Number, Integer, String, Boolean };
 
-struct NamedType : Type {
-  std::string name;
-};
-
+// TODO: Update lexer to emit this properly
 struct SimpleType : Type {
-  BuiltinType builtin;
+  std::variant<BuiltinType, std::string> value;
 };
 
 // TODO: define constructors with std::move for Array and Map types

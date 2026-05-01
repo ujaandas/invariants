@@ -12,12 +12,12 @@ struct Constraint : Node {
 };
 
 struct Invariant : Node {
-  std::string identifier;
+  IdentifierPtr identifier;
   std::vector<Constraint> constraints;
 };
 
 struct Field : Node {
-  IdentifierPtr identifier;
+  std::string identifier;
   TypePtr type;
   std::vector<Constraint> constraints;
 };
@@ -25,7 +25,7 @@ struct Field : Node {
 using SpecMember = std::variant<Field, Invariant>;
 
 struct Spec : Node {
-  IdentifierPtr identifier;
+  std::string identifier;
   std::vector<SpecMember> members;
 };
 
