@@ -1,0 +1,3 @@
+add_library(invariants_ast INTERFACE)
+
+target_include_directories(invariants_ast INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
