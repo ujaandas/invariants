@@ -47,8 +47,8 @@ To bound string length, access the implicitly available `.length` property:
 
 ```
 field username: string {
-    check: value.length >= 3;
-    check: value.length <= 20;
+    this.value.length >= 3;
+    this.value.length <= 20;
 }
 ```
 
@@ -58,7 +58,7 @@ Instead of relying on a dedicated `enum` array in the JSON schema, the DSL lever
 
 ```
 field currency: string {
-    check: value in ["USD", "GBP", "EUR"];
+    this.value in ["USD", "GBP", "EUR"];
 }
 ```
 
@@ -68,7 +68,7 @@ Booleans are strict binary types. The `invariants` scanner recognizes `true` and
 
 ## Null
 
-To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserved keyword. This allows for native empty-state checks (eg; `check: value != null;`).
+To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserved keyword. This allows for native empty-state checks (eg; `this.value != null;`).
 
 ## Arrays
 
