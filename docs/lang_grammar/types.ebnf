@@ -12,14 +12,14 @@ primary_type
     | "(", type, ")";
 
 simple_type
-    = "number"
-    | "integer"
-    | "string"
-    | "boolean"
+    = "Number"
+    | "Integer"
+    | "String"
+    | "Boolean"
     | IDENTIFIER;
 
 array_type
-    = "array", "<", type, ">";
+    = "Array", "<", type, ">";
 
 map_type
-    = "map", "<", type, ",", type, ">";
+    = "Map", "<", type, ",", type, ">";
