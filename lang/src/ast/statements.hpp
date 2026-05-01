@@ -44,7 +44,7 @@ struct Stmt {
   StmtT value;
 
   template <typename T>
-  Stmt(T v) : value(std::move(v)) {}
+  explicit Stmt(T v) : value(std::move(v)) {}
 };
 
 }  // namespace invariants::ast

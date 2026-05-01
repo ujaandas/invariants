@@ -83,7 +83,7 @@ struct Expr {
   ExprT value;
 
   template <typename T>
-  Expr(T v) : value(std::move(v)) {}
+  explicit Expr(T v) : value(std::move(v)) {}
 };
 
 }  // namespace invariants::ast

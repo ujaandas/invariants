@@ -32,7 +32,7 @@ struct Type {
   TypeT value;
 
   template <typename T>
-  Type(T v) : value(std::move(v)) {}
+  explicit Type(T v) : value(std::move(v)) {}
 };
 
 }  // namespace invariants::ast
