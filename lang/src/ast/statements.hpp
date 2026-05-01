@@ -7,32 +7,44 @@
 
 namespace invariants::ast {
 
-struct ConstraintStmt : Node {
+// Forward decl
+struct Stmt;
+using StmtPtr = std::unique_ptr<Stmt>;
+
+struct ConstraintStmt {
   ExprPtr expression;
 };
 
-struct SpecMember : Node {
-  virtual ~SpecMember() = default;
-};
-
-struct FieldStmt : SpecMember {
+struct FieldStmt {
   std::string identifier;
   TypePtr type;
   std::vector<ConstraintStmt> constraints;
 };
 
-struct InvariantStmt : SpecMember {
-  IdentifierPtr identifier;
+struct InvariantStmt {
+  std::string identifier;  // simplified (no need for IdentifierExpr)
   std::vector<ConstraintStmt> constraints;
 };
 
-struct SpecStmt : Node {
+using SpecMember = std::variant<FieldStmt, InvariantStmt>;
+
+struct SpecStmt {
   std::string identifier;
   std::vector<SpecMember> members;
 };
 
-struct ModuleStmt : Node {
+struct ModuleStmt {
   std::vector<SpecStmt> specs;
+};
+
+struct Stmt {
+  using StmtT = std::variant<ConstraintStmt, FieldStmt, InvariantStmt, SpecStmt,
+                             ModuleStmt>;
+
+  StmtT value;
+
+  template <typename T>
+  Stmt(T v) : value(std::move(v)) {}
 };
 
 }  // namespace invariants::ast

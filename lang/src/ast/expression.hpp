@@ -7,58 +7,46 @@
 
 namespace invariants::ast {
 
-struct Node {
-  virtual ~Node() = default;
-};
-
-struct Expr : Node {
-  virtual ~Expr() = default;
-};
-
+// Forward decl
+struct Expr;
 using ExprPtr = std::unique_ptr<Expr>;
 
-struct LiteralExpr : Expr {
+struct LiteralExpr {
   std::variant<double, std::string, bool, std::nullptr_t> value;
 };
 
-struct IdentifierExpr : Expr {
+struct IdentifierExpr {
   std::string name;
 };
 
-using IdentifierPtr = std::unique_ptr<IdentifierExpr>;
+struct ThisExpr {};
 
-struct ThisExpr : Expr {};
-
-struct ListExpr : Expr {
+struct ListExpr {
   std::vector<ExprPtr> elements;
 };
 
-struct GroupingExpr : Expr {
+struct GroupingExpr {
   ExprPtr expression;
 };
 
-struct PostfixOp {
-  virtual ~PostfixOp() = default;
-};
-
-using PostfixOpPtr = std::unique_ptr<PostfixOp>;
-
-struct MemberAccessOp : PostfixOp {
+struct MemberAccessOp {
   std::string member;
 };
 
-struct IndexOp : PostfixOp {
+struct IndexOp {
   ExprPtr index;
 };
 
-struct PostfixExpr : Expr {
+using PostfixOp = std::variant<MemberAccessOp, IndexOp>;
+
+struct PostfixExpr {
   ExprPtr base;
-  std::vector<PostfixOpPtr> ops;
+  std::vector<PostfixOp> ops;
 };
 
 enum class UnaryOp : std::uint8_t { Not, Negate };
 
-struct UnaryExpr : Expr {
+struct UnaryExpr {
   UnaryOp op;
   ExprPtr operand;
 };
@@ -82,9 +70,20 @@ enum class BinaryOp : std::uint8_t {
   Imply
 };
 
-struct BinaryExpr : Expr {
+struct BinaryExpr {
   ExprPtr left;
   BinaryOp op;
   ExprPtr right;
 };
+
+struct Expr {
+  using ExprT = std::variant<LiteralExpr, IdentifierExpr, ThisExpr, ListExpr,
+                             GroupingExpr, PostfixExpr, UnaryExpr, BinaryExpr>;
+
+  ExprT value;
+
+  template <typename T>
+  Expr(T v) : value(std::move(v)) {}
+};
+
 }  // namespace invariants::ast

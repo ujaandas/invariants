@@ -5,31 +5,34 @@
 #include <string>
 #include <variant>
 
-#include "expression.hpp"
-
 namespace invariants::ast {
 
-struct Type : Node {
-  virtual ~Type() = default;
-};
-
+// Forward decl
+struct Type;
 using TypePtr = std::unique_ptr<Type>;
 
 enum class BuiltinType : std::uint8_t { Number, Integer, String, Boolean };
 
-// TODO: Update lexer to emit this properly
-struct SimpleType : Type {
+struct SimpleType {
   std::variant<BuiltinType, std::string> value;
 };
 
-// TODO: define constructors with std::move for Array and Map types
-struct ArrayType : Type {
+struct ArrayType {
   TypePtr element;
 };
 
-struct MapType : Type {
+struct MapType {
   TypePtr key;
   TypePtr value;
+};
+
+struct Type {
+  using TypeT = std::variant<SimpleType, ArrayType, MapType>;
+
+  TypeT value;
+
+  template <typename T>
+  Type(T v) : value(std::move(v)) {}
 };
 
 }  // namespace invariants::ast
