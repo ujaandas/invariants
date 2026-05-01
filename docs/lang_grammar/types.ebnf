@@ -1,0 +1,30 @@
+(* Define possible types for checks *)
+(* type
+    = union_type;
+
+union_type
+    = intersection_type, { "|", intersection_type };
+
+intersection_type
+    = primary_type, { "&", primary_type }; *)
+type
+    = primary_type;
+
+primary_type
+    = simple_type
+    | array_type
+    | map_type
+    | "(", type, ")";
+
+simple_type
+    = "Number"
+    | "Integer"
+    | "String"
+    | "Boolean"
+    | IDENTIFIER;
+
+array_type
+    = "Array", "<", type, ">";
+
+map_type
+    = "Map", "<", type, ",", type, ">";

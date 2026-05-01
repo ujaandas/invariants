@@ -4,7 +4,7 @@ I figured it might help to note down the foundational concepts recognized by the
 
 ## 1. Statements
 
-Statements act as the structural scaffolding of the DSL. They do not evaluate to a value themselves; rather, they declare contracts, bind scope, and instruct the oracle on _when_ to execute a rule (ie; defining the semantic anchors). This encompasses the core keywords of the language, such as `spec`, `field`, `check`, and `invariant`.
+Statements act as the structural scaffolding of the DSL. They do not evaluate to a value themselves; rather, they declare contracts, bind scope, and instruct the oracle on _when_ to execute a rule (ie; defining the semantic anchors). This encompasses the core keywords of the language, such as `spec`, `field`, and `invariant`.
 
 More details about declarations and scope can be found in [statements.md](statements.md).
 

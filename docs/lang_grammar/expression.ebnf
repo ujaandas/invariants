@@ -1,0 +1,65 @@
+(* Expressions evaluated within checks and invariants *)
+expression
+    = implication;
+
+implication
+    = disjunction, [ "->", implication ];
+
+disjunction
+    = conjunction, { "||", conjunction };
+
+conjunction
+    = equality, { "&&", equality };
+
+equality
+    = comparison, { ( "=="
+    | "!=" ), comparison };
+
+comparison
+    = membership, { ( ">"
+    | ">="
+    | "<"
+    | "<=" ), membership };
+
+membership
+    = term, [ ( "in"
+    | "not", "in" ), term ];
+
+term
+    = factor, { ( "+"
+    | "-" ), factor };
+
+factor
+    = unary, { ( "*"
+    | "/"
+    | "%" ), unary };
+
+unary
+    = ( "!"
+    | "-" ), unary
+    | postfix;
+
+postfix
+    = primary, { postfix_op };
+
+postfix_op
+    = ".", IDENTIFIER
+    | "[", expression, "]";
+
+primary
+    = literal
+    | IDENTIFIER
+    | "this"
+    | list
+    | "(", expression, ")";
+
+(* TODO: Collapse number/integer into single number in lexer, store as double *)
+literal
+    = NUMBER
+    | STRING
+    | "true"
+    | "false"
+    | "null";
+
+list
+    = "[", [ expression, { ",", expression } ], "]";

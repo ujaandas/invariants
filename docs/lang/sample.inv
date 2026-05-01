@@ -1,18 +1,18 @@
 spec BulkOrder {
-    field unit_price: number {
-        check: value > 0.0;
+    field unit_price: Number {
+        value > 0.0;
     }
 
-    field quantity: integer {
-        check: value >= 1;
-        check: value <= 1000;
+    field quantity: Integer {
+        value >= 1;
+        value <= 1000;
     }
 
-    field currency: string {
-        check: value in ["USD", "EUR", "GBP"];
+    field currency: String {
+        value in ["USD", "EUR", "GBP"];
     }
 
-    field total_price: number { }
+    field total_price: Number { }
 
     invariant valid_total_price {
         this.total_price == this.unit_price * this.quantity;

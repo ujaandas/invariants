@@ -27,14 +27,14 @@ all numbers are promoted to C++ foundational types, respectively.
 
 ### Minimum and Maximum
 
-To define bounds for any number-typed `field`, simply define a `check` block
-inside the `field` with the `<` or `>` operators. This enables flexibility and
-removes any ambiguity (ie; minimum/maximum values in the OAS are inclusive, so a
-field like `exclusiveMinimum: true` must be added for exclusivity).
+To define bounds for any number-typed `field`, simply write a constraint
+expression inside the `field` block with the `<` or `>` operators. This enables
+flexibility and removes any ambiguity (ie; minimum/maximum values in the OAS are
+inclusive, so a field like `exclusiveMinimum: true` must be added for exclusivity).
 
 ### Multiples
 
-Again, checking for multiples is just a matter of defining a `check` block and
+Again, checking for multiples is just a matter of writing a constraint expression
 using the `%` operator.
 
 ## Strings
@@ -46,9 +46,9 @@ Strings map directly to standard C++ `std::string`. In standard OpenAPI, strings
 To bound string length, access the implicitly available `.length` property:
 
 ```
-field username: string {
-    check: value.length >= 3;
-    check: value.length <= 20;
+field username: String {
+    this.value.length >= 3;
+    this.value.length <= 20;
 }
 ```
 
@@ -57,8 +57,8 @@ field username: string {
 Instead of relying on a dedicated `enum` array in the JSON schema, the DSL leverages the `in` operator to verify set membership mathematically:
 
 ```
-field currency: string {
-    check: value in ["USD", "GBP", "EUR"];
+field currency: String {
+    this.value in ["USD", "GBP", "EUR"];
 }
 ```
 
@@ -68,11 +68,11 @@ Booleans are strict binary types. The `invariants` scanner recognizes `true` and
 
 ## Null
 
-To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserved keyword. This allows for native empty-state checks (eg; `check: value != null;`).
+To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserved keyword. This allows for native empty-state checks (eg; `this.value != null;`).
 
 ## Arrays
 
-Arrays are homogeneous lists of elements. The `invariants` parser treats `Array` as a standard base type identifier, but allows for structural parameterization via bracket notation to define the inner type (eg; `Array[string]` or `Array[BulkOrder]`).
+Arrays are homogeneous lists of elements. The `invariants` parser treats `Array` as a standard base type identifier, but allows for structural parameterization via bracket notation to define the inner type (eg; `Array<string>` or `Array<BulkOrder>`).
 
 Similar to strings, bounds constraints like OAS's `minItems` and `maxItems` are handled dynamically via the `.length` property on the array value.
 
