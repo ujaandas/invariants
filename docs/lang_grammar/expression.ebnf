@@ -62,4 +62,4 @@ literal
     | "null";
 
 list
-    = "[", [ expression ], "]";
+    = "[", [ expression, { ",", expression } ], "]";
