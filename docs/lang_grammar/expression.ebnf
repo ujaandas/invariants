@@ -48,7 +48,7 @@ postfix_op
 
 primary
     = literal
-    | IDENTIFIER (* includes "value" *)
+    | IDENTIFIER
     | "this"
     | list
     | "(", expression, ")";
