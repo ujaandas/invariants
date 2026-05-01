@@ -72,7 +72,7 @@ To support OpenAPI's nullable fields, the DSL also recognizes `null` as a reserv
 
 ## Arrays
 
-Arrays are homogeneous lists of elements. The `invariants` parser treats `Array` as a standard base type identifier, but allows for structural parameterization via bracket notation to define the inner type (eg; `Array[string]` or `Array[BulkOrder]`).
+Arrays are homogeneous lists of elements. The `invariants` parser treats `Array` as a standard base type identifier, but allows for structural parameterization via bracket notation to define the inner type (eg; `Array<string>` or `Array<BulkOrder>`).
 
 Similar to strings, bounds constraints like OAS's `minItems` and `maxItems` are handled dynamically via the `.length` property on the array value.
 
