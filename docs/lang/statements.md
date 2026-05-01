@@ -22,15 +22,15 @@ field quantity: integer { ... }
 
 Fields represent **context-free** anchors. The syntactic module ($M_{syn}$) validates these rules the moment the LLM completes the field's token generation.
 
-## 3. Check Statements (`check`)
+## 3. Constraints
 
-`check` statements exist exclusively inside `field` blocks. They accept a single boolean expression.
+Constraint statements exist inside both `field` and `invariant` blocks. They evaluate to a boolean expression.
 
 ```
-check: value >= 1;
+this.value >= 1;
 ```
 
-_Note:_ Multiple `check` statements within a single field implicitly act as a logical `AND`. If any `check` statement evaluates to `false`, the field is rejected.
+_Note:_ Multiple constraints within a single field implicitly act as a logical `AND`. If any constraint evaluates to `false`, the field/invariant is rejected.
 
 ## 4. Invariant Declarations (`invariant`)
 
