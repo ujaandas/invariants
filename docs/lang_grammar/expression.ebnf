@@ -31,7 +31,8 @@ term
 
 factor
     = unary, { ( "*"
-    | "/" ), unary };
+    | "/"
+    | "%" ), unary };
 
 unary
     = ( "!"
