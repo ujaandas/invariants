@@ -11,18 +11,20 @@ struct ConstraintStmt : Node {
   ExprPtr expression;
 };
 
-struct InvariantStmt : Node {
-  IdentifierPtr identifier;
-  std::vector<ConstraintStmt> constraints;
+struct SpecMember : Node {
+  virtual ~SpecMember() = default;
 };
 
-struct FieldStmt : Node {
+struct FieldStmt : SpecMember {
   std::string identifier;
   TypePtr type;
   std::vector<ConstraintStmt> constraints;
 };
 
-using SpecMember = std::variant<FieldStmt, InvariantStmt>;
+struct InvariantStmt : SpecMember {
+  IdentifierPtr identifier;
+  std::vector<ConstraintStmt> constraints;
+};
 
 struct SpecStmt : Node {
   std::string identifier;
