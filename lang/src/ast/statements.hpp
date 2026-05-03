@@ -1,5 +1,6 @@
 #pragma once
 
+#include <memory>
 #include <vector>
 
 #include "expression.hpp"
@@ -7,23 +8,21 @@
 
 namespace invariants::ast {
 
-// Forward decl
-struct Stmt;
-using StmtPtr = std::unique_ptr<Stmt>;
-
 struct ConstraintStmt {
   ExprPtr expression;
 };
 
+using ConstraintPtr = std::unique_ptr<ConstraintStmt>;
+
 struct FieldStmt {
   std::string identifier;
   TypePtr type;
-  std::vector<ConstraintStmt> constraints;
+  std::vector<ConstraintPtr> constraints;
 };
 
 struct InvariantStmt {
   std::string identifier;  // simplified (no need for IdentifierExpr)
-  std::vector<ConstraintStmt> constraints;
+  std::vector<ConstraintPtr> constraints;
 };
 
 using SpecMember = std::variant<FieldStmt, InvariantStmt>;
@@ -33,8 +32,10 @@ struct SpecStmt {
   std::vector<SpecMember> members;
 };
 
+using SpecPtr = std::unique_ptr<SpecStmt>;
+
 struct ModuleStmt {
-  std::vector<SpecStmt> specs;
+  std::vector<SpecPtr> specs;
 };
 
 struct Stmt {
