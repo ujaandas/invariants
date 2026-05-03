@@ -1,3 +1,3 @@
-add_library(invariants_ast INTERFACE)
+add_library(invariants_ast visitors/printer.cpp)
 
-target_include_directories(invariants_ast INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(invariants_ast PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
