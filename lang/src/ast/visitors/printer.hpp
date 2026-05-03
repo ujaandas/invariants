@@ -70,9 +70,9 @@ inline std::string to_string(BinaryOp op) {
     case BinaryOp::Modulo:
       return "%";
     case BinaryOp::And:
-      return "and";
+      return "&&";
     case BinaryOp::Or:
-      return "or";
+      return "||";
     case BinaryOp::Equal:
       return "==";
     case BinaryOp::NotEqual:
@@ -90,7 +90,7 @@ inline std::string to_string(BinaryOp op) {
     case BinaryOp::NotIn:
       return "not in";
     case BinaryOp::Imply:
-      return "=>";
+      return "->";
   }
   return "?";
 }

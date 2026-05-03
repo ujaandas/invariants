@@ -189,7 +189,7 @@ INSTANTIATE_TEST_SUITE_P(
                                   BinaryOp::Imply,
                                   expr_ptr(Expr(IdentifierExpr{"b"}))});
          },
-         "(a => b)"},
+         "(a -> b)"},
     }),
     [](const testing::TestParamInfo<ExprCase>& info) {
       return info.param.name;
@@ -326,7 +326,7 @@ TEST(AstTest, PrintsSimpleTree2) {
   auto out = Printer{}.print(Stmt(invariant("Access", std::move(constraints))));
 
   EXPECT_EQ(out,
-            "invariant Access { ((!active) or (user.role == \"admin\")); }");
+            "invariant Access { ((!active) || (user.role == \"admin\")); }");
 }
 
 TEST(AstTest, PrintsComplexTree1) {
