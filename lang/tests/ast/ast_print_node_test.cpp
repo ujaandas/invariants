@@ -287,3 +287,126 @@ INSTANTIATE_TEST_SUITE_P(
     [](const testing::TestParamInfo<TypeCase>& info) {
       return info.param.name;
     });
+
+TEST(AstTest, PrintsSimpleTree1) {
+  std::vector<ExprPtr> elements;
+  elements.emplace_back(expr_ptr(Expr(LiteralExpr{1.0})));
+  elements.emplace_back(expr_ptr(Expr(LiteralExpr{2.0})));
+  elements.emplace_back(expr_ptr(Expr(LiteralExpr{3.0})));
+
+  std::vector<Expr> constraints;
+  constraints.emplace_back(
+      Expr(BinaryExpr{expr_ptr(Expr(IdentifierExpr{"count"})), BinaryOp::In,
+                      expr_ptr(Expr(ListExpr{std::move(elements)}))}));
+
+  auto out = Printer{}.print(
+      Stmt(field("count", Type(SimpleType{BuiltinType::Integer}),
+                 std::move(constraints))));
+
+  EXPECT_EQ(
+      out,
+      "field count: Integer { (count in [1.000000, 2.000000, 3.000000]); }");
+}
+
+TEST(AstTest, PrintsSimpleTree2) {
+  std::vector<PostfixOp> role_ops;
+  role_ops.emplace_back(MemberAccessOp{"role"});
+
+  std::vector<Expr> constraints;
+  constraints.emplace_back(Expr(BinaryExpr{
+      expr_ptr(Expr(
+          UnaryExpr{UnaryOp::Not, expr_ptr(Expr(IdentifierExpr{"active"}))})),
+      BinaryOp::Or,
+      expr_ptr(Expr(BinaryExpr{
+          expr_ptr(Expr(PostfixExpr{expr_ptr(Expr(IdentifierExpr{"user"})),
+                                    std::move(role_ops)})),
+          BinaryOp::Equal,
+          expr_ptr(Expr(LiteralExpr{std::string("admin")}))}))}));
+
+  auto out = Printer{}.print(Stmt(invariant("Access", std::move(constraints))));
+
+  EXPECT_EQ(out,
+            "invariant Access { ((!active) or (user.role == \"admin\")); }");
+}
+
+TEST(AstTest, PrintsComplexTree1) {
+  std::vector<PostfixOp> index_ops;
+  index_ops.emplace_back(IndexOp{expr_ptr(Expr(LiteralExpr{0.0}))});
+  index_ops.emplace_back(IndexOp{expr_ptr(Expr(LiteralExpr{0.0}))});
+
+  std::vector<Expr> row_constraints;
+  row_constraints.emplace_back(Expr(BinaryExpr{
+      expr_ptr(Expr(PostfixExpr{expr_ptr(Expr(IdentifierExpr{"rows"})),
+                                std::move(index_ops)})),
+      BinaryOp::GreaterEqual, expr_ptr(Expr(LiteralExpr{0.0}))}));
+
+  std::vector<PostfixOp> length_ops;
+  length_ops.emplace_back(MemberAccessOp{"length"});
+
+  std::vector<Expr> invariant_constraints;
+  invariant_constraints.emplace_back(Expr(BinaryExpr{
+      expr_ptr(Expr(PostfixExpr{expr_ptr(Expr(IdentifierExpr{"rows"})),
+                                std::move(length_ops)})),
+      BinaryOp::GreaterEqual, expr_ptr(Expr(LiteralExpr{1.0}))}));
+
+  std::vector<SpecMember> members;
+  members.emplace_back(field("rows",
+                             Type(ArrayType{type_ptr(Type(ArrayType{type_ptr(
+                                 Type(SimpleType{BuiltinType::Integer}))}))}),
+                             std::move(row_constraints)));
+  members.emplace_back(invariant("Shape", std::move(invariant_constraints)));
+
+  auto out = Printer{}.print(Stmt(spec("Matrix", std::move(members))));
+
+  EXPECT_EQ(out,
+            "spec Matrix { field rows: Array<Array<Integer>> { "
+            "(rows[0.000000][0.000000] >= 0.000000); } invariant Shape { "
+            "(rows.length >= 1.000000); } }");
+}
+
+TEST(AstTest, PrintsComplexTree2) {
+  std::vector<Expr> tag_constraints;
+  tag_constraints.emplace_back(Expr(
+      BinaryExpr{expr_ptr(Expr(LiteralExpr{std::string("admin")})),
+                 BinaryOp::NotIn, expr_ptr(Expr(IdentifierExpr{"tags"}))}));
+
+  std::vector<PostfixOp> items_length_ops;
+  items_length_ops.emplace_back(MemberAccessOp{"length"});
+
+  std::vector<Expr> item_constraints;
+  item_constraints.emplace_back(Expr(BinaryExpr{
+      expr_ptr(Expr(PostfixExpr{expr_ptr(Expr(IdentifierExpr{"items"})),
+                                std::move(items_length_ops)})),
+      BinaryOp::GreaterEqual, expr_ptr(Expr(LiteralExpr{1.0}))}));
+
+  std::vector<Expr> owner_constraints;
+  owner_constraints.emplace_back(Expr(
+      BinaryExpr{expr_ptr(Expr(IdentifierExpr{"owner"})), BinaryOp::NotEqual,
+                 expr_ptr(Expr(LiteralExpr{nullptr}))}));
+
+  std::vector<SpecMember> user_members;
+  user_members.emplace_back(
+      field("name", Type(SimpleType{BuiltinType::String}), {}));
+  user_members.emplace_back(field(
+      "tags", Type(ArrayType{type_ptr(Type(SimpleType{BuiltinType::String}))}),
+      std::move(tag_constraints)));
+
+  std::vector<SpecMember> order_members;
+  order_members.emplace_back(field(
+      "items", Type(ArrayType{type_ptr(Type(SimpleType{std::string("Item")}))}),
+      std::move(item_constraints)));
+  order_members.emplace_back(
+      invariant("HasOwner", std::move(owner_constraints)));
+
+  std::vector<SpecStmt> specs;
+  specs.emplace_back(spec("User", std::move(user_members)));
+  specs.emplace_back(spec("Order", std::move(order_members)));
+
+  auto out = Printer{}.print(Stmt(module(std::move(specs))));
+
+  EXPECT_EQ(out,
+            "spec User { field name: String {} field tags: Array<String> { "
+            "(\"admin\" not in tags); } } spec Order { field items: "
+            "Array<Item> { (items.length >= 1.000000); } invariant HasOwner { "
+            "(owner != null); } }");
+}
