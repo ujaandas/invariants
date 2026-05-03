@@ -188,8 +188,8 @@ TEST(AstTest, FieldStmtOk) {
   FieldStmt field;
   field.identifier = "count";
   field.type = std::make_unique<Type>(SimpleType{BuiltinType::Integer});
-  field.constraints.emplace_back(
-      ConstraintStmt{std::make_unique<Expr>(LiteralExpr{true})});
+  field.constraints.emplace_back(std::make_unique<ConstraintStmt>(
+      std::make_unique<Expr>(LiteralExpr{true})));
 
   Stmt s(std::move(field));
 
@@ -201,15 +201,15 @@ TEST(AstTest, FieldStmtOk) {
   ASSERT_EQ(stmt.constraints.size(), 1u);
 
   const auto& c = stmt.constraints[0];
-  const auto& literal = std::get<LiteralExpr>(c.expression->value);
+  const auto& literal = std::get<LiteralExpr>(c->expression->value);
   EXPECT_EQ(std::get<bool>(literal.value), true);
 }
 
 TEST(AstTest, InvariantStmtOk) {
   InvariantStmt inv;
   inv.identifier = "NonEmpty";
-  inv.constraints.emplace_back(
-      ConstraintStmt{std::make_unique<Expr>(LiteralExpr{true})});
+  inv.constraints.emplace_back(std::make_unique<ConstraintStmt>(
+      std::make_unique<Expr>(LiteralExpr{true})));
 
   Stmt s(std::move(inv));
 
@@ -242,12 +242,12 @@ TEST(AstTest, ModuleStmtOk) {
       "name", std::make_unique<Type>(SimpleType{BuiltinType::String}), {}});
 
   ModuleStmt module;
-  module.specs.emplace_back(std::move(spec));
+  module.specs.emplace_back(std::make_unique<SpecStmt>(std::move(spec)));
 
   Stmt s(std::move(module));
 
   const auto& stmt = std::get<ModuleStmt>(s.value);
 
   ASSERT_EQ(stmt.specs.size(), 1u);
-  EXPECT_EQ(stmt.specs[0].identifier, "User");
+  EXPECT_EQ(stmt.specs[0]->identifier, "User");
 }
