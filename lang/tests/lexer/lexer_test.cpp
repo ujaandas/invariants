@@ -112,7 +112,15 @@ INSTANTIATE_TEST_SUITE_P(
                     TokenCase{"<",
                               {Token{TokenType::LESS, "<", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Less"}));
+                              "Less"},
+                    TokenCase{"&",
+                              {Token{TokenType::AMPERSAND, "&", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Ampersnad"},
+                    TokenCase{"|",
+                              {Token{TokenType::BAR, "|", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Bar"}));
 
 INSTANTIATE_TEST_SUITE_P(
     MultiChar, LexerScansTokenTest,
@@ -135,7 +143,15 @@ INSTANTIATE_TEST_SUITE_P(
                     TokenCase{"->",
                               {Token{TokenType::ARROW, "->", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Arrow"}));
+                              "Arrow"},
+                    TokenCase{"&&",
+                              {Token{TokenType::LOGICAL_AND, "&&", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "LogicalAnd"},
+                    TokenCase{"||",
+                              {Token{TokenType::LOGICAL_OR, "||", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "LogicalOr"}));
 
 INSTANTIATE_TEST_SUITE_P(
     StructuralKeywords, LexerScansTokenTest,
@@ -349,5 +365,27 @@ TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
   };
 
   EXPECT_EQ(lexer.scanTokens(), expected);
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
+
+TEST(LexerTest, ScansLogicalOperatorsOk) {
+  Lexer lexer("check age >= 18 && age < 80 || name == \"Jeff\"");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::KW_CHECK, "check", 1},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
+      Token{TokenType::GREATER_EQUAL, ">=", 1},
+      Token{TokenType::LIT_INTEGER, "18", 18, 1},
+      Token{TokenType::LOGICAL_AND, "&&", 1},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
+      Token{TokenType::LESS, "<", 1},
+      Token{TokenType::LIT_INTEGER, "80", 80, 1},
+      Token{TokenType::LOGICAL_OR, "||", 1},
+      Token{TokenType::LIT_IDENTIFIER, "name", "name", 1},
+      Token{TokenType::EQUAL_EQUAL, "==", 1},
+      Token{TokenType::LIT_STRING, "\"Jeff\"", "Jeff", 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
+  };
+
   EXPECT_EQ(lexer.scanTokens(), expected);
 }
