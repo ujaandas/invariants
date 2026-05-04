@@ -116,7 +116,7 @@ INSTANTIATE_TEST_SUITE_P(
                     TokenCase{"&",
                               {Token{TokenType::AMPERSAND, "&", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Ampersnad"},
+                              "Ampersand"},
                     TokenCase{"|",
                               {Token{TokenType::BAR, "|", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
