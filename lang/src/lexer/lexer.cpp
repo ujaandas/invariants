@@ -106,6 +106,12 @@ void Lexer::scanToken() {
     case '-':
       addToken(match('>') ? TokenType::ARROW : TokenType::MINUS);
       break;
+    case '|':
+      addToken(match('|') ? TokenType::LOGICAL_OR : TokenType::BAR);
+      break;
+    case '&':
+      addToken(match('&') ? TokenType::LOGICAL_AND : TokenType::AMPERSAND);
+      break;
 
     // Comment or divide?
     case '/':
