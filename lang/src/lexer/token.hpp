@@ -92,6 +92,8 @@ class Token {
   bool operator!=(const Token& other) const;
   std::string toString() const;
 
+  TokenType getType() const;
+
   friend std::ostream& operator<<(std::ostream& os, const Token& token);
 };
 
