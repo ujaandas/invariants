@@ -36,6 +36,10 @@ enum class TokenType : std::uint8_t {
   LESS_EQUAL,     // <=
   MINUS,          // -
   ARROW,          // ->
+  BAR,            // |
+  LOGICAL_OR,     // ||
+  AMPERSAND,      // &
+  LOGICAL_AND,    // &&
 
   // Literals
   LIT_IDENTIFIER,  // FooBar
@@ -49,7 +53,6 @@ enum class TokenType : std::uint8_t {
   // Structural keywords
   KW_SPEC,       // spec
   KW_FIELD,      // field
-  KW_CHECK,      // check
   KW_INVARIANT,  // invariant
 
   // Type keywords

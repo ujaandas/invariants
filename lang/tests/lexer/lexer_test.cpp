@@ -112,7 +112,15 @@ INSTANTIATE_TEST_SUITE_P(
                     TokenCase{"<",
                               {Token{TokenType::LESS, "<", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Less"}));
+                              "Less"},
+                    TokenCase{"&",
+                              {Token{TokenType::AMPERSAND, "&", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Ampersand"},
+                    TokenCase{"|",
+                              {Token{TokenType::BAR, "|", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Bar"}));
 
 INSTANTIATE_TEST_SUITE_P(
     MultiChar, LexerScansTokenTest,
@@ -135,7 +143,15 @@ INSTANTIATE_TEST_SUITE_P(
                     TokenCase{"->",
                               {Token{TokenType::ARROW, "->", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Arrow"}));
+                              "Arrow"},
+                    TokenCase{"&&",
+                              {Token{TokenType::LOGICAL_AND, "&&", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "LogicalAnd"},
+                    TokenCase{"||",
+                              {Token{TokenType::LOGICAL_OR, "||", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "LogicalOr"}));
 
 INSTANTIATE_TEST_SUITE_P(
     StructuralKeywords, LexerScansTokenTest,
@@ -147,10 +163,6 @@ INSTANTIATE_TEST_SUITE_P(
                               {Token{TokenType::KW_FIELD, "field", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Field"},
-                    TokenCase{"check",
-                              {Token{TokenType::KW_CHECK, "check", 1},
-                               Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Check"},
                     TokenCase{"invariant",
                               {Token{TokenType::KW_INVARIANT, "invariant", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -203,6 +215,17 @@ TEST(LexerTest, IgnoresWhitespaceAndTracksNewlineForEof) {
 
   const std::vector<Token> expected = {
       Token{TokenType::EOF_TOKEN, "", 2},
+  };
+
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
+
+TEST(LexerTest, RegressiveCheckIsPlainIdentifier) {
+  Lexer lexer("check");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::LIT_IDENTIFIER, "check", "check", 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
   };
 
   EXPECT_EQ(lexer.scanTokens(), expected);
@@ -315,7 +338,7 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
   Lexer lexer(
       "spec User {\n"
       "field age: Integer\n"
-      "check age >= 18\n"
+      "age >= 18\n"
       "}");
 
   const std::vector<Token> expected = {
@@ -326,7 +349,6 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 2},
       Token{TokenType::COLON, ":", 2},
       Token{TokenType::KW_INTEGER, "Integer", 2},
-      Token{TokenType::KW_CHECK, "check", 3},
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 3},
       Token{TokenType::GREATER_EQUAL, ">=", 3},
       Token{TokenType::LIT_INTEGER, "18", 18, 3},
@@ -338,10 +360,9 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
 }
 
 TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
-  Lexer lexer("check age >= 18");
+  Lexer lexer("age >= 18");
 
   const std::vector<Token> expected = {
-      Token{TokenType::KW_CHECK, "check", 1},
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
       Token{TokenType::GREATER_EQUAL, ">=", 1},
       Token{TokenType::LIT_INTEGER, "18", 18, 1},
@@ -349,5 +370,26 @@ TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
   };
 
   EXPECT_EQ(lexer.scanTokens(), expected);
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
+
+TEST(LexerTest, ScansLogicalOperatorsOk) {
+  Lexer lexer("age >= 18 && age < 80 || name == \"Jeff\"");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
+      Token{TokenType::GREATER_EQUAL, ">=", 1},
+      Token{TokenType::LIT_INTEGER, "18", 18, 1},
+      Token{TokenType::LOGICAL_AND, "&&", 1},
+      Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
+      Token{TokenType::LESS, "<", 1},
+      Token{TokenType::LIT_INTEGER, "80", 80, 1},
+      Token{TokenType::LOGICAL_OR, "||", 1},
+      Token{TokenType::LIT_IDENTIFIER, "name", "name", 1},
+      Token{TokenType::EQUAL_EQUAL, "==", 1},
+      Token{TokenType::LIT_STRING, "\"Jeff\"", "Jeff", 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
+  };
+
   EXPECT_EQ(lexer.scanTokens(), expected);
 }
