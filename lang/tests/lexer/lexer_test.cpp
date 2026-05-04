@@ -220,6 +220,17 @@ TEST(LexerTest, IgnoresWhitespaceAndTracksNewlineForEof) {
   EXPECT_EQ(lexer.scanTokens(), expected);
 }
 
+TEST(LexerTest, RegressiveCheckIsPlainIdentifier) {
+  Lexer lexer("check");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::LIT_IDENTIFIER, "check", "check", 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
+  };
+
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
+
 TEST(LexerTest, SkipsSingleLineComment) {
   Lexer lexer("// comment only");
 
