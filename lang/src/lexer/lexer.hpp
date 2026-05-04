@@ -17,7 +17,6 @@ class Lexer {
   inline static const std::unordered_map<std::string_view, TokenType> keywords{
       {"spec", TokenType::KW_SPEC},
       {"field", TokenType::KW_FIELD},
-      {"check", TokenType::KW_CHECK},
       {"invariant", TokenType::KW_INVARIANT},
       {"Boolean", TokenType::KW_BOOLEAN},
       {"true", TokenType::LIT_BOOLEAN_T},
