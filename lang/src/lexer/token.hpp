@@ -36,6 +36,10 @@ enum class TokenType : std::uint8_t {
   LESS_EQUAL,     // <=
   MINUS,          // -
   ARROW,          // ->
+  BAR,            // |
+  LOGICAL_OR,     // ||
+  AMPERSAND,      // &
+  LOGICAL_AND,    // &&
 
   // Literals
   LIT_IDENTIFIER,  // FooBar
