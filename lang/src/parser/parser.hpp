@@ -16,6 +16,8 @@ class Parser {
     requires(std::same_as<Ts, lexer::TokenType> && ...)
   bool match(Ts... tokens);
 
+  lexer::Token previous();
+
   // Expressions
   ast::ExprPtr expression();
   ast::ExprPtr implication();
