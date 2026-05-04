@@ -163,10 +163,6 @@ INSTANTIATE_TEST_SUITE_P(
                               {Token{TokenType::KW_FIELD, "field", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Field"},
-                    TokenCase{"check",
-                              {Token{TokenType::KW_CHECK, "check", 1},
-                               Token{TokenType::EOF_TOKEN, "", 1}},
-                              "Check"},
                     TokenCase{"invariant",
                               {Token{TokenType::KW_INVARIANT, "invariant", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -219,6 +215,17 @@ TEST(LexerTest, IgnoresWhitespaceAndTracksNewlineForEof) {
 
   const std::vector<Token> expected = {
       Token{TokenType::EOF_TOKEN, "", 2},
+  };
+
+  EXPECT_EQ(lexer.scanTokens(), expected);
+}
+
+TEST(LexerTest, RegressiveCheckIsPlainIdentifier) {
+  Lexer lexer("check");
+
+  const std::vector<Token> expected = {
+      Token{TokenType::LIT_IDENTIFIER, "check", "check", 1},
+      Token{TokenType::EOF_TOKEN, "", 1},
   };
 
   EXPECT_EQ(lexer.scanTokens(), expected);
@@ -331,7 +338,7 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
   Lexer lexer(
       "spec User {\n"
       "field age: Integer\n"
-      "check age >= 18\n"
+      "age >= 18\n"
       "}");
 
   const std::vector<Token> expected = {
@@ -342,7 +349,6 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 2},
       Token{TokenType::COLON, ":", 2},
       Token{TokenType::KW_INTEGER, "Integer", 2},
-      Token{TokenType::KW_CHECK, "check", 3},
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 3},
       Token{TokenType::GREATER_EQUAL, ">=", 3},
       Token{TokenType::LIT_INTEGER, "18", 18, 3},
@@ -354,10 +360,9 @@ TEST(LexerTest, ScansMixedProgramAndTracksTokenLines) {
 }
 
 TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
-  Lexer lexer("check age >= 18");
+  Lexer lexer("age >= 18");
 
   const std::vector<Token> expected = {
-      Token{TokenType::KW_CHECK, "check", 1},
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
       Token{TokenType::GREATER_EQUAL, ">=", 1},
       Token{TokenType::LIT_INTEGER, "18", 18, 1},
@@ -369,10 +374,9 @@ TEST(LexerTest, RepeatedScanTokensCallsReturnSameResult) {
 }
 
 TEST(LexerTest, ScansLogicalOperatorsOk) {
-  Lexer lexer("check age >= 18 && age < 80 || name == \"Jeff\"");
+  Lexer lexer("age >= 18 && age < 80 || name == \"Jeff\"");
 
   const std::vector<Token> expected = {
-      Token{TokenType::KW_CHECK, "check", 1},
       Token{TokenType::LIT_IDENTIFIER, "age", "age", 1},
       Token{TokenType::GREATER_EQUAL, ">=", 1},
       Token{TokenType::LIT_INTEGER, "18", 18, 1},
