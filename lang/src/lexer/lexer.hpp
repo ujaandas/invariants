@@ -30,7 +30,7 @@ class Lexer {
       {"IN", TokenType::KW_IN},
       {"NIN", TokenType::KW_NOT_IN},
       {"NI", TokenType::KW_CONTAINS},
-  };
+      {"this", TokenType::KW_THIS}};
   std::size_t start = 0;
   std::size_t curr = 0;
   std::size_t line = 1;

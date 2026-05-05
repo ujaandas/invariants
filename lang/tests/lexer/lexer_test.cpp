@@ -210,6 +210,13 @@ INSTANTIATE_TEST_SUITE_P(
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Contains"}));
 
+INSTANTIATE_TEST_SUITE_P(MiscKeywords, LexerScansTokenTest,
+                         testing::Values(TokenCase{
+                             "this",
+                             {Token{TokenType::KW_THIS, "this", 1},
+                              Token{TokenType::EOF_TOKEN, "", 1}},
+                             "This"}));
+
 TEST(LexerTest, IgnoresWhitespaceAndTracksNewlineForEof) {
   Lexer lexer(" \t\r\n");
 

@@ -68,6 +68,8 @@ enum class TokenType : std::uint8_t {
   KW_NOT_IN,    // NIN
   KW_CONTAINS,  // NI
 
+  KW_THIS,
+
   EOF_TOKEN,
 };
 
@@ -93,6 +95,8 @@ class Token {
   std::string toString() const;
 
   TokenType getType() const;
+  const Literal& getLiteral() const;
+  const std::string& getLexeme() const;
 
   friend std::ostream& operator<<(std::ostream& os, const Token& token);
 };
