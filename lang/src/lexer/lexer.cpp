@@ -199,6 +199,11 @@ void Lexer::scanToken() {
           return;
         }
 
+        if (type == TokenType::KW_THIS) {
+          addToken(type);
+          return;
+        }
+
         if (type == TokenType::LIT_IDENTIFIER) {
           addToken(type, text);
           return;
