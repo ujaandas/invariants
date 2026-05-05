@@ -58,6 +58,8 @@ invariants::ast::BinaryOp tokenToBinaryOp(invariants::lexer::TokenType type) {
 
 Parser::Parser(const std::vector<lexer::Token>& tokens) : tokens(tokens) {}
 
+ExprPtr Parser::parse() { return expression(); }
+
 ExprPtr Parser::expression() { return implication(); }
 
 ExprPtr Parser::implication() {
