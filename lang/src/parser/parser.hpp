@@ -14,9 +14,21 @@ class Parser {
 
   template <typename... Ts>
     requires(std::same_as<Ts, lexer::TokenType> && ...)
-  bool match(Ts... tokens);
+  bool match(Ts... types) {
+    auto matches = [this](lexer::TokenType type) { return check(type); };
+
+    if ((matches(types) || ...)) {
+      advance();
+      return true;
+    }
+    return false;
+  }
 
   lexer::Token previous();
+  lexer::Token peek() const;
+  lexer::Token advance();
+  bool check(lexer::TokenType type) const;
+  bool isAtEnd() const;
 
   // Expressions
   ast::ExprPtr expression();
@@ -30,9 +42,7 @@ class Parser {
   ast::ExprPtr factor();
   ast::ExprPtr unary();
   ast::ExprPtr postfix();
-  ast::ExprPtr postfixOp();
   ast::ExprPtr primary();
-  ast::ExprPtr literal();
   ast::ExprPtr list();
 
  public:
