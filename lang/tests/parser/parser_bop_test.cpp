@@ -67,13 +67,13 @@ INSTANTIATE_TEST_SUITE_P(
         // TokenToBinaryOpCase{"Percentage", TT::PERCENTAGE, BO::Modulo},
         // TokenToBinaryOpCase{"LAnd", TT::LOGICAL_AND, BO::And},
         // TokenToBinaryOpCase{"LOr", TT::LOGICAL_OR, BO::Or},
-        TokenToBinaryOpCase{"EqualEqual", TT::EQUAL_EQUAL, BO::Equal}
-        // TokenToBinaryOpCase{"NotEqual", TT::BANG_EQUAL, BO::NotEqual},
-        // TokenToBinaryOpCase{"Greater", TT::GREATER, BO::Greater},
-        // TokenToBinaryOpCase{"GreaterEqual", TT::GREATER_EQUAL,
-        //                     BO::GreaterEqual},
-        // TokenToBinaryOpCase{"Less", TT::LESS, BO::Less},
-        // TokenToBinaryOpCase{"LessEqual", TT::LESS_EQUAL, BO::LessEqual},
+        TokenToBinaryOpCase{"EqualEqual", TT::EQUAL_EQUAL, BO::Equal},
+        TokenToBinaryOpCase{"NotEqual", TT::BANG_EQUAL, BO::NotEqual},
+        TokenToBinaryOpCase{"Greater", TT::GREATER, BO::Greater},
+        TokenToBinaryOpCase{"GreaterEqual", TT::GREATER_EQUAL,
+                            BO::GreaterEqual},
+        TokenToBinaryOpCase{"Less", TT::LESS, BO::Less},
+        TokenToBinaryOpCase{"LessEqual", TT::LESS_EQUAL, BO::LessEqual}
         // TokenToBinaryOpCase{"MembershipIn", TT::KW_IN, BO::In},
         // TokenToBinaryOpCase{"MemberhsipNotIn", TT::KW_NOT_IN, BO::NotIn}
         ));

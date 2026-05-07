@@ -150,10 +150,11 @@ ExprPtr Parser::comparison() {
   ExprPtr left = membership();
 
   while (match(TT::GREATER, TT::GREATER_EQUAL, TT::LESS, TT::LESS_EQUAL)) {
+    auto opToken = previous();
+
     ExprPtr right = membership();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
