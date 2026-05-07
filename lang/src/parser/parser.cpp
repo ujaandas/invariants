@@ -133,10 +133,11 @@ ExprPtr Parser::equality() {
   ExprPtr left = comparison();
 
   while (match(TT::EQUAL_EQUAL, TT::BANG_EQUAL)) {
+    auto opToken = previous();
+
     ExprPtr right = comparison();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
