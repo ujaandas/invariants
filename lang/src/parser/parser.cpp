@@ -181,10 +181,11 @@ ExprPtr Parser::term() {
   ExprPtr left = factor();
 
   while (match(TT::PLUS, TT::MINUS)) {
+    auto opToken = previous();
+
     ExprPtr right = factor();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
