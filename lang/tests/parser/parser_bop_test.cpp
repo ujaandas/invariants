@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "expression.hpp"
-#include "gtest/gtest.h"
 #include "parser.hpp"
 #include "token.hpp"
 
@@ -13,14 +12,14 @@ using TT = invariants::lexer::TokenType;
 using BO = invariants::ast::BinaryOp;
 
 namespace {
-std::vector<invariants::lexer::Token> makeBinaryExpr(
-    invariants::lexer::TokenType op) {
-  using Token = invariants::lexer::Token;
+using Token = invariants::lexer::Token;
 
+std::vector<Token> makeBinaryExpr(invariants::lexer::TokenType op) {
   return {
       Token(TT::LIT_IDENTIFIER, "a", "a", 1),
       Token(op, "", std::monostate{}, 1),
       Token(TT::LIT_IDENTIFIER, "b", "b", 1),
+      Token(TT::EOF_TOKEN, "", std::monostate{}, 1),
   };
 }
 
@@ -54,6 +53,7 @@ TEST_P(ParserBinaryOpTest, ConvertsTokenToBinaryOp) {
   Parser parser(makeBinaryExpr(param.token));
   auto out = parser.parse();
 
+  ASSERT_NE(out, nullptr);
   EXPECT_EQ(*out, makeExpected(param.op));
 }
 
@@ -61,7 +61,7 @@ INSTANTIATE_TEST_SUITE_P(
     BinaryOps, ParserBinaryOpTest,
     testing::Values(
         TokenToBinaryOpCase{"Plus", TT::PLUS, BO::Add},
-        TokenToBinaryOpCase{"Minux", TT::MINUS, BO::Subtract},
+        TokenToBinaryOpCase{"Minus", TT::MINUS, BO::Subtract},
         TokenToBinaryOpCase{"Star", TT::STAR, BO::Multiply},
         TokenToBinaryOpCase{"Slash", TT::SLASH, BO::Divide},
         TokenToBinaryOpCase{"Percentage", TT::PERCENTAGE, BO::Modulo},

@@ -60,8 +60,13 @@ invariants::ast::BinaryOp tokenToBinaryOp(TT type) {
 
 Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens) {}
 
-Token Parser::peek() const { return tokens[curr]; }
+Token Parser::peek() const {
+  if (curr >= tokens.size()) {
+    throw std::runtime_error("Unexpected end of token stream");
+  }
 
+  return tokens[curr];
+}
 Token Parser::advance() {
   if (!isAtEnd()) {
     curr++;
@@ -78,8 +83,9 @@ bool Parser::check(TT type) const {
   return peek().getType() == type;
 }
 
-bool Parser::isAtEnd() const { return peek().getType() == TT::EOF_TOKEN; }
-
+bool Parser::isAtEnd() const {
+  return curr >= tokens.size() || tokens[curr].getType() == TT::EOF_TOKEN;
+}
 ExprPtr Parser::parse() { return expression(); }
 
 ExprPtr Parser::expression() { return implication(); }
@@ -127,10 +133,11 @@ ExprPtr Parser::equality() {
   ExprPtr left = comparison();
 
   while (match(TT::EQUAL_EQUAL, TT::BANG_EQUAL)) {
+    auto opToken = previous();
+
     ExprPtr right = comparison();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
@@ -143,10 +150,11 @@ ExprPtr Parser::comparison() {
   ExprPtr left = membership();
 
   while (match(TT::GREATER, TT::GREATER_EQUAL, TT::LESS, TT::LESS_EQUAL)) {
+    auto opToken = previous();
+
     ExprPtr right = membership();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
@@ -159,10 +167,11 @@ ExprPtr Parser::membership() {
   ExprPtr left = term();
 
   if (match(TT::KW_IN, TT::KW_NOT_IN)) {
+    auto opToken = previous();
+
     ExprPtr right = term();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     return std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
@@ -175,10 +184,11 @@ ExprPtr Parser::term() {
   ExprPtr left = factor();
 
   while (match(TT::PLUS, TT::MINUS)) {
+    auto opToken = previous();
+
     ExprPtr right = factor();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
@@ -191,10 +201,11 @@ ExprPtr Parser::factor() {
   ExprPtr left = unary();
 
   while (match(TT::STAR, TT::SLASH, TT::PERCENTAGE)) {
+    auto opToken = previous();
+
     ExprPtr right = unary();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});
@@ -228,7 +239,7 @@ ExprPtr Parser::postfix() {
       if (token.getType() != TT::LIT_IDENTIFIER) {
         throw std::runtime_error("Expected identifier after '.'");
       }
-      ops.push_back(ast::MemberAccessOp{token.getLexeme()});
+      ops.push_back(ast::MemberAccessOp{previous().getLexeme()});
     } else if (match(TT::LEFT_BRACKET)) {
       ExprPtr index = expression();
       if (!match(TT::RIGHT_BRACKET)) {
