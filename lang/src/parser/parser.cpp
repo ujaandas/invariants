@@ -201,10 +201,11 @@ ExprPtr Parser::factor() {
   ExprPtr left = unary();
 
   while (match(TT::STAR, TT::SLASH, TT::PERCENTAGE)) {
+    auto opToken = previous();
+
     ExprPtr right = unary();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     left = std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});

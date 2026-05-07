@@ -62,11 +62,11 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         TokenToBinaryOpCase{"Plus", TT::PLUS, BO::Add},
         TokenToBinaryOpCase{"Minus", TT::MINUS, BO::Subtract},
-        // TokenToBinaryOpCase{"Star", TT::STAR, BO::Multiply}
-        // TokenToBinaryOpCase{"Slash", TT::SLASH, BO::Divide},
-        // TokenToBinaryOpCase{"Percentage", TT::PERCENTAGE, BO::Modulo},
-        // TokenToBinaryOpCase{"LAnd", TT::LOGICAL_AND, BO::And},
-        // TokenToBinaryOpCase{"LOr", TT::LOGICAL_OR, BO::Or},
+        TokenToBinaryOpCase{"Star", TT::STAR, BO::Multiply},
+        TokenToBinaryOpCase{"Slash", TT::SLASH, BO::Divide},
+        TokenToBinaryOpCase{"Percentage", TT::PERCENTAGE, BO::Modulo},
+        TokenToBinaryOpCase{"LAnd", TT::LOGICAL_AND, BO::And},
+        TokenToBinaryOpCase{"LOr", TT::LOGICAL_OR, BO::Or},
         TokenToBinaryOpCase{"EqualEqual", TT::EQUAL_EQUAL, BO::Equal},
         TokenToBinaryOpCase{"NotEqual", TT::BANG_EQUAL, BO::NotEqual},
         TokenToBinaryOpCase{"Greater", TT::GREATER, BO::Greater},
