@@ -167,10 +167,11 @@ ExprPtr Parser::membership() {
   ExprPtr left = term();
 
   if (match(TT::KW_IN, TT::KW_NOT_IN)) {
+    auto opToken = previous();
+
     ExprPtr right = term();
 
-    auto prevToken = previous();
-    auto op = tokenToBinaryOp(prevToken.getType());
+    auto op = tokenToBinaryOp(opToken.getType());
 
     return std::make_unique<ast::Expr>(
         ast::BinaryExpr{std::move(left), op, std::move(right)});

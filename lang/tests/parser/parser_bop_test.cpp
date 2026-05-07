@@ -73,7 +73,6 @@ INSTANTIATE_TEST_SUITE_P(
         TokenToBinaryOpCase{"GreaterEqual", TT::GREATER_EQUAL,
                             BO::GreaterEqual},
         TokenToBinaryOpCase{"Less", TT::LESS, BO::Less},
-        TokenToBinaryOpCase{"LessEqual", TT::LESS_EQUAL, BO::LessEqual}
-        // TokenToBinaryOpCase{"MembershipIn", TT::KW_IN, BO::In},
-        // TokenToBinaryOpCase{"MemberhsipNotIn", TT::KW_NOT_IN, BO::NotIn}
-        ));
+        TokenToBinaryOpCase{"LessEqual", TT::LESS_EQUAL, BO::LessEqual},
+        TokenToBinaryOpCase{"MembershipIn", TT::KW_IN, BO::In},
+        TokenToBinaryOpCase{"MemberhsipNotIn", TT::KW_NOT_IN, BO::NotIn}));
