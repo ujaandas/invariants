@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "expression.hpp"
+#include "statements.hpp"
 #include "token.hpp"
 
 namespace invariants::parser {
@@ -30,6 +31,14 @@ class Parser {
   bool check(lexer::TokenType type) const;
   bool isAtEnd() const;
 
+  // Statements
+  ast::ModulePtr module();
+  ast::SpecPtr spec();
+  ast::SpecMember specMember();
+  ast::FieldPtr field();
+  ast::InvariantPtr invariant();
+  ast::ConstraintPtr constraint();
+
   // Expressions
   ast::ExprPtr expression();
   ast::ExprPtr implication();
@@ -47,7 +56,8 @@ class Parser {
 
  public:
   explicit Parser(const std::vector<lexer::Token>& tokens);
-  ast::ExprPtr parse();
+  ast::ExprPtr parseExpr();
+  ast::ModulePtr parseModule();
 };
 
 }  // namespace invariants::parser

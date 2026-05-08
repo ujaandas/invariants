@@ -51,7 +51,7 @@ TEST_P(ParserBinaryOpTest, ConvertsTokenToBinaryOp) {
   const auto& param = GetParam();
 
   Parser parser(makeBinaryExpr(param.token));
-  auto out = parser.parse();
+  auto out = parser.parseExpr();
 
   ASSERT_NE(out, nullptr);
   EXPECT_EQ(*out, makeExpected(param.op));

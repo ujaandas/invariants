@@ -1,12 +1,15 @@
 #include "parser.hpp"
 
+#include <functional>
 #include <memory>
 
 #include "expression.hpp"
+#include "statements.hpp"
 #include "token.hpp"
 
 using namespace invariants::parser;
-using ExprPtr = invariants::ast::ExprPtr;
+using namespace invariants::ast;
+
 using Token = invariants::lexer::Token;
 using TT = invariants::lexer::TokenType;
 
@@ -67,6 +70,7 @@ Token Parser::peek() const {
 
   return tokens[curr];
 }
+
 Token Parser::advance() {
   if (!isAtEnd()) {
     curr++;
@@ -86,7 +90,10 @@ bool Parser::check(TT type) const {
 bool Parser::isAtEnd() const {
   return curr >= tokens.size() || tokens[curr].getType() == TT::EOF_TOKEN;
 }
-ExprPtr Parser::parse() { return expression(); }
+
+ExprPtr Parser::parseExpr() { return expression(); }
+
+ModulePtr Parser::parseModule() { return module(); }
 
 ExprPtr Parser::expression() { return implication(); }
 
@@ -96,8 +103,8 @@ ExprPtr Parser::implication() {
   if (match(TT::ARROW)) {
     ExprPtr right = implication();
 
-    return std::make_unique<ast::Expr>(ast::BinaryExpr{
-        std::move(left), ast::BinaryOp::Imply, std::move(right)});
+    return std::make_unique<Expr>(
+        BinaryExpr{std::move(left), BinaryOp::Imply, std::move(right)});
   }
 
   return left;
@@ -109,8 +116,8 @@ ExprPtr Parser::disjunction() {
   while (match(TT::LOGICAL_OR)) {
     ExprPtr right = conjunction();
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), ast::BinaryOp::Or, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), BinaryOp::Or, std::move(right)});
   }
 
   return left;
@@ -122,8 +129,8 @@ ExprPtr Parser::conjunction() {
   while (match(TT::LOGICAL_AND)) {
     ExprPtr right = equality();
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), ast::BinaryOp::And, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), BinaryOp::And, std::move(right)});
   }
 
   return left;
@@ -139,8 +146,8 @@ ExprPtr Parser::equality() {
 
     auto op = tokenToBinaryOp(opToken.getType());
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), op, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), op, std::move(right)});
   }
 
   return left;
@@ -156,8 +163,8 @@ ExprPtr Parser::comparison() {
 
     auto op = tokenToBinaryOp(opToken.getType());
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), op, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), op, std::move(right)});
   }
 
   return left;
@@ -173,8 +180,8 @@ ExprPtr Parser::membership() {
 
     auto op = tokenToBinaryOp(opToken.getType());
 
-    return std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), op, std::move(right)});
+    return std::make_unique<Expr>(
+        BinaryExpr{std::move(left), op, std::move(right)});
   }
 
   return left;
@@ -190,8 +197,8 @@ ExprPtr Parser::term() {
 
     auto op = tokenToBinaryOp(opToken.getType());
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), op, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), op, std::move(right)});
   }
 
   return left;
@@ -207,8 +214,8 @@ ExprPtr Parser::factor() {
 
     auto op = tokenToBinaryOp(opToken.getType());
 
-    left = std::make_unique<ast::Expr>(
-        ast::BinaryExpr{std::move(left), op, std::move(right)});
+    left = std::make_unique<Expr>(
+        BinaryExpr{std::move(left), op, std::move(right)});
   }
 
   return left;
@@ -219,10 +226,10 @@ ExprPtr Parser::unary() {
     ExprPtr operand = unary();
 
     auto prevToken = previous();
-    ast::UnaryOp op = prevToken.getType() == TT::BANG ? ast::UnaryOp::Not
-                                                      : ast::UnaryOp::Negate;
+    UnaryOp op =
+        prevToken.getType() == TT::BANG ? UnaryOp::Not : UnaryOp::Negate;
 
-    return std::make_unique<ast::Expr>(ast::UnaryExpr{op, std::move(operand)});
+    return std::make_unique<Expr>(UnaryExpr{op, std::move(operand)});
   }
 
   return postfix();
@@ -231,7 +238,7 @@ ExprPtr Parser::unary() {
 ExprPtr Parser::postfix() {
   ExprPtr base = primary();
 
-  std::vector<ast::PostfixOp> ops;
+  std::vector<PostfixOp> ops;
 
   while (true) {
     if (match(TT::DOT)) {
@@ -239,13 +246,13 @@ ExprPtr Parser::postfix() {
       if (token.getType() != TT::LIT_IDENTIFIER) {
         throw std::runtime_error("Expected identifier after '.'");
       }
-      ops.push_back(ast::MemberAccessOp{previous().getLexeme()});
+      ops.push_back(MemberAccessOp{previous().getLexeme()});
     } else if (match(TT::LEFT_BRACKET)) {
       ExprPtr index = expression();
       if (!match(TT::RIGHT_BRACKET)) {
         throw std::runtime_error("Expected ']' after index expression");
       }
-      ops.push_back(ast::IndexOp{std::move(index)});
+      ops.push_back(IndexOp{std::move(index)});
     } else {
       break;
     }
@@ -255,49 +262,48 @@ ExprPtr Parser::postfix() {
     return base;
   }
 
-  return std::make_unique<ast::Expr>(
-      ast::PostfixExpr{std::move(base), std::move(ops)});
+  return std::make_unique<Expr>(PostfixExpr{std::move(base), std::move(ops)});
 }
 
 ExprPtr Parser::primary() {
   if (match(TT::LIT_BOOLEAN_T)) {
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{true});
+    return std::make_unique<Expr>(LiteralExpr{true});
   }
 
   if (match(TT::LIT_BOOLEAN_F)) {
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{false});
+    return std::make_unique<Expr>(LiteralExpr{false});
   }
 
   if (match(TT::LIT_NULL)) {
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{nullptr});
+    return std::make_unique<Expr>(LiteralExpr{nullptr});
   }
 
   if (match(TT::LIT_NUMBER)) {
     auto token = previous();
     auto value = std::get<double>(token.getLiteral());
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{value});
+    return std::make_unique<Expr>(LiteralExpr{value});
   }
 
   if (match(TT::LIT_INTEGER)) {
     auto token = previous();
     auto value = static_cast<double>(std::get<int>(token.getLiteral()));
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{value});
+    return std::make_unique<Expr>(LiteralExpr{value});
   }
 
   if (match(TT::LIT_STRING)) {
     auto token = previous();
     auto value = std::get<std::string>(token.getLiteral());
-    return std::make_unique<ast::Expr>(ast::LiteralExpr{value});
+    return std::make_unique<Expr>(LiteralExpr{value});
   }
 
   if (match(TT::LIT_IDENTIFIER)) {
     auto token = previous();
     auto name = std::get<std::string>(token.getLiteral());
-    return std::make_unique<ast::Expr>(ast::IdentifierExpr{name});
+    return std::make_unique<Expr>(IdentifierExpr{name});
   }
 
   if (match(TT::KW_THIS)) {
-    return std::make_unique<ast::Expr>(ast::ThisExpr{});
+    return std::make_unique<Expr>(ThisExpr{});
   }
 
   if (check(TT::LEFT_BRACKET)) {
@@ -309,7 +315,7 @@ ExprPtr Parser::primary() {
     if (!match(TT::RIGHT_PAREN)) {
       throw std::runtime_error("Expected ')' after expression");
     }
-    return std::make_unique<ast::Expr>(ast::GroupingExpr{std::move(expr)});
+    return std::make_unique<Expr>(GroupingExpr{std::move(expr)});
   }
 
   throw std::runtime_error("Expected primary expression");
@@ -320,7 +326,7 @@ ExprPtr Parser::list() {
     throw std::runtime_error("Expected '['");
   }
 
-  std::vector<ast::ExprPtr> elements;
+  std::vector<ExprPtr> elements;
 
   if (!check(TT::RIGHT_BRACKET)) {
     do {
@@ -332,5 +338,169 @@ ExprPtr Parser::list() {
     throw std::runtime_error("Expected ']' after list");
   }
 
-  return std::make_unique<ast::Expr>(ast::ListExpr{std::move(elements)});
+  return std::make_unique<Expr>(ListExpr{std::move(elements)});
+}
+
+// Statements
+ModulePtr Parser::module() {
+  std::vector<SpecPtr> specs;
+
+  while (!isAtEnd() && check(TT::KW_SPEC)) {
+    specs.push_back(spec());
+  }
+
+  return std::make_unique<ModuleStmt>(ModuleStmt{std::move(specs)});
+}
+
+SpecPtr Parser::spec() {
+  if (!match(TT::KW_SPEC)) {
+    throw std::runtime_error("Expected 'spec'");
+  }
+
+  if (!match(TT::LIT_IDENTIFIER)) {
+    throw std::runtime_error("Expected identifier after 'spec'");
+  }
+
+  auto nameTok = previous();
+  auto name = std::get<std::string>(nameTok.getLiteral());
+
+  if (!match(TT::LEFT_BRACE)) {
+    throw std::runtime_error("Expected '{' after spec identifier");
+  }
+
+  std::vector<SpecMember> members;
+
+  while (!isAtEnd() && !check(TT::RIGHT_BRACE)) {
+    members.push_back(specMember());
+  }
+
+  if (!match(TT::RIGHT_BRACE)) {
+    throw std::runtime_error("Expected '}' after spec body");
+  }
+
+  return std::make_unique<SpecStmt>(SpecStmt{name, std::move(members)});
+}
+
+SpecMember Parser::specMember() {
+  if (check(TT::KW_FIELD)) {
+    auto fptr = field();
+    return SpecMember{std::move(*fptr)};
+  }
+
+  if (check(TT::KW_INVARIANT)) {
+    auto iptr = invariant();
+    return SpecMember{std::move(*iptr)};
+  }
+
+  throw std::runtime_error("Expected spec member (field | invariant)");
+}
+
+FieldPtr Parser::field() {
+  if (!match(TT::KW_FIELD)) {
+    throw std::runtime_error("Expected 'field'");
+  }
+
+  if (!match(TT::LIT_IDENTIFIER)) {
+    throw std::runtime_error("Expected identifier after 'field'");
+  }
+
+  auto idTok = previous();
+  auto identifier = std::get<std::string>(idTok.getLiteral());
+
+  if (!match(TT::COLON)) {
+    throw std::runtime_error("Expected ':' after field identifier");
+  }
+
+  // parse type (simple recursive helper)
+  std::function<TypePtr()> parseType = [this, &parseType]() -> TypePtr {
+    if (match(TT::KW_NUMBER)) {
+      return std::make_unique<Type>(SimpleType{BuiltinType::Number});
+    }
+    if (match(TT::KW_INTEGER)) {
+      return std::make_unique<Type>(SimpleType{BuiltinType::Integer});
+    }
+    if (match(TT::KW_STRING)) {
+      return std::make_unique<Type>(SimpleType{BuiltinType::String});
+    }
+    if (match(TT::KW_BOOLEAN)) {
+      return std::make_unique<Type>(SimpleType{BuiltinType::Boolean});
+    }
+    if (match(TT::KW_ARRAY)) {
+      if (!match(TT::LESS)) {
+        throw std::runtime_error("Expected '<' after Array");
+      }
+      auto inner = parseType();
+      if (!match(TT::GREATER)) {
+        throw std::runtime_error("Expected '>' after Array element type");
+      }
+      return std::make_unique<Type>(ArrayType{std::move(inner)});
+    }
+
+    if (match(TT::LIT_IDENTIFIER)) {
+      auto tok = previous();
+      auto name = std::get<std::string>(tok.getLiteral());
+      return std::make_unique<Type>(SimpleType{std::move(name)});
+    }
+
+    throw std::runtime_error("Expected type in field declaration");
+  };
+
+  auto type = parseType();
+
+  if (!match(TT::LEFT_BRACE)) {
+    throw std::runtime_error("Expected '{' to start field constraints");
+  }
+
+  std::vector<ConstraintPtr> constraints;
+
+  while (!isAtEnd() && !check(TT::RIGHT_BRACE)) {
+    constraints.push_back(constraint());
+  }
+
+  if (!match(TT::RIGHT_BRACE)) {
+    throw std::runtime_error("Expected '}' after field constraints");
+  }
+
+  return std::make_unique<FieldStmt>(
+      FieldStmt{identifier, std::move(type), std::move(constraints)});
+}
+
+InvariantPtr Parser::invariant() {
+  if (!match(TT::KW_INVARIANT)) {
+    throw std::runtime_error("Expected 'invariant'");
+  }
+
+  if (!match(TT::LIT_IDENTIFIER)) {
+    throw std::runtime_error("Expected identifier after 'invariant'");
+  }
+
+  auto idTok = previous();
+  auto identifier = std::get<std::string>(idTok.getLiteral());
+
+  if (!match(TT::LEFT_BRACE)) {
+    throw std::runtime_error("Expected '{' to start invariant constraints");
+  }
+
+  std::vector<ConstraintPtr> constraints;
+
+  while (!isAtEnd() && !check(TT::RIGHT_BRACE)) {
+    constraints.push_back(constraint());
+  }
+
+  if (!match(TT::RIGHT_BRACE)) {
+    throw std::runtime_error("Expected '}' after invariant constraints");
+  }
+
+  return std::make_unique<InvariantStmt>(
+      InvariantStmt{identifier, std::move(constraints)});
+}
+
+ConstraintPtr Parser::constraint() {
+  auto expr = expression();
+
+  if (!match(TT::SEMICOLON)) {
+    throw std::runtime_error("Expected ';' after constraint expression");
+  }
+
+  return std::make_unique<ConstraintStmt>(ConstraintStmt{std::move(expr)});
 }
