@@ -5,6 +5,7 @@
 #include "expression.hpp"
 #include "statements.hpp"
 #include "token.hpp"
+#include "visitors/printer.hpp"
 
 using namespace invariants::parser;
 using namespace invariants::ast;
@@ -59,6 +60,18 @@ invariants::ast::BinaryOp tokenToBinaryOp(TT type) {
   }
 }
 }  // namespace
+
+std::ostream& operator<<(std::ostream& os, const Expr& expr) {
+  return os << visitors::Printer{}.print(expr);
+};
+
+std::ostream& operator<<(std::ostream& os, const Stmt& stmt) {
+  return os << visitors::Printer{}.print(stmt);
+};
+
+std::ostream& operator<<(std::ostream& os, const Type& type) {
+  return os << visitors::Printer{}.print(type);
+};
 
 Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens) {}
 

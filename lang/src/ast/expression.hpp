@@ -121,6 +121,8 @@ struct Expr {
   explicit Expr(T&& v) : value(std::forward<T>(v)) {}
 
   bool operator==(const Expr&) const = default;
+
+  friend std::ostream& operator<<(std::ostream& os, const Expr& expr);
 };
 
 }  // namespace invariants::ast

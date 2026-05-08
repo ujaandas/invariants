@@ -78,6 +78,8 @@ struct Stmt {
   explicit Stmt(T&& v) : value(std::forward<T>(v)) {}
 
   bool operator==(const Stmt&) const = default;
+
+  friend std::ostream& operator<<(std::ostream& os, const Stmt& expr);
 };
 
 }  // namespace invariants::ast

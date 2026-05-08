@@ -45,6 +45,8 @@ struct Type {
   explicit Type(T&& v) : value(std::forward<T>(v)) {}
 
   bool operator==(const Type&) const = default;
+
+  friend std::ostream& operator<<(std::ostream& os, const Type& expr);
 };
 
 }  // namespace invariants::ast
