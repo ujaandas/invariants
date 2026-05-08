@@ -22,6 +22,7 @@ class Lexer {
       {"true", TokenType::LIT_BOOLEAN_T},
       {"false", TokenType::LIT_BOOLEAN_F},
       {"Array", TokenType::KW_ARRAY},
+      {"Map", TokenType::KW_MAP},
       {"Null", TokenType::KW_NULL},
       {"null", TokenType::LIT_NULL},
       {"String", TokenType::KW_STRING},

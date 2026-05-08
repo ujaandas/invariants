@@ -58,6 +58,7 @@ enum class TokenType : std::uint8_t {
   // Type keywords
   KW_BOOLEAN,  // Boolean
   KW_ARRAY,    // Array<Foo>
+  KW_MAP,      // Map<K, V>
   KW_NULL,     // Null
   KW_STRING,   // String
   KW_NUMBER,   // Number
