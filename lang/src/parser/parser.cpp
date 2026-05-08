@@ -5,6 +5,7 @@
 #include "expression.hpp"
 #include "statements.hpp"
 #include "token.hpp"
+#include "types.hpp"
 #include "visitors/printer.hpp"
 
 using namespace invariants::parser;
@@ -108,6 +109,8 @@ bool Parser::isAtEnd() const {
 ExprPtr Parser::parseExpr() { return expression(); }
 
 ModulePtr Parser::parseModule() { return module(); }
+
+TypePtr Parser::parseType() { return type(); }
 
 ExprPtr Parser::expression() { return implication(); }
 

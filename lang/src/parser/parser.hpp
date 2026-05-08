@@ -65,6 +65,7 @@ class Parser {
   explicit Parser(const std::vector<lexer::Token>& tokens);
   ast::ExprPtr parseExpr();
   ast::ModulePtr parseModule();
+  ast::TypePtr parseType();
 };
 
 }  // namespace invariants::parser
