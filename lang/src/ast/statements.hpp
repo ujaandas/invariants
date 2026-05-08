@@ -25,6 +25,8 @@ struct FieldStmt {
   std::vector<ConstraintPtr> constraints;
 };
 
+using FieldPtr = std::unique_ptr<FieldStmt>;
+
 inline bool operator==(const FieldStmt& a, const FieldStmt& b) {
   return a.identifier == b.identifier && ptr_equal(a.type, b.type) &&
          ptr_vector_equal(a.constraints, b.constraints);
@@ -34,6 +36,8 @@ struct InvariantStmt {
   std::string identifier;  // simplified (no need for IdentifierExpr)
   std::vector<ConstraintPtr> constraints;
 };
+
+using InvariantPtr = std::unique_ptr<InvariantStmt>;
 
 inline bool operator==(const InvariantStmt& a, const InvariantStmt& b) {
   return a.identifier == b.identifier &&
@@ -56,6 +60,8 @@ using SpecPtr = std::unique_ptr<SpecStmt>;
 struct ModuleStmt {
   std::vector<SpecPtr> specs;
 };
+
+using ModulePtr = std::unique_ptr<ModuleStmt>;
 
 inline bool operator==(const ModuleStmt& a, const ModuleStmt& b) {
   return ptr_vector_equal(a.specs, b.specs);
