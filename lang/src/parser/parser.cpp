@@ -1,6 +1,5 @@
 #include "parser.hpp"
 
-#include <functional>
 #include <memory>
 
 #include "expression.hpp"
@@ -411,41 +410,7 @@ FieldPtr Parser::field() {
     throw std::runtime_error("Expected ':' after field identifier");
   }
 
-  // parse type (simple recursive helper)
-  std::function<TypePtr()> parseType = [this, &parseType]() -> TypePtr {
-    if (match(TT::KW_NUMBER)) {
-      return std::make_unique<Type>(SimpleType{BuiltinType::Number});
-    }
-    if (match(TT::KW_INTEGER)) {
-      return std::make_unique<Type>(SimpleType{BuiltinType::Integer});
-    }
-    if (match(TT::KW_STRING)) {
-      return std::make_unique<Type>(SimpleType{BuiltinType::String});
-    }
-    if (match(TT::KW_BOOLEAN)) {
-      return std::make_unique<Type>(SimpleType{BuiltinType::Boolean});
-    }
-    if (match(TT::KW_ARRAY)) {
-      if (!match(TT::LESS)) {
-        throw std::runtime_error("Expected '<' after Array");
-      }
-      auto inner = parseType();
-      if (!match(TT::GREATER)) {
-        throw std::runtime_error("Expected '>' after Array element type");
-      }
-      return std::make_unique<Type>(ArrayType{std::move(inner)});
-    }
-
-    if (match(TT::LIT_IDENTIFIER)) {
-      auto tok = previous();
-      auto name = std::get<std::string>(tok.getLiteral());
-      return std::make_unique<Type>(SimpleType{std::move(name)});
-    }
-
-    throw std::runtime_error("Expected type in field declaration");
-  };
-
-  auto type = parseType();
+  auto typeNode = type();
 
   if (!match(TT::LEFT_BRACE)) {
     throw std::runtime_error("Expected '{' to start field constraints");
@@ -462,7 +427,7 @@ FieldPtr Parser::field() {
   }
 
   return std::make_unique<FieldStmt>(
-      FieldStmt{identifier, std::move(type), std::move(constraints)});
+      FieldStmt{identifier, std::move(typeNode), std::move(constraints)});
 }
 
 InvariantPtr Parser::invariant() {
@@ -503,4 +468,89 @@ ConstraintPtr Parser::constraint() {
   }
 
   return std::make_unique<ConstraintStmt>(ConstraintStmt{std::move(expr)});
+}
+
+TypePtr Parser::type() { return primaryType(); }
+
+TypePtr Parser::primaryType() {
+  if (match(TT::LEFT_PAREN)) {
+    auto inner = type();
+    if (!match(TT::RIGHT_PAREN)) {
+      throw std::runtime_error("Expected ')' after type");
+    }
+    return inner;
+  }
+
+  if (check(TT::KW_ARRAY)) {
+    return arrayType();
+  }
+
+  if (check(TT::KW_MAP)) {
+    return mapType();
+  }
+
+  return simpleType();
+}
+
+TypePtr Parser::simpleType() {
+  if (match(TT::KW_NUMBER)) {
+    return std::make_unique<Type>(SimpleType{BuiltinType::Number});
+  }
+  if (match(TT::KW_INTEGER)) {
+    return std::make_unique<Type>(SimpleType{BuiltinType::Integer});
+  }
+  if (match(TT::KW_STRING)) {
+    return std::make_unique<Type>(SimpleType{BuiltinType::String});
+  }
+  if (match(TT::KW_BOOLEAN)) {
+    return std::make_unique<Type>(SimpleType{BuiltinType::Boolean});
+  }
+
+  if (match(TT::LIT_IDENTIFIER)) {
+    auto token = previous();
+    auto name = std::get<std::string>(token.getLiteral());
+    return std::make_unique<Type>(SimpleType{std::move(name)});
+  }
+
+  throw std::runtime_error("Expected type");
+}
+
+TypePtr Parser::arrayType() {
+  if (!match(TT::KW_ARRAY)) {
+    throw std::runtime_error("Expected 'Array'");
+  }
+  if (!match(TT::LESS)) {
+    throw std::runtime_error("Expected '<' after Array");
+  }
+
+  auto element = type();
+
+  if (!match(TT::GREATER)) {
+    throw std::runtime_error("Expected '>' after array element type");
+  }
+
+  return std::make_unique<Type>(ArrayType{std::move(element)});
+}
+
+TypePtr Parser::mapType() {
+  if (!match(TT::KW_MAP)) {
+    throw std::runtime_error("Expected 'Map'");
+  }
+  if (!match(TT::LESS)) {
+    throw std::runtime_error("Expected '<' after Map");
+  }
+
+  auto key = type();
+
+  if (!match(TT::COMMA)) {
+    throw std::runtime_error("Expected ',' after map key type");
+  }
+
+  auto value = type();
+
+  if (!match(TT::GREATER)) {
+    throw std::runtime_error("Expected '>' after map value type");
+  }
+
+  return std::make_unique<Type>(MapType{std::move(key), std::move(value)});
 }

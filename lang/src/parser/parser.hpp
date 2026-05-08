@@ -31,6 +31,13 @@ class Parser {
   bool check(lexer::TokenType type) const;
   bool isAtEnd() const;
 
+  // Types
+  ast::TypePtr type();
+  ast::TypePtr primaryType();
+  ast::TypePtr simpleType();
+  ast::TypePtr arrayType();
+  ast::TypePtr mapType();
+
   // Statements
   ast::ModulePtr module();
   ast::SpecPtr spec();
