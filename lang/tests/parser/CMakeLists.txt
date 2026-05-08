@@ -1,4 +1,4 @@
-add_executable(parser_test parser_bop_test.cpp)
+add_executable(parser_test parser_bop_test.cpp parser_tests.cpp)
 
 target_link_libraries(parser_test
     PRIVATE invariants_parser invariants_lexer
