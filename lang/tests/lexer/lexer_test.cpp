@@ -178,6 +178,10 @@ INSTANTIATE_TEST_SUITE_P(
                               {Token{TokenType::KW_ARRAY, "Array", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
                               "Array"},
+                    TokenCase{"Map",
+                              {Token{TokenType::KW_MAP, "Map", 1},
+                               Token{TokenType::EOF_TOKEN, "", 1}},
+                              "Map"},
                     TokenCase{"Null",
                               {Token{TokenType::KW_NULL, "Null", 1},
                                Token{TokenType::EOF_TOKEN, "", 1}},
@@ -320,7 +324,7 @@ TEST(LexerTest, RejectsLeadingUnderscoreIdentifier) {
 }
 
 TEST(LexerTest, DifferentiatesKeywordAndIdentifierPrefixes) {
-  Lexer lexer("spec specX Boolean true false null");
+  Lexer lexer("spec specX Boolean true false null Map MapX");
 
   const std::vector<Token> expected = {
       Token{TokenType::KW_SPEC, "spec", 1},
@@ -329,6 +333,8 @@ TEST(LexerTest, DifferentiatesKeywordAndIdentifierPrefixes) {
       Token{TokenType::LIT_BOOLEAN_T, "true", true, 1},
       Token{TokenType::LIT_BOOLEAN_F, "false", false, 1},
       Token{TokenType::LIT_NULL, "null", 1},
+      Token{TokenType::KW_MAP, "Map", 1},
+      Token{TokenType::LIT_IDENTIFIER, "MapX", "MapX", 1},
       Token{TokenType::EOF_TOKEN, "", 1},
   };
 
