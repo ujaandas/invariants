@@ -33,7 +33,19 @@ void PrintTo(const ExprCase& value, std::ostream* os) { *os << value.name; }
 
 class ParserSingleExprTest : public testing::TestWithParam<ExprCase> {};
 
+class ParserWrappedExprTest : public testing::TestWithParam<ExprCase> {};
+
 TEST_P(ParserSingleExprTest, ParsesSingleValueExpressions) {
+  const auto& param = GetParam();
+
+  Parser parser(param.tokens);
+  auto out = parser.parseExpr();
+
+  ASSERT_NE(out, nullptr);
+  EXPECT_EQ(*out, param.expected());
+}
+
+TEST_P(ParserWrappedExprTest, ParsesSimpleWrappedExpressions) {
   const auto& param = GetParam();
 
   Parser parser(param.tokens);
@@ -70,3 +82,41 @@ INSTANTIATE_TEST_SUITE_P(
                  [] { return Expr(IdentifierExpr{"value"}); }},
         ExprCase{"this_keyword", withEof({Token(TT::KW_THIS, "this", 1)}),
                  [] { return Expr(ThisExpr{}); }}));
+
+INSTANTIATE_TEST_SUITE_P(
+    SimpleWrappers, ParserWrappedExprTest,
+    testing::Values(ExprCase{"grouped_identifier",
+                             withEof({Token(TT::LEFT_PAREN, "(", 1),
+                                      Token(TT::LIT_IDENTIFIER, "x", "x", 1),
+                                      Token(TT::RIGHT_PAREN, ")", 1)}),
+                             [] {
+                               return Expr(GroupingExpr{std::make_unique<Expr>(
+                                   IdentifierExpr{"x"})});
+                             }},
+                    ExprCase{"single_item_list",
+                             withEof({Token(TT::LEFT_BRACKET, "[", 1),
+                                      Token(TT::LIT_IDENTIFIER, "x", "x", 1),
+                                      Token(TT::RIGHT_BRACKET, "]", 1)}),
+                             [] {
+                               std::vector<ExprPtr> elements;
+                               elements.emplace_back(
+                                   std::make_unique<Expr>(IdentifierExpr{"x"}));
+                               return Expr(ListExpr{std::move(elements)});
+                             }},
+                    ExprCase{
+                        "unary_not",
+                        withEof({Token(TT::BANG, "!", 1),
+                                 Token(TT::LIT_BOOLEAN_T, "true", true, 1)}),
+                        [] {
+                          return Expr(UnaryExpr{
+                              UnaryOp::Not,
+                              std::make_unique<Expr>(LiteralExpr{true})});
+                        }},
+                    ExprCase{"unary_negate",
+                             withEof({Token(TT::MINUS, "-", 1),
+                                      Token(TT::LIT_INTEGER, "9", 9, 1)}),
+                             [] {
+                               return Expr(UnaryExpr{
+                                   UnaryOp::Negate,
+                                   std::make_unique<Expr>(LiteralExpr{9.0})});
+                             }}));

@@ -61,6 +61,7 @@ invariants::ast::BinaryOp tokenToBinaryOp(TT type) {
 }
 }  // namespace
 
+namespace invariants::ast {
 std::ostream& operator<<(std::ostream& os, const Expr& expr) {
   return os << visitors::Printer{}.print(expr);
 };
@@ -72,6 +73,7 @@ std::ostream& operator<<(std::ostream& os, const Stmt& stmt) {
 std::ostream& operator<<(std::ostream& os, const Type& type) {
   return os << visitors::Printer{}.print(type);
 };
+}  // namespace invariants::ast
 
 Parser::Parser(const std::vector<Token>& tokens) : tokens(tokens) {}
 
@@ -235,11 +237,11 @@ ExprPtr Parser::factor() {
 
 ExprPtr Parser::unary() {
   if (match(TT::BANG, TT::MINUS)) {
+    auto opToken = previous();
+
     ExprPtr operand = unary();
 
-    auto prevToken = previous();
-    UnaryOp op =
-        prevToken.getType() == TT::BANG ? UnaryOp::Not : UnaryOp::Negate;
+    UnaryOp op = opToken.getType() == TT::BANG ? UnaryOp::Not : UnaryOp::Negate;
 
     return std::make_unique<Expr>(UnaryExpr{op, std::move(operand)});
   }
