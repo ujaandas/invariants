@@ -231,7 +231,7 @@ TEST(LexerTest, IgnoresWhitespaceAndTracksNewlineForEof) {
   EXPECT_EQ(lexer.scanTokens(), expected);
 }
 
-TEST(LexerTest, RegressiveCheckIsPlainIdentifier) {
+TEST(LexerTest, CheckIsPlainIdentifier) {
   Lexer lexer("check");
 
   const std::vector<Token> expected = {
