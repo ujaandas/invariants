@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <vector>
 
 #include "expression.hpp"
