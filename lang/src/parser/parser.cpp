@@ -352,6 +352,10 @@ ModulePtr Parser::module() {
     specs.push_back(spec());
   }
 
+  if (!isAtEnd()) {
+    throw std::runtime_error("Unexpected token after module");
+  }
+
   return std::make_unique<ModuleStmt>(ModuleStmt{std::move(specs)});
 }
 

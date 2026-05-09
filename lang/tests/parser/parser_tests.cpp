@@ -211,3 +211,17 @@ TEST_F(ParserIntegrationTest, ParsesMultipleSpecs) {
   EXPECT_EQ(module->specs[0]->identifier, "First");
   EXPECT_EQ(module->specs[1]->identifier, "Second");
 }
+
+TEST_F(ParserIntegrationTest, ThrowsOnExtraTokensAfterModule) {
+  std::string source = R"(
+    spec Single {
+      field x: Number { }
+    }
+    true
+  )";
+
+  auto tokens = lexSource(source);
+  Parser parser(tokens);
+
+  EXPECT_THROW(parser.parseModule(), std::runtime_error);
+}
