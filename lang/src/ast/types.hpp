@@ -1,9 +1,14 @@
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <variant>
+
+#include "helper.hpp"
 
 namespace invariants::ast {
 
@@ -15,16 +20,23 @@ enum class BuiltinType : std::uint8_t { Number, Integer, String, Boolean };
 
 struct SimpleType {
   std::variant<BuiltinType, std::string> value;
+  bool operator==(const SimpleType&) const = default;
 };
 
 struct ArrayType {
   TypePtr element;
 };
+inline bool operator==(const ArrayType& a, const ArrayType& b) {
+  return ptr_equal(a.element, b.element);
+}
 
 struct MapType {
   TypePtr key;
   TypePtr value;
 };
+inline bool operator==(const MapType& a, const MapType& b) {
+  return ptr_equal(a.key, b.key) && ptr_equal(a.value, b.value);
+}
 
 struct Type {
   using TypeT = std::variant<SimpleType, ArrayType, MapType>;
@@ -32,7 +44,12 @@ struct Type {
   TypeT value;
 
   template <typename T>
-  explicit Type(T v) : value(std::move(v)) {}
+    requires(!std::same_as<std::decay_t<T>, Type>)
+  explicit Type(T&& v) : value(std::forward<T>(v)) {}
+
+  bool operator==(const Type&) const = default;
+
+  friend std::ostream& operator<<(std::ostream& os, const Type& expr);
 };
 
 }  // namespace invariants::ast

@@ -36,6 +36,10 @@ enum class TokenType : std::uint8_t {
   LESS_EQUAL,     // <=
   MINUS,          // -
   ARROW,          // ->
+  BAR,            // |
+  LOGICAL_OR,     // ||
+  AMPERSAND,      // &
+  LOGICAL_AND,    // &&
 
   // Literals
   LIT_IDENTIFIER,  // FooBar
@@ -49,12 +53,12 @@ enum class TokenType : std::uint8_t {
   // Structural keywords
   KW_SPEC,       // spec
   KW_FIELD,      // field
-  KW_CHECK,      // check
   KW_INVARIANT,  // invariant
 
   // Type keywords
   KW_BOOLEAN,  // Boolean
   KW_ARRAY,    // Array<Foo>
+  KW_MAP,      // Map<K, V>
   KW_NULL,     // Null
   KW_STRING,   // String
   KW_NUMBER,   // Number
@@ -64,6 +68,8 @@ enum class TokenType : std::uint8_t {
   KW_IN,        // IN
   KW_NOT_IN,    // NIN
   KW_CONTAINS,  // NI
+
+  KW_THIS,
 
   EOF_TOKEN,
 };
@@ -88,6 +94,10 @@ class Token {
   bool operator==(const Token& other) const;
   bool operator!=(const Token& other) const;
   std::string toString() const;
+
+  TokenType getType() const;
+  const Literal& getLiteral() const;
+  const std::string& getLexeme() const;
 
   friend std::ostream& operator<<(std::ostream& os, const Token& token);
 };

@@ -63,3 +63,9 @@ std::string Token::toString() const {
   return std::to_string(static_cast<int>(type)) + " " + lexeme + " " +
          literalToString(literal);
 }
+
+TokenType Token::getType() const { return type; }
+
+const Literal& Token::getLiteral() const { return literal; }
+
+const std::string& Token::getLexeme() const { return lexeme; }
