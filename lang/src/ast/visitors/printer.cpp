@@ -2,6 +2,8 @@
 
 #include <sstream>
 
+#include "expression.hpp"
+
 using namespace invariants::ast::visitors;
 
 std::string Printer::operator()(const LiteralExpr& e) const {
@@ -159,3 +161,17 @@ std::string Printer::operator()(const ArrayType& e) const {
 std::string Printer::operator()(const MapType& e) const {
   return "Map<" + print(e.key->value) + ", " + print(e.value->value) + ">";
 }
+
+namespace invariants::ast {
+std::ostream& operator<<(std::ostream& os, const Expr& expr) {
+  return os << Printer{}.print(expr);
+};
+
+std::ostream& operator<<(std::ostream& os, const Stmt& stmt) {
+  return os << Printer{}.print(stmt);
+};
+
+std::ostream& operator<<(std::ostream& os, const Type& type) {
+  return os << Printer{}.print(type);
+};
+}  // namespace invariants::ast
