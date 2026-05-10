@@ -10,12 +10,14 @@
 #include "statements.hpp"
 #include "types.hpp"
 #include "visitors/printer.hpp"
+#include "visitors/tree_printer.hpp"
 
 using namespace invariants::ast;
 
 namespace {
 
 using invariants::ast::visitors::Printer;
+using invariants::ast::visitors::TreePrinter;
 
 ExprPtr expr_ptr(Expr expr) { return std::make_unique<Expr>(std::move(expr)); }
 
@@ -409,4 +411,15 @@ TEST(AstTest, PrintsComplexTree2) {
             "(\"admin\" not in tags); } } spec Order { field items: "
             "Array<Item> { (items.length >= 1.000000); } invariant HasOwner { "
             "(owner != null); } }");
+}
+
+TEST(AstTest, TreePrinterRendersBranches) {
+  auto out = TreePrinter{}.print(Expr(BinaryExpr{
+      expr_ptr(
+          Expr(UnaryExpr{UnaryOp::Not, expr_ptr(Expr(IdentifierExpr{"ok"}))})),
+      BinaryOp::Or, expr_ptr(Expr(LiteralExpr{std::string("ready")}))}));
+
+  EXPECT_EQ(out,
+            "Binary ||\n/-- left: Unary !\n|   \\-- operand: Identifier ok\n"
+            "\\-- right: Literal \"ready\"");
 }
