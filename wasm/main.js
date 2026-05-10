@@ -11,9 +11,7 @@ const runButton = document.querySelector("#run");
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".tab-panel");
 
-const module = await createModule();
-
-status.textContent = "Ready.";
+let module = null;
 
 function setActiveTab(name) {
     tabs.forEach((tab) => {
@@ -38,10 +36,19 @@ tabs.forEach((tab) => {
 });
 
 function pretty(json) {
-    return JSON.stringify(JSON.parse(json), null, 2);
+    try {
+        return JSON.stringify(JSON.parse(json), null, 2);
+    } catch (err) {
+        throw new Error(`Invalid JSON output: ${err}`);
+    }
 }
 
 function run() {
+    if (!module) {
+        status.textContent = "Error: wasm module failed to load.";
+        return;
+    }
+
     try {
         const tokens = module.tokenize(source.value);
         const ast = module.parse(source.value);
@@ -56,3 +63,10 @@ function run() {
 }
 
 runButton.addEventListener("click", run);
+
+try {
+    module = await createModule();
+    status.textContent = "Ready.";
+} catch (err) {
+    status.textContent = `Error: ${err}`;
+}
