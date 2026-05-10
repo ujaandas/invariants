@@ -61,7 +61,7 @@ This also auto-generates the compilation database, but also runs `ctest` with th
 Build the browser version from `wasm/lib.cpp`:
 
 ```bash
-nix run .#wasm-build
+nix run .#wasm-configure
 ```
 
 Then serve the generated files and open the page in a browser:
