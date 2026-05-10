@@ -4,6 +4,8 @@
 #include <string_view>
 
 #include "lexer.hpp"
+#include "parser.hpp"
+#include "visitors/printer.hpp"
 
 using namespace invariants;
 
@@ -69,4 +71,26 @@ std::string tokenize(std::string source) {
   return out;
 }
 
-EMSCRIPTEN_BINDINGS(my_module) { emscripten::function("tokenize", &tokenize); }
+std::string parse(std::string source) {
+  try {
+    lexer::Lexer lexer(source);
+    auto tokens = lexer.scanTokens();
+
+    parser::Parser parser(tokens);
+    auto module = parser.parseModule();
+    auto printed = ast::visitors::Printer{}.print(*module);
+
+    std::string out = R"({ "out": " )";
+    out += escapeJson(printed);
+    out += R"( " })";
+
+    return out;
+  } catch (const std::exception& e) {
+    return std::string(R"({ "error": ")") + escapeJson(e.what()) + R"(" })";
+  }
+}
+
+EMSCRIPTEN_BINDINGS(my_module) {
+  emscripten::function("tokenize", &tokenize);
+  emscripten::function("parse", &parse);
+}
