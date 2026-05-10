@@ -1,13 +1,9 @@
-#include <string_view>
-
-#ifdef __EMSCRIPTEN__
 #include <emscripten/bind.h>
 #include <emscripten/emscripten.h>
-#define WASM_EXPORT EMSCRIPTEN_KEEPALIVE
-#endif
 
-#include "../lang/src/lexer/lexer.hpp"
-// #include "../lang/src/parser/parser.hpp"
+#include <string_view>
+
+#include "lexer.hpp"
 
 using namespace invariants;
 
@@ -49,7 +45,7 @@ std::string escapeJson(std::string_view input) {
 }
 }  // namespace
 
-std::string tokenize(const char* source) {
+std::string tokenize(std::string source) {
   lexer::Lexer lexer(source);
 
   auto tokens = lexer.scanTokens();
@@ -73,6 +69,4 @@ std::string tokenize(const char* source) {
   return out;
 }
 
-#ifdef __EMSCRIPTEN__
 EMSCRIPTEN_BINDINGS(my_module) { emscripten::function("tokenize", &tokenize); }
-#endif

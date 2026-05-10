@@ -3,15 +3,18 @@ cmake_minimum_required(VERSION 3.25)
 project(invariants_wasm LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_subdirectory(../lang/src/lexer lexer)
+set(INVARIANTS_BUILD_TESTS OFF)
+
+add_subdirectory(../lang lang_build)
 
 add_executable(invariants_wasm
   lib.cpp
 )
 
 target_link_libraries(invariants_wasm PRIVATE
-  invariants_lexer
+  invariants_parser
 )
 
 if(EMSCRIPTEN)

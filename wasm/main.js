@@ -20,11 +20,3 @@ function tokenize() {
 }
 
 runButton.addEventListener("click", tokenize);
-
-source.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        tokenize();
-    }
-});
-
-tokenize();
