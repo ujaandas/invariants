@@ -1,3 +1,6 @@
+# Site build
+out/
+
 # Nix
 result
 .nix-dev/
