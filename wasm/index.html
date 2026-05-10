@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Invariants WASM Demo</title>
+
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <main>
+        <section class="hero">
+            <h1>Tokenize invariants in the browser</h1>
+
+            <p>
+                Tiny Emscripten lexer demo.
+            </p>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <label for="source">Source</label>
+
+                <textarea id="source">spec Example {
+  field name: String
+  invariant name != ""
+}</textarea>
+
+                <button id="run">Tokenize</button>
+
+                <div id="status" class="status">
+                    Loading wasm module…
+                </div>
+            </div>
+
+            <div class="card">
+                <label for="output">Output</label>
+
+                <pre id="output"></pre>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+</body>
+
+</html>
