@@ -12,13 +12,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(INVARIANTS_BUILD_TESTS "Build tests" ON)
 
+add_subdirectory(src)
+
 if(INVARIANTS_BUILD_TESTS)
     find_package(GTest REQUIRED)
     enable_testing()
     add_subdirectory(tests)
 endif()
-
-add_subdirectory(src)
 
 add_executable(hello_world src/main.cpp)
 
