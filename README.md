@@ -70,8 +70,9 @@ Then serve the generated files and open the page in a browser:
 nix run .#wasm-serve
 ```
 
-The demo page is `wasm/index.html`, and it loads the generated
-`invariants_wasm.js` and `invariants_wasm.wasm` artifacts from `.nix-dev/wasm/`.
+Open `http://localhost:8080/` in your browser (or `.nix-dev/wasm/index.html`,
+which is copied alongside the generated artifacts). The served demo page loads
+`invariants_wasm.js` and `invariants_wasm.wasm` from `.nix-dev/wasm/`.
 
 CI runs `nix build` on every push and pull request targeting `main`.
 
