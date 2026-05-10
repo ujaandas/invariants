@@ -73,10 +73,8 @@
           ];
           text = ''
             set -euo pipefail
-            if [ ! -f .nix-dev/wasm/invariants_wasm.js ]; then
-              emcmake cmake -S wasm -B .nix-dev/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
-              cmake --build .nix-dev/wasm
-            fi
+            emcmake cmake -S wasm -B .nix-dev/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake --build .nix-dev/wasm
 
             cd .nix-dev/wasm
             python3 -m http.server 8080
@@ -156,6 +154,7 @@
             ninja
             nixfmt
             prek
+            emscripten
           ];
         };
 
