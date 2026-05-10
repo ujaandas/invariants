@@ -44,6 +44,14 @@ function pretty(json) {
     }
 }
 
+function treeText(json) {
+    try {
+        return JSON.parse(json).out;
+    } catch (err) {
+        throw new Error(`Invalid JSON output: ${err.message ?? err}`);
+    }
+}
+
 function run() {
     if (!module) {
         status.textContent = `Error: ${moduleLoadError?.message ?? moduleLoadError ?? "wasm module failed to load."}`;
@@ -55,7 +63,7 @@ function run() {
         const ast = module.parse(source.value);
 
         tokensOutput.textContent = pretty(tokens);
-        astOutput.textContent = pretty(ast);
+        astOutput.textContent = treeText(ast);
 
         status.textContent = "Success.";
     } catch (err) {

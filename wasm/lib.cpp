@@ -5,7 +5,7 @@
 
 #include "lexer.hpp"
 #include "parser.hpp"
-#include "visitors/printer.hpp"
+#include "visitors/tree_printer.hpp"
 
 using namespace invariants;
 
@@ -78,7 +78,7 @@ std::string parse(std::string source) {
 
     parser::Parser parser(tokens);
     auto module = parser.parseModule();
-    auto printed = ast::visitors::Printer{}.print(*module);
+    auto printed = ast::visitors::TreePrinter{}.print(*module);
 
     std::string out = R"({ "out": ")";
     out += escapeJson(printed);
