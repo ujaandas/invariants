@@ -47,6 +47,40 @@
           '';
         };
 
+        wasm-configure = pkgs.writeShellApplication {
+          name = "wasm-configure";
+          meta.description = "Build the browser wasm demo.";
+          runtimeInputs = with pkgs; [
+            cmake
+            emscripten
+            ninja
+          ];
+          text = ''
+            set -euo pipefail
+            emcmake cmake -S wasm -B .nix-dev/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake --build .nix-dev/wasm
+          '';
+        };
+
+        wasm-serve = pkgs.writeShellApplication {
+          name = "wasm-serve";
+          meta.description = "Serve the browser wasm demo locally.";
+          runtimeInputs = with pkgs; [
+            cmake
+            emscripten
+            ninja
+            python3
+          ];
+          text = ''
+            set -euo pipefail
+            emcmake cmake -S wasm -B .nix-dev/wasm -G Ninja -DCMAKE_BUILD_TYPE=Release
+            cmake --build .nix-dev/wasm
+
+            cd .nix-dev/wasm
+            python3 -m http.server 8080
+          '';
+        };
+
         invariants = pkgs.clangStdenv.mkDerivation {
           pname = "invariants";
           version = "0.1.0";
@@ -91,6 +125,18 @@
             meta.description = "Configure the local CMake build directory.";
           };
 
+          wasm-configure = {
+            type = "app";
+            program = "${wasm-configure}/bin/wasm-configure";
+            meta.description = "Build the browser wasm demo.";
+          };
+
+          wasm-serve = {
+            type = "app";
+            program = "${wasm-serve}/bin/wasm-serve";
+            meta.description = "Build and serve the browser wasm demo.";
+          };
+
           test = {
             type = "app";
             program = "${dev-test}/bin/dev-test";
@@ -108,6 +154,7 @@
             ninja
             nixfmt
             prek
+            emscripten
           ];
         };
 

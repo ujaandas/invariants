@@ -56,6 +56,24 @@ This also auto-generates the compilation database, but also runs `ctest` with th
 | Build & run all tests (Nix sandbox) | `nix build` |
 | Run the `hello_world` executable | `nix run` |
 
+### Web demo
+
+Build the browser version from `wasm/lib.cpp`:
+
+```bash
+nix run .#wasm-configure
+```
+
+Then serve the generated files and open the page in a browser:
+
+```bash
+nix run .#wasm-serve
+```
+
+Open `http://localhost:8080/` in your browser (or `.nix-dev/wasm/index.html`,
+which is copied alongside the generated artifacts). The served demo page loads
+`invariants_wasm.js` and `invariants_wasm.wasm` from `.nix-dev/wasm/`.
+
 CI runs `nix build` on every push and pull request targeting `main`.
 
 ## Pre-commit hooks
@@ -78,6 +96,7 @@ as it itself is the first hook run!).
 lang/          C++ DSL runtime and syntax oracle (CMake project)
   src/         Production source files
   tests/       GoogleTest-based tests
+wasm/          Browser demo and Emscripten entrypoint
 bindings/      Python/C++ FFI (planned)
 python/        Python package and LLM decoding loop (planned)
 docs/          Notes and design drafts

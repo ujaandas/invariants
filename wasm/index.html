@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Invariants Demo</title>
+
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <main>
+        <section class="hero">
+            <h1>Try the Invariants Lang in the Browser!</h1>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <label for="source">Source</label>
+
+                <textarea id="source">spec BulkOrder {
+    field unit_price: Number {
+        value > 0.0;
+    }
+
+    field quantity: Integer {
+        value >= 1;
+        value <= 1000;
+    }
+    
+    field currency: String {
+        value IN ["USD", "EUR", "GBP"];
+    }
+}
+</textarea>
+
+                <button id="run">Run</button>
+
+                <div id="status" class="status">
+                    Loading wasm module...
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="tabs">
+                    <button class="tab active" data-tab="tokens">
+                        Tokens
+                    </button>
+
+                    <button class="tab" data-tab="ast">
+                        AST
+                    </button>
+                </div>
+
+                <div id="tokens-tab" class="tab-panel active">
+                    <pre id="tokens-output"></pre>
+                </div>
+
+                <div id="ast-tab" class="tab-panel">
+                    <pre id="ast-output"></pre>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+</body>
+
+</html>
