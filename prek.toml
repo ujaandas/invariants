@@ -13,6 +13,7 @@ hooks = [
     entry = "nix run .#configure",
     language = "system",
     pass_filenames = false,
+    files = "^lang/",
     stages = ["pre-commit"]
   },
   {
@@ -21,6 +22,7 @@ hooks = [
     entry = "nix run .#test",
     language = "system",
     pass_filenames = false,
+    files = "^lang/",
     stages = ["pre-push"]
   },
   {
@@ -29,7 +31,7 @@ hooks = [
     entry = "nix develop -c clang-format",
     args = ["--style=file", "-i"],
     language = "system",
-    files = "\\.(c|cc|cpp|cxx|h|hpp)$",
+    files = "^lang/.*\\.(c|cc|cpp|cxx|h|hpp)$",
     stages = ["pre-commit"]
   },
   {
@@ -38,7 +40,7 @@ hooks = [
     entry = "nix develop -c clang-tidy",
     args = ["-p=.nix-dev/build"],
     language = "system",
-    files = "\\.(c|cc|cpp|cxx|h|hpp)$",
+    files = "^lang/.*\\.(c|cc|cpp|cxx|h|hpp)$",
     stages = ["pre-commit"]
   },
   {
@@ -56,6 +58,7 @@ hooks = [
     ],
     language = "system",
     pass_filenames = false,
+    files = "^lang/",
     stages = ["pre-commit"]
   }
 ]
