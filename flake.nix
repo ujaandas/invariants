@@ -47,8 +47,8 @@
           '';
         };
 
-        wasm-build = pkgs.writeShellApplication {
-          name = "wasm-build";
+        wasm-configure = pkgs.writeShellApplication {
+          name = "wasm-configure";
           meta.description = "Build the browser wasm demo.";
           runtimeInputs = with pkgs; [
             cmake
@@ -125,9 +125,9 @@
             meta.description = "Configure the local CMake build directory.";
           };
 
-          wasm-build = {
+          wasm-configure = {
             type = "app";
-            program = "${wasm-build}/bin/wasm-build";
+            program = "${wasm-configure}/bin/wasm-configure";
             meta.description = "Build the browser wasm demo.";
           };
 
