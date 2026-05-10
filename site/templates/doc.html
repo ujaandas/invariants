@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>{{ .Frontmatter.Title }} | Invariants</title>
+    {{ template "header.html" . }}
+</head>
+
+<body class="flex flex-col items-center justify-center align-middle min-h-screen bg-white text-gray-800 font-serif">
+    <main class="flex flex-col md:flex-row md:items-start justify-between w-full max-w-3xl mx-auto flex-grow p-6 gap-6">
+        <div class="md:mt-10 w-full overflow-hidden">
+            <h1 class="text-3xl font-bold mb-4">{{ .Frontmatter.Title }}</h1>
+            <article class="article">
+                {{ .Content }}
+            </article>
+        </div>
+    </main>
+
+</body>
+
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    {{ template "header.html" . }}
+    <title>Invariants</title>
+</head>
+
+<body class="flex flex-col items-center justify-center align-middle min-h-screen bg-white text-gray-800 font-serif">
+    <main class="flex flex-col md:flex-row md:items-start justify-between max-w-3xl mx-auto flex-grow p-6 gap-6">
+        {{ range .Tags.Docs }}
+        <article class="mb-6">
+            <h2 class="text-2xl font-semibold text-blue-700 hover:underline">
+                <a href={{ .Filepath }}>{{ .Frontmatter.Title }}</a>
+            </h2>
+            <p class="text-lg text-gray-700">{{ .Snippet }}</p>
+        </article>
+        {{ end }}
+    </main>
+</body>
+
+</html>
