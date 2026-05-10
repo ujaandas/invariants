@@ -81,6 +81,22 @@
           '';
         };
 
+        build-site = pkgs.writeShellApplication {
+          name = "build-site";
+          meta.description = "Build the sites doc with oojsite.";
+          text = ''
+            nix run github:ujaandas/oojsite  -- --postDir="docs" --pageDir="site/pages" --staticDir="site/static" --templateDir="site/templates" --componentDir="site/components"
+          '';
+        };
+
+        build-site-demo = pkgs.writeShellApplication {
+          name = "build-site-demo";
+          meta.description = "Build the sites doc in devmode with oojsite.";
+          text = ''
+            nix run github:ujaandas/oojsite  -- --postDir="docs" --pageDir="site/pages" --staticDir="site/static" --templateDir="site/templates" --componentDir="site/components" --dev
+          '';
+        };
+
         invariants = pkgs.clangStdenv.mkDerivation {
           pname = "invariants";
           version = "0.1.0";
@@ -135,6 +151,18 @@
             type = "app";
             program = "${wasm-serve}/bin/wasm-serve";
             meta.description = "Build and serve the browser wasm demo.";
+          };
+
+          build-site = {
+            type = "app";
+            program = "${build-site}/bin/build-site";
+            meta.description = "Build the site for Invariants.";
+          };
+
+          build-site-demo = {
+            type = "app";
+            program = "${build-site-demo}/bin/build-site-demo";
+            meta.description = "Build and serve the site for Invariants.";
           };
 
           test = {
