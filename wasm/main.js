@@ -12,6 +12,7 @@ const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".tab-panel");
 
 let module = null;
+let moduleLoadError = null;
 
 function setActiveTab(name) {
     tabs.forEach((tab) => {
@@ -39,13 +40,13 @@ function pretty(json) {
     try {
         return JSON.stringify(JSON.parse(json), null, 2);
     } catch (err) {
-        throw new Error(`Invalid JSON output: ${err}`);
+        throw new Error(`Invalid JSON output: ${err.message ?? err}`);
     }
 }
 
 function run() {
     if (!module) {
-        status.textContent = "Error: wasm module failed to load.";
+        status.textContent = `Error: ${moduleLoadError?.message ?? moduleLoadError ?? "wasm module failed to load."}`;
         return;
     }
 
@@ -58,7 +59,7 @@ function run() {
 
         status.textContent = "Success.";
     } catch (err) {
-        status.textContent = `Error: ${err}`;
+        status.textContent = `Error: ${err.message ?? err}`;
     }
 }
 
@@ -68,5 +69,6 @@ try {
     module = await createModule();
     status.textContent = "Ready.";
 } catch (err) {
-    status.textContent = `Error: ${err}`;
+    moduleLoadError = err;
+    status.textContent = `Error: ${err.message ?? err}`;
 }
