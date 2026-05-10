@@ -1,3 +1,8 @@
+---
+title: "Data Types"
+template: "doc"
+tags: [ "docs" ]
+---
 # Statements
 
 If expressions are the logic of the `invariants` DSL, **statements** are the scaffolding. Statements do not evaluate to a value, nor do they return anything. Their sole purpose is to declare contracts, bind scope, and instruct the syntax oracle on _when_ to execute an expression (ie; defining the semantic anchors).

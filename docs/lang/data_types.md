@@ -1,3 +1,8 @@
+---
+title: "Data Types"
+template: "doc"
+tags: [ "docs" ]
+---
 # Data Types
 
 `invariants` aims to maintain parity with the OpenAPI 3.0 spec. As such, the

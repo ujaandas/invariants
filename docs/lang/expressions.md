@@ -1,3 +1,8 @@
+---
+title: "Data Types"
+template: "doc"
+tags: [ "docs" ]
+---
 # Expressions
 
 In the `invariants` DSL, an **expression** is any segment of code that evaluates to a distinct value. Because the syntax oracle transpiles the parsed Abstract Syntax Tree (AST) directly into C++ lambdas, expressions represent the actual computational payload of the contract.

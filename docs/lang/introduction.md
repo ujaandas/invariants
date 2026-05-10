@@ -1,3 +1,8 @@
+---
+title: "Data Types"
+template: "doc"
+tags: [ "docs" ]
+---
 # Overview
 
 I figured it might help to note down the foundational concepts recognized by the `invariants` syntax oracle. To fully understand the DSL, it is best to view it broken down into the following architectural concepts:
