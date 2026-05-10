@@ -80,9 +80,9 @@ std::string parse(std::string source) {
     auto module = parser.parseModule();
     auto printed = ast::visitors::Printer{}.print(*module);
 
-    std::string out = R"({ "out": " )";
+    std::string out = R"({ "out": ")";
     out += escapeJson(printed);
-    out += R"( " })";
+    out += R"(" })";
 
     return out;
   } catch (const std::exception& e) {
