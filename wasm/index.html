@@ -20,12 +20,23 @@
             <div class="card">
                 <label for="source">Source</label>
 
-                <textarea id="source">spec Example {
-  field name: String
-  invariant name != ""
-}</textarea>
+                <textarea id="source">spec BulkOrder {
+    field unit_price: Number {
+        value > 0.0;
+    }
 
-                <button id="run">Tokenize</button>
+    field quantity: Integer {
+        value >= 1;
+        value <= 1000;
+    }
+    
+    field currency: String {
+        value IN ["USD", "EUR", "GBP"];
+    }
+}
+</textarea>
+
+                <button id="run">Run</button>
 
                 <div id="status" class="status">
                     Loading wasm module...
@@ -33,9 +44,23 @@
             </div>
 
             <div class="card">
-                <label for="output">Output</label>
+                <div class="tabs">
+                    <button class="tab active" data-tab="tokens">
+                        Tokens
+                    </button>
 
-                <pre id="output"></pre>
+                    <button class="tab" data-tab="ast">
+                        AST
+                    </button>
+                </div>
+
+                <div id="tokens-tab" class="tab-panel active">
+                    <pre id="tokens-output"></pre>
+                </div>
+
+                <div id="ast-tab" class="tab-panel">
+                    <pre id="ast-output"></pre>
+                </div>
             </div>
         </section>
     </main>

@@ -45,6 +45,11 @@ pre {
     font-family: monospace;
 }
 
+pre {
+    overflow: auto;
+    white-space: pre-wrap;
+}
+
 button {
     margin-top: 10px;
     padding: 8px 12px;
@@ -57,4 +62,30 @@ button {
 .status {
     margin-top: 8px;
     font-size: 0.9em;
+}
+
+.tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.tab {
+    margin-top: 0;
+    background: #f3f3f3;
+    color: #000;
+    border: 1px solid #ccc;
+}
+
+.tab.active {
+    background: #000;
+    color: #fff;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
 }
