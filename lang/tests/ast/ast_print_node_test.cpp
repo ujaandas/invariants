@@ -7,17 +7,17 @@
 #include <vector>
 
 #include "expression.hpp"
+#include "printers/plain_printer.hpp"
+#include "printers/tree_printer.hpp"
 #include "statements.hpp"
 #include "types.hpp"
-#include "visitors/printer.hpp"
-#include "visitors/tree_printer.hpp"
 
 using namespace invariants::ast;
 
 namespace {
 
-using invariants::ast::visitors::Printer;
-using invariants::ast::visitors::TreePrinter;
+using invariants::ast::printers::Plain;
+using invariants::ast::printers::Tree;
 
 ExprPtr expr_ptr(Expr expr) { return std::make_unique<Expr>(std::move(expr)); }
 
@@ -101,7 +101,7 @@ class ExprPrettyPrintsTest : public testing::TestWithParam<ExprCase> {};
 TEST_P(ExprPrettyPrintsTest, PrettyPrints) {
   const auto& param = GetParam();
 
-  auto out = Printer{}.print(param.build());
+  auto out = Plain{}.print(param.build());
 
   EXPECT_EQ(out, param.expected);
 }
@@ -111,7 +111,7 @@ class StmtPrettyPrintsTest : public testing::TestWithParam<StmtCase> {};
 TEST_P(StmtPrettyPrintsTest, PrettyPrints) {
   const auto& param = GetParam();
 
-  auto out = Printer{}.print(param.build());
+  auto out = Plain{}.print(param.build());
 
   EXPECT_EQ(out, param.expected);
 }
@@ -121,7 +121,7 @@ class TypePrettyPrintsTest : public testing::TestWithParam<TypeCase> {};
 TEST_P(TypePrettyPrintsTest, PrettyPrints) {
   const auto& param = GetParam();
 
-  auto out = Printer{}.print(param.build());
+  auto out = Plain{}.print(param.build());
 
   EXPECT_EQ(out, param.expected);
 }
@@ -301,9 +301,9 @@ TEST(AstTest, PrintsSimpleTree1) {
       Expr(BinaryExpr{expr_ptr(Expr(IdentifierExpr{"count"})), BinaryOp::In,
                       expr_ptr(Expr(ListExpr{std::move(elements)}))}));
 
-  auto out = Printer{}.print(
-      Stmt(field("count", Type(SimpleType{BuiltinType::Integer}),
-                 std::move(constraints))));
+  auto out =
+      Plain{}.print(Stmt(field("count", Type(SimpleType{BuiltinType::Integer}),
+                               std::move(constraints))));
 
   EXPECT_EQ(
       out,
@@ -325,7 +325,7 @@ TEST(AstTest, PrintsSimpleTree2) {
           BinaryOp::Equal,
           expr_ptr(Expr(LiteralExpr{std::string("admin")}))}))}));
 
-  auto out = Printer{}.print(Stmt(invariant("Access", std::move(constraints))));
+  auto out = Plain{}.print(Stmt(invariant("Access", std::move(constraints))));
 
   EXPECT_EQ(out,
             "invariant Access { ((!active) || (user.role == \"admin\")); }");
@@ -358,7 +358,7 @@ TEST(AstTest, PrintsComplexTree1) {
                              std::move(row_constraints)));
   members.emplace_back(invariant("Shape", std::move(invariant_constraints)));
 
-  auto out = Printer{}.print(Stmt(spec("Matrix", std::move(members))));
+  auto out = Plain{}.print(Stmt(spec("Matrix", std::move(members))));
 
   EXPECT_EQ(out,
             "spec Matrix { field rows: Array<Array<Integer>> { "
@@ -404,7 +404,7 @@ TEST(AstTest, PrintsComplexTree2) {
   specs.emplace_back(spec("User", std::move(user_members)));
   specs.emplace_back(spec("Order", std::move(order_members)));
 
-  auto out = Printer{}.print(Stmt(module(std::move(specs))));
+  auto out = Plain{}.print(Stmt(module(std::move(specs))));
 
   EXPECT_EQ(out,
             "spec User { field name: String {} field tags: Array<String> { "
@@ -414,7 +414,7 @@ TEST(AstTest, PrintsComplexTree2) {
 }
 
 TEST(AstTest, TreePrinterRendersBranches) {
-  auto out = TreePrinter{}.print(Expr(BinaryExpr{
+  auto out = Tree{}.print(Expr(BinaryExpr{
       expr_ptr(
           Expr(UnaryExpr{UnaryOp::Not, expr_ptr(Expr(IdentifierExpr{"ok"}))})),
       BinaryOp::Or, expr_ptr(Expr(LiteralExpr{std::string("ready")}))}));
