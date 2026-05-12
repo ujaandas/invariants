@@ -7,14 +7,14 @@
 #include "../statements.hpp"
 #include "../types.hpp"
 
-namespace invariants::ast::visitors {
+namespace invariants::ast::printers {
 
 struct TreeNode {
   std::string label;
   std::vector<TreeNode> children;
 };
 
-struct TreePrinter {
+struct Tree {
   TreeNode operator()(const LiteralExpr& e) const;
   TreeNode operator()(const IdentifierExpr& e) const;
   TreeNode operator()(const ThisExpr&) const;
@@ -60,4 +60,4 @@ struct TreePrinter {
               std::vector<std::string>& lines, bool isRoot) const;
 };
 
-}  // namespace invariants::ast::visitors
+}  // namespace invariants::ast::printers

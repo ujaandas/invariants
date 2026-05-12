@@ -1,12 +1,12 @@
-#include "printer.hpp"
+#include "plain_printer.hpp"
 
 #include <sstream>
 
 #include "expression.hpp"
 
-using namespace invariants::ast::visitors;
+using namespace invariants::ast::printers;
 
-std::string Printer::operator()(const LiteralExpr& e) const {
+std::string Plain::operator()(const LiteralExpr& e) const {
   return std::visit(
       [](const auto& v) -> std::string {
         using T = std::decay_t<decltype(v)>;
@@ -23,13 +23,11 @@ std::string Printer::operator()(const LiteralExpr& e) const {
       e.value);
 }
 
-std::string Printer::operator()(const IdentifierExpr& e) const {
-  return e.name;
-}
+std::string Plain::operator()(const IdentifierExpr& e) const { return e.name; }
 
-std::string Printer::operator()(const ThisExpr&) const { return "this"; }
+std::string Plain::operator()(const ThisExpr&) const { return "this"; }
 
-std::string Printer::operator()(const ListExpr& e) const {
+std::string Plain::operator()(const ListExpr& e) const {
   std::ostringstream out;
   out << "[";
   for (size_t i = 0; i < e.elements.size(); ++i) {
@@ -40,11 +38,11 @@ std::string Printer::operator()(const ListExpr& e) const {
   return out.str();
 }
 
-std::string Printer::operator()(const GroupingExpr& e) const {
+std::string Plain::operator()(const GroupingExpr& e) const {
   return "(" + print(*e.expression) + ")";
 }
 
-std::string Printer::operator()(const PostfixExpr& e) const {
+std::string Plain::operator()(const PostfixExpr& e) const {
   std::string s = print(*e.base);
   for (const auto& op : e.ops) {
     s += print(op);
@@ -52,28 +50,28 @@ std::string Printer::operator()(const PostfixExpr& e) const {
   return s;
 }
 
-std::string Printer::operator()(const MemberAccessOp& e) const {
+std::string Plain::operator()(const MemberAccessOp& e) const {
   return "." + e.member;
 }
 
-std::string Printer::operator()(const IndexOp& e) const {
+std::string Plain::operator()(const IndexOp& e) const {
   return "[" + print(*e.index) + "]";
 }
 
-std::string Printer::operator()(const UnaryExpr& e) const {
+std::string Plain::operator()(const UnaryExpr& e) const {
   return "(" + to_string(e.op) + print(*e.operand) + ")";
 }
 
-std::string Printer::operator()(const BinaryExpr& e) const {
+std::string Plain::operator()(const BinaryExpr& e) const {
   return "(" + print(*e.left) + " " + to_string(e.op) + " " + print(*e.right) +
          ")";
 }
 
-std::string Printer::operator()(const ConstraintStmt& e) const {
+std::string Plain::operator()(const ConstraintStmt& e) const {
   return print(*e.expression) + ";";
 }
 
-std::string Printer::operator()(const FieldStmt& e) const {
+std::string Plain::operator()(const FieldStmt& e) const {
   std::ostringstream out;
   out << "field " << e.identifier << ": " << print(*e.type) << " {";
   if (!e.constraints.empty()) {
@@ -88,7 +86,7 @@ std::string Printer::operator()(const FieldStmt& e) const {
   return out.str();
 }
 
-std::string Printer::operator()(const InvariantStmt& e) const {
+std::string Plain::operator()(const InvariantStmt& e) const {
   std::ostringstream out;
   out << "invariant " << e.identifier << " {";
   if (!e.constraints.empty()) {
@@ -103,7 +101,7 @@ std::string Printer::operator()(const InvariantStmt& e) const {
   return out.str();
 }
 
-std::string Printer::operator()(const SpecStmt& e) const {
+std::string Plain::operator()(const SpecStmt& e) const {
   std::ostringstream out;
   out << "spec " << e.identifier << " {";
   if (!e.members.empty()) {
@@ -118,7 +116,7 @@ std::string Printer::operator()(const SpecStmt& e) const {
   return out.str();
 }
 
-std::string Printer::operator()(const ModuleStmt& e) const {
+std::string Plain::operator()(const ModuleStmt& e) const {
   std::ostringstream out;
   for (size_t i = 0; i < e.specs.size(); ++i) {
     if (i > 0) out << " ";
@@ -127,7 +125,7 @@ std::string Printer::operator()(const ModuleStmt& e) const {
   return out.str();
 }
 
-std::string Printer::operator()(const BuiltinType& e) const {
+std::string Plain::operator()(const BuiltinType& e) const {
   switch (e) {
     case BuiltinType::Number:
       return "Number";
@@ -141,7 +139,7 @@ std::string Printer::operator()(const BuiltinType& e) const {
   return "?";
 }
 
-std::string Printer::operator()(const SimpleType& e) const {
+std::string Plain::operator()(const SimpleType& e) const {
   return std::visit(
       [this](const auto& v) -> std::string {
         using T = std::decay_t<decltype(v)>;
@@ -154,24 +152,24 @@ std::string Printer::operator()(const SimpleType& e) const {
       e.value);
 }
 
-std::string Printer::operator()(const ArrayType& e) const {
+std::string Plain::operator()(const ArrayType& e) const {
   return "Array<" + print(e.element->value) + ">";
 }
 
-std::string Printer::operator()(const MapType& e) const {
+std::string Plain::operator()(const MapType& e) const {
   return "Map<" + print(e.key->value) + ", " + print(e.value->value) + ">";
 }
 
 namespace invariants::ast {
 std::ostream& operator<<(std::ostream& os, const Expr& expr) {
-  return os << Printer{}.print(expr);
+  return os << Plain{}.print(expr);
 };
 
 std::ostream& operator<<(std::ostream& os, const Stmt& stmt) {
-  return os << Printer{}.print(stmt);
+  return os << Plain{}.print(stmt);
 };
 
 std::ostream& operator<<(std::ostream& os, const Type& type) {
-  return os << Printer{}.print(type);
+  return os << Plain{}.print(type);
 };
 }  // namespace invariants::ast

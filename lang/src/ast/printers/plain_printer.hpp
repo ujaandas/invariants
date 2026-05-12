@@ -7,9 +7,9 @@
 #include "../statements.hpp"
 #include "../types.hpp"
 
-namespace invariants::ast::visitors {
+namespace invariants::ast::printers {
 
-struct Printer {
+struct Plain {
   // Expressions
   std::string operator()(const LiteralExpr& e) const;
   std::string operator()(const IdentifierExpr& e) const;
@@ -95,4 +95,4 @@ inline std::string to_string(BinaryOp op) {
   return "?";
 }
 
-}  // namespace invariants::ast::visitors
+}  // namespace invariants::ast::printers

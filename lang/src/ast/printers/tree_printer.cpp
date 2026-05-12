@@ -2,9 +2,9 @@
 
 #include <sstream>
 
-#include "printer.hpp"
+#include "plain_printer.hpp"
 
-using namespace invariants::ast::visitors;
+using namespace invariants::ast::printers;
 
 namespace {
 
@@ -32,13 +32,13 @@ TreeNode make_node(std::string label, std::vector<TreeNode> children = {}) {
 
 }  // namespace
 
-TreeNode TreePrinter::attach(const std::string& edge, TreeNode node) {
+TreeNode Tree::attach(const std::string& edge, TreeNode node) {
   if (edge.empty()) return node;
   node.label = edge + ": " + node.label;
   return node;
 }
 
-std::string TreePrinter::render(const TreeNode& root) const {
+std::string Tree::render(const TreeNode& root) const {
   std::vector<std::string> lines;
   render(root, "", true, lines, true);
 
@@ -50,9 +50,8 @@ std::string TreePrinter::render(const TreeNode& root) const {
   return out.str();
 }
 
-void TreePrinter::render(const TreeNode& node, const std::string& prefix,
-                         bool isLast, std::vector<std::string>& lines,
-                         bool isRoot) const {
+void Tree::render(const TreeNode& node, const std::string& prefix, bool isLast,
+                  std::vector<std::string>& lines, bool isRoot) const {
   if (isRoot) {
     lines.push_back(prefix + node.label);
   } else {
@@ -68,19 +67,17 @@ void TreePrinter::render(const TreeNode& node, const std::string& prefix,
   }
 }
 
-TreeNode TreePrinter::operator()(const LiteralExpr& e) const {
+TreeNode Tree::operator()(const LiteralExpr& e) const {
   return make_node("Literal " + literal_to_string(e.value));
 }
 
-TreeNode TreePrinter::operator()(const IdentifierExpr& e) const {
+TreeNode Tree::operator()(const IdentifierExpr& e) const {
   return make_node("Identifier " + e.name);
 }
 
-TreeNode TreePrinter::operator()(const ThisExpr&) const {
-  return make_node("This");
-}
+TreeNode Tree::operator()(const ThisExpr&) const { return make_node("This"); }
 
-TreeNode TreePrinter::operator()(const ListExpr& e) const {
+TreeNode Tree::operator()(const ListExpr& e) const {
   std::vector<TreeNode> children;
   children.reserve(e.elements.size());
   for (size_t i = 0; i < e.elements.size(); ++i) {
@@ -90,11 +87,11 @@ TreeNode TreePrinter::operator()(const ListExpr& e) const {
   return make_node("List", std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const GroupingExpr& e) const {
+TreeNode Tree::operator()(const GroupingExpr& e) const {
   return make_node("Grouping", {attach("expression", build(*e.expression))});
 }
 
-TreeNode TreePrinter::operator()(const PostfixExpr& e) const {
+TreeNode Tree::operator()(const PostfixExpr& e) const {
   std::vector<TreeNode> children;
   children.emplace_back(attach("base", build(*e.base)));
   for (size_t i = 0; i < e.ops.size(); ++i) {
@@ -104,31 +101,31 @@ TreeNode TreePrinter::operator()(const PostfixExpr& e) const {
   return make_node("Postfix", std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const MemberAccessOp& e) const {
+TreeNode Tree::operator()(const MemberAccessOp& e) const {
   return make_node("." + e.member);
 }
 
-TreeNode TreePrinter::operator()(const IndexOp& e) const {
+TreeNode Tree::operator()(const IndexOp& e) const {
   return make_node("Index", {attach("index", build(*e.index))});
 }
 
-TreeNode TreePrinter::operator()(const UnaryExpr& e) const {
+TreeNode Tree::operator()(const UnaryExpr& e) const {
   return make_node("Unary " + to_string(e.op),
                    {attach("operand", build(*e.operand))});
 }
 
-TreeNode TreePrinter::operator()(const BinaryExpr& e) const {
+TreeNode Tree::operator()(const BinaryExpr& e) const {
   std::vector<TreeNode> children;
   children.emplace_back(attach("left", build(*e.left)));
   children.emplace_back(attach("right", build(*e.right)));
   return make_node("Binary " + to_string(e.op), std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const ConstraintStmt& e) const {
+TreeNode Tree::operator()(const ConstraintStmt& e) const {
   return make_node("Constraint", {attach("expression", build(*e.expression))});
 }
 
-TreeNode TreePrinter::operator()(const FieldStmt& e) const {
+TreeNode Tree::operator()(const FieldStmt& e) const {
   std::vector<TreeNode> children;
   children.emplace_back(attach("type", build(*e.type)));
   for (size_t i = 0; i < e.constraints.size(); ++i) {
@@ -138,7 +135,7 @@ TreeNode TreePrinter::operator()(const FieldStmt& e) const {
   return make_node("Field " + e.identifier, std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const InvariantStmt& e) const {
+TreeNode Tree::operator()(const InvariantStmt& e) const {
   std::vector<TreeNode> children;
   for (size_t i = 0; i < e.constraints.size(); ++i) {
     children.emplace_back(attach("constraint[" + std::to_string(i) + "]",
@@ -147,7 +144,7 @@ TreeNode TreePrinter::operator()(const InvariantStmt& e) const {
   return make_node("Invariant " + e.identifier, std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const SpecStmt& e) const {
+TreeNode Tree::operator()(const SpecStmt& e) const {
   std::vector<TreeNode> children;
   children.reserve(e.members.size());
   for (size_t i = 0; i < e.members.size(); ++i) {
@@ -157,7 +154,7 @@ TreeNode TreePrinter::operator()(const SpecStmt& e) const {
   return make_node("Spec " + e.identifier, std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const ModuleStmt& e) const {
+TreeNode Tree::operator()(const ModuleStmt& e) const {
   std::vector<TreeNode> children;
   children.reserve(e.specs.size());
   for (size_t i = 0; i < e.specs.size(); ++i) {
@@ -167,7 +164,7 @@ TreeNode TreePrinter::operator()(const ModuleStmt& e) const {
   return make_node("Module", std::move(children));
 }
 
-TreeNode TreePrinter::operator()(const BuiltinType& e) const {
+TreeNode Tree::operator()(const BuiltinType& e) const {
   switch (e) {
     case BuiltinType::Number:
       return make_node("Number");
@@ -181,7 +178,7 @@ TreeNode TreePrinter::operator()(const BuiltinType& e) const {
   return make_node("?");
 }
 
-TreeNode TreePrinter::operator()(const SimpleType& e) const {
+TreeNode Tree::operator()(const SimpleType& e) const {
   return std::visit(
       [this](const auto& v) -> TreeNode {
         using T = std::decay_t<decltype(v)>;
@@ -194,11 +191,11 @@ TreeNode TreePrinter::operator()(const SimpleType& e) const {
       e.value);
 }
 
-TreeNode TreePrinter::operator()(const ArrayType& e) const {
+TreeNode Tree::operator()(const ArrayType& e) const {
   return make_node("Array", {attach("element", build(e.element->value))});
 }
 
-TreeNode TreePrinter::operator()(const MapType& e) const {
+TreeNode Tree::operator()(const MapType& e) const {
   return make_node("Map", {attach("key", build(e.key->value)),
                            attach("value", build(e.value->value))});
 }
