@@ -146,6 +146,8 @@
 
         devShells.default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
           packages = with pkgs; [
+            python313
+            uv
             clang-tools
             cmake
             cppcheck
