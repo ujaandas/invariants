@@ -6,6 +6,9 @@ result
 .direnv
 .envrc
 
+# Python
+__pycache__/
+
 # Prerequisites
 *.d
 
