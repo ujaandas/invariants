@@ -69,5 +69,8 @@ with torch.inference_mode():
         # Greedy decode
         next_token = outputs.logits[:, -1].argmax(dim=-1, keepdim=True)
 
-generated = torch.cat(generated, dim=1)
-print(tokenizer.decode(generated[0], skip_special_tokens=True))
+if generated:
+    generated = torch.cat(generated, dim=1)
+    print(tokenizer.decode(generated[0], skip_special_tokens=True))
+else:
+    print("")
