@@ -30,7 +30,8 @@ inputs = tokenizer.apply_chat_template(
     add_generation_prompt=True,
     tokenize=True,
     return_tensors="pt",
-)
+    return_dict=True,
+).to(device)
 
 inputs = {k: v.to(device) for k, v in inputs.items()}
 
