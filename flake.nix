@@ -12,6 +12,7 @@
     utils.lib.eachDefaultSystem (
       system:
       let
+        inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.${system};
         sourcePaths = "lang/src lang/tests";
 
@@ -158,6 +159,10 @@
             prek
             emscripten
           ];
+
+          env = lib.optionalAttrs pkgs.stdenv.isLinux {
+            LD_LIBRARY_PATH = "/usr/lib/wsl/lib:${lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1}";
+          };
         };
 
         formatter = pkgs.nixfmt;
