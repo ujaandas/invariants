@@ -6,9 +6,9 @@
 #include <utility>
 #include <vector>
 
-#include "expression.hpp"
-#include "helper.hpp"
-#include "types.hpp"
+#include "ast_expr.hpp"
+#include "ast_types.hpp"
+#include "ptr_eq_helper.hpp"
 
 namespace invariants::ast {
 

@@ -3,10 +3,10 @@
 #include <memory>
 #include <stdexcept>
 
-#include "expression.hpp"
-#include "statements.hpp"
+#include "ast_expr.hpp"
+#include "ast_stmt.hpp"
+#include "ast_types.hpp"
 #include "token.hpp"
-#include "types.hpp"
 
 using namespace invariants::parser;
 using namespace invariants::ast;

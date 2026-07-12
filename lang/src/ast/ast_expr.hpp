@@ -10,7 +10,7 @@
 #include <variant>
 #include <vector>
 
-#include "helper.hpp"
+#include "ptr_eq_helper.hpp"
 
 namespace invariants::ast {
 

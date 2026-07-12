@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 
+#include "ast_stmt.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
-#include "statements.hpp"
 
 using namespace invariants::ast;
 using namespace invariants::parser;

@@ -3,9 +3,9 @@
 #include <string>
 #include <variant>
 
-#include "../expression.hpp"
-#include "../statements.hpp"
-#include "../types.hpp"
+#include "../ast_expr.hpp"
+#include "../ast_stmt.hpp"
+#include "../ast_types.hpp"
 
 namespace invariants::ast::printers {
 

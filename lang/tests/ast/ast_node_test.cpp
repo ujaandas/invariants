@@ -6,9 +6,9 @@
 #include <utility>
 #include <variant>
 
-#include "expression.hpp"
-#include "statements.hpp"
-#include "types.hpp"
+#include "ast_expr.hpp"
+#include "ast_stmt.hpp"
+#include "ast_types.hpp"
 
 using namespace invariants::ast;
 

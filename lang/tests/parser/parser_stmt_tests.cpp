@@ -4,11 +4,11 @@
 #include <string>
 #include <vector>
 
-#include "expression.hpp"
+#include "ast_expr.hpp"
+#include "ast_stmt.hpp"
+#include "ast_types.hpp"
 #include "parser.hpp"
-#include "statements.hpp"
 #include "token.hpp"
-#include "types.hpp"
 
 using namespace invariants::ast;
 using namespace invariants::parser;

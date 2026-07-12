@@ -6,11 +6,11 @@
 #include <string>
 #include <vector>
 
-#include "expression.hpp"
+#include "ast_expr.hpp"
+#include "ast_stmt.hpp"
+#include "ast_types.hpp"
 #include "printers/plain_printer.hpp"
 #include "printers/tree_printer.hpp"
-#include "statements.hpp"
-#include "types.hpp"
 
 using namespace invariants::ast;
 
