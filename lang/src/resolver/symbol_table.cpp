@@ -7,7 +7,7 @@ using namespace invariants::resolver;
 SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) {
   auto it = specs.find(std::string(spec));
   if (it != specs.end()) {
-    return &it->second;
+    return it->second.get();
   }
   return nullptr;
 }
@@ -22,7 +22,7 @@ FieldSymbol* SymbolTable::lookup_field(std::string_view spec_name,
   auto& fields = foundSpec->fields;
   auto it = fields.find(std::string(field_name));
   if (it != fields.end()) {
-    return &it->second;
+    return it->second.get();
   }
   return nullptr;
 }

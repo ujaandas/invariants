@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -29,7 +30,7 @@ struct SpecSymbol {
 
   const ast::SpecStmt* decl;
 
-  std::unordered_map<std::string, FieldSymbol> fields;
+  std::unordered_map<std::string, std::unique_ptr<FieldSymbol>> fields;
 };
 
 class SymbolTable {
@@ -38,7 +39,7 @@ class SymbolTable {
   FieldSymbol* lookup_field(std::string_view, std::string_view);
 
  private:
-  std::unordered_map<std::string, SpecSymbol> specs;
+  std::unordered_map<std::string, std::unique_ptr<SpecSymbol>> specs;
 };
 
 }  // namespace invariants::resolver
