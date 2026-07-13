@@ -14,12 +14,6 @@ namespace invariants::resolver {
 
 using SpecId = std::uint32_t;
 using FieldId = std::uint32_t;
-using ConstraintId = std::uint32_t;
-
-struct ConstraintSymbol {
-  ConstraintId id;
-  const ast::ConstraintStmt* decl;
-};
 
 struct FieldSymbol {
   FieldId id;
@@ -27,8 +21,6 @@ struct FieldSymbol {
   ast::Type type;
 
   const ast::FieldStmt* decl;
-
-  std::vector<ConstraintSymbol> constraints;
 };
 
 struct SpecSymbol {
@@ -42,8 +34,8 @@ struct SpecSymbol {
 
 class SymbolTable {
  public:
-  explicit SymbolTable() = default;
   SpecSymbol* lookup_spec(std::string_view);
+  FieldSymbol* lookup_field(std::string_view, std::string_view);
 
  private:
   std::unordered_map<std::string, SpecSymbol> specs;

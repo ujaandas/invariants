@@ -1,4 +1,4 @@
-add_library(invariants_resolver resolver.cpp)
+add_library(invariants_resolver resolver.cpp symbol_table.cpp)
 
 target_include_directories(invariants_resolver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
