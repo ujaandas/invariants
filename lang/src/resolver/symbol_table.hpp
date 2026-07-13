@@ -38,6 +38,10 @@ class SymbolTable {
   const SpecSymbol* lookup_spec(std::string_view);
   const FieldSymbol* lookup_field(std::string_view, std::string_view);
 
+  bool add_spec(std::string_view, std::unique_ptr<SpecSymbol>);
+  bool add_field(std::string_view, std::string_view,
+                 std::unique_ptr<FieldSymbol>);
+
  private:
   std::unordered_map<std::string, std::unique_ptr<SpecSymbol>> specs;
 };
