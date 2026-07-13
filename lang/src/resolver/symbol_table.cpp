@@ -4,7 +4,7 @@
 
 using namespace invariants::resolver;
 
-SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) {
+const SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) {
   auto it = specs.find(std::string(spec));
   if (it != specs.end()) {
     return it->second.get();
@@ -12,9 +12,9 @@ SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) {
   return nullptr;
 }
 
-FieldSymbol* SymbolTable::lookup_field(std::string_view spec_name,
-                                       std::string_view field_name) {
-  SpecSymbol* foundSpec = lookup_spec(spec_name);
+const FieldSymbol* SymbolTable::lookup_field(std::string_view spec_name,
+                                             std::string_view field_name) {
+  auto foundSpec = lookup_spec(spec_name);
   if (!foundSpec) {
     return nullptr;
   }
