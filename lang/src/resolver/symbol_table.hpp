@@ -35,8 +35,8 @@ struct SpecSymbol {
 
 class SymbolTable {
  public:
-  const SpecSymbol* lookup_spec(std::string_view);
-  const FieldSymbol* lookup_field(std::string_view, std::string_view);
+  const SpecSymbol* lookup_spec(std::string_view) const;
+  const FieldSymbol* lookup_field(std::string_view, std::string_view) const;
 
   bool add_spec(std::string_view, std::unique_ptr<SpecSymbol>);
   bool add_field(std::string_view, std::string_view,
