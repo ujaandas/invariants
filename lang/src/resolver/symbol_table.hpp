@@ -19,7 +19,7 @@ using FieldId = std::uint32_t;
 struct FieldSymbol {
   FieldId id;
   std::string name;
-  ast::Type type;
+  const ast::Type* type;
 
   const ast::FieldStmt* decl;
 };

@@ -18,8 +18,8 @@ std::unique_ptr<SpecSymbol> makeSpec(SpecId id, const std::string& name) {
 std::unique_ptr<FieldSymbol> makeField(FieldId id, const std::string& name) {
   invariants::ast::Type dummyType(invariants::ast::SimpleType{});
 
-  return std::make_unique<FieldSymbol>(FieldSymbol{
-      .id = id, .name = name, .type = std::move(dummyType), .decl = nullptr});
+  return std::make_unique<FieldSymbol>(
+      FieldSymbol{.id = id, .name = name, .type = &dummyType, .decl = nullptr});
 }
 
 }  // namespace
