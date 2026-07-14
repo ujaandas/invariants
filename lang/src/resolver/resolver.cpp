@@ -34,7 +34,52 @@ void Resolver::operator()(const ast::SpecStmt& e) {
 }
 
 void Resolver::operator()(const ast::FieldStmt& e) {
-  // TODO: Implement field resolution logic (adding to symbol table, etc.)
+  if (!e.type) {
+    throw std::runtime_error("Field '" + e.identifier +
+                             "' is missing a type definition.");
+  }
+
+  std::visit(std::ref(*this), e.type->value);
+
+  auto field = std::make_unique<FieldSymbol>(FieldSymbol{.id = nextFieldId++,
+                                                         .name = e.identifier,
+                                                         .type = e.type.get(),
+                                                         .decl = &e});
+
+  if (!table.add_field(currSpecName, e.identifier, std::move(field))) {
+    throw std::runtime_error("Duplicate field definition: " + e.identifier +
+                             " in spec " + currSpecName);
+  }
+}
+
+void Resolver::operator()(const ast::SimpleType& e) {
+  // SimpleType is either a string, which repr a spec, or a builtin, which is
+  // fine anyways
+  if (std::holds_alternative<std::string>(e.value)) {
+    const auto& customType = std::get<std::string>(e.value);
+    if (!table.lookup_spec(customType)) {
+      throw std::runtime_error("Unknown type identifier: " + customType);
+    }
+  }
+}
+
+void Resolver::operator()(const ast::BuiltinType& e) {
+  // Always valid
+}
+
+void Resolver::operator()(const ast::ArrayType& e) {
+  if (e.element) {
+    std::visit(std::ref(*this), e.element->value);
+  }
+}
+
+void Resolver::operator()(const ast::MapType& e) {
+  if (e.key) {
+    std::visit(std::ref(*this), e.key->value);
+  }
+  if (e.value) {
+    std::visit(std::ref(*this), e.value->value);
+  }
 }
 
 void Resolver::operator()(const ast::InvariantStmt& e) {
