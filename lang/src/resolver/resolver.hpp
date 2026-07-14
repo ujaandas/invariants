@@ -24,22 +24,22 @@ class Resolver {
   void operator()(const ast::ModuleStmt& e);
 
   // Expressions
-  //   std::string operator()(const LiteralExpr& e);
-  //   std::string operator()(const IdentifierExpr& e);
-  //   std::string operator()(const ThisExpr&);
-  //   std::string operator()(const ListExpr& e);
-  //   std::string operator()(const GroupingExpr& e);
-  //   std::string operator()(const PostfixExpr& e);
-  //   std::string operator()(const MemberAccessOp& e);
-  //   std::string operator()(const IndexOp& e);
-  //   std::string operator()(const UnaryExpr& e);
-  //   std::string operator()(const BinaryExpr& e);
+  std::string operator()(const ast::LiteralExpr& e);
+  std::string operator()(const ast::IdentifierExpr& e);
+  std::string operator()(const ast::ThisExpr&);
+  std::string operator()(const ast::ListExpr& e);
+  std::string operator()(const ast::GroupingExpr& e);
+  std::string operator()(const ast::PostfixExpr& e);
+  std::string operator()(const ast::MemberAccessOp& e);
+  std::string operator()(const ast::IndexOp& e);
+  std::string operator()(const ast::UnaryExpr& e);
+  std::string operator()(const ast::BinaryExpr& e);
 
   // Types
-  //   std::string operator()(const BuiltinType& e);
-  //   std::string operator()(const SimpleType& e);
-  //   std::string operator()(const ArrayType&);
-  //   std::string operator()(const MapType& e);
+  std::string operator()(const ast::BuiltinType& e);
+  std::string operator()(const ast::SimpleType& e);
+  std::string operator()(const ast::ArrayType&);
+  std::string operator()(const ast::MapType& e);
 };
 
 }  // namespace invariants::resolver
