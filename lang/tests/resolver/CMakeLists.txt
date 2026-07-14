@@ -1,6 +1,6 @@
-add_executable(symbol_table_test symbol_table_test.cpp)
+add_executable(resolver_test symbol_table_test.cpp resolver_test.cpp)
 
-target_link_libraries(symbol_table_test PRIVATE invariants_resolver GTest::gtest_main)
+target_link_libraries(resolver_test PRIVATE invariants_resolver GTest::gtest_main)
 
 include(GoogleTest)
-gtest_discover_tests(symbol_table_test)
+gtest_discover_tests(resolver_test)
