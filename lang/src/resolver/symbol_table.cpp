@@ -52,7 +52,7 @@ bool SymbolTable::add_field(std::string_view specName,
     return false;
   }
 
-  auto& spec = it->second;
+  const auto& spec = it->second;
   std::string field_key(fieldName);
   if (spec->fields.find(field_key) != spec->fields.end()) {
     return false;
