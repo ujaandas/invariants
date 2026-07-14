@@ -90,10 +90,8 @@ TEST(SymbolTableTest, AddDuplicateFieldFails) {
   ASSERT_TRUE(table.add_spec("User", makeSpec(1, "User")));
   EXPECT_TRUE(table.add_field("User", "age", makeField(100, "age")));
 
-  // Try inserting another field with the same name under the same spec
   EXPECT_FALSE(table.add_field("User", "age", makeField(101, "ageDuplicate")));
 
-  // Verify original field is intact
   const auto* field = table.lookup_field("User", "age");
   ASSERT_NE(field, nullptr);
   EXPECT_EQ(field->id, 100);
