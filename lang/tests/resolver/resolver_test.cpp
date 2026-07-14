@@ -17,6 +17,29 @@ ast::SpecStmt makeSpecStmt(const std::string& name,
   return ast::SpecStmt{.identifier = name, .members = std::move(members)};
 }
 
+ast::FieldStmt makeFieldStmt(const std::string& name) {
+  return ast::FieldStmt{.identifier = name,
+                        .type = std::make_unique<ast::Type>(
+                            ast::SimpleType{.value = ast::BuiltinType::Number}),
+                        .constraints = {}};
+}
+
+ast::FieldStmt makeCustomFieldStmt(const std::string& name,
+                                   const std::string& typeName) {
+  return ast::FieldStmt{
+      .identifier = name,
+      .type = std::make_unique<ast::Type>(ast::SimpleType{.value = typeName}),
+      .constraints = {}};
+}
+
+template <typename... Args>
+std::vector<ast::SpecMember> makeMembers(Args&&... args) {
+  std::vector<ast::SpecMember> members;
+  members.reserve(sizeof...(args));
+  (members.push_back(ast::SpecMember(std::move(args))), ...);
+  return members;
+}
+
 }  // namespace
 
 TEST(ResolverTest, ResolvingEmptySpecAddsToSymbolTable) {
@@ -79,4 +102,26 @@ TEST(ResolverTest, ThrowsOnDuplicateSpecification) {
   resolver(spec1);
 
   EXPECT_THROW(resolver(spec2), std::runtime_error);
+}
+
+TEST(ResolverTest, ThrowsWhenFieldHasUnknownCustomType) {
+  Resolver resolver;
+
+  auto spec = makeSpecStmt(
+      "User", makeMembers(makeCustomFieldStmt("location", "Address")));
+
+  EXPECT_THROW(resolver(spec), std::runtime_error);
+}
+
+TEST(ResolverTest, ResolvesValidCustomType) {
+  Resolver resolver;
+
+  auto addressSpec = makeSpecStmt("Address");
+  resolver(addressSpec);
+
+  auto userSpec = makeSpecStmt(
+      "User", makeMembers(makeCustomFieldStmt("location", "Address"),
+                          makeFieldStmt("age")));
+
+  EXPECT_NO_THROW(resolver(userSpec));
 }
