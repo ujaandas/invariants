@@ -55,7 +55,7 @@ class Runtime {
   bool hasMoreFields() const;
   std::string getActiveFieldName() const;
   FieldType getActiveFieldType() const;
-  std::vector<std::string> getGenOrder() const;
+  const std::vector<std::string>& getGenOrder() const;
 
   // Call when finish generating field to mutate state
   void submitVal(std::string_view, const Value&);

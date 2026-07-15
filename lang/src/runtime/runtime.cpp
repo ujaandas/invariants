@@ -204,3 +204,19 @@ void Runtime::initSchema() {
         return unit_price * static_cast<double>(quantity);
       }};
 }
+
+bool Runtime::hasMoreFields() const { return currStepIdx < genOrder.size(); }
+
+std::string Runtime::getActiveFieldName() const {
+  if (!hasMoreFields()) return "";
+  return genOrder[currStepIdx];
+}
+
+FieldType Runtime::getActiveFieldType() const {
+  if (!hasMoreFields()) throw std::runtime_error("No active field available.");
+  return fields.at(getActiveFieldName()).type;
+}
+
+const std::vector<std::string>& Runtime::getGenOrder() const {
+  return genOrder;
+}
