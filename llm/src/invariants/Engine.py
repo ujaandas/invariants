@@ -15,31 +15,46 @@ class Engine:
             verbose=False,
         )
 
-    def prefill(self, prompt_text: str, processor: LogitsProcessor) -> DecodeState:
-        """
-        Initializes the context and returns the generator state.
-        """
-        prompt_tokens = self.llm.tokenize(
-            prompt_text.encode("utf-8"), add_special_tokens=False
-        )
-        processor_list = LogitsProcessorList([processor])
+    def tokenize(self, text: str) -> list[int]:
+        """Convert a string into a list of token IDs"""
+        return self.llm.tokenize(text.encode("utf-8"))
 
-        # Create the generator. KV cache is updated on every next() call.
+    def decode(self, tokens: list[int]) -> str:
+        """Convert a list of token IDs back into a UTF-8 string"""
+        return self.llm.detokenize(tokens).decode("utf-8", errors="ignore")
+
+    def prefill(
+        self, prompt_text: str, logits_processor: LogitsProcessor | None = None
+    ) -> DecodeState:
+        """
+        Tokenizes the prompt, primes the KV cache, and returns a state tracker
+        ready to step token-by-token.
+        """
+        prompt_tokens = self.tokenize(prompt_text)
+
+        processors = LogitsProcessorList()
+
+        if logits_processor is not None:
+            processors.append(logits_processor)
+
+        # Manages the KV cache state internally
         gen = self.llm.generate(
             prompt_tokens,
-            logits_processor=processor_list,
-            temp=0.0,  # Greedy decoding for structured generation
+            logits_processor=processors,
+            temp=0.0,  # Greedy decoding is mandatory for strict validation
         )
 
-        return DecodeState(step_generator=gen, generated_tokens=[])
+        return DecodeState(step_generator=gen)
 
     def step(self, state: DecodeState) -> int | None:
         """
         Advances the model by exactly one token.
+        Returns the new token ID, or None if EOS or generation limits are reached.
         """
         try:
             token = next(state.step_generator)
 
+            # Check if we hit the EOS token
             if token == self.llm.token_eos():
                 return None
 
