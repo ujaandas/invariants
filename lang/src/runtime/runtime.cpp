@@ -230,6 +230,26 @@ const std::vector<std::string>& Runtime::getGenOrder() const {
 
 void Runtime::submitVal(std::string_view name, const Value& val) {
   std::string key{name};
+  const auto& field = fields.at(key);
+
+  // Stringify variant value to pass to validator
+  std::string str_rep;
+  if (std::holds_alternative<int>(val)) {
+    str_rep = std::to_string(std::get<int>(val));
+  } else if (std::holds_alternative<double>(val)) {
+    str_rep = std::to_string(std::get<double>(val));
+  } else {
+    str_rep = std::get<std::string>(val);
+  }
+
+  // Validate
+  ValidationStatus status = field.validate(str_rep, environment);
+  if (status != ValidationStatus::Valid) {
+    throw std::runtime_error("Validation failed for field '" + key +
+                             "' with value: " + str_rep);
+  }
+
+  // Mutate if ok
   environment[key] = val;
   if (getActiveFieldName() == key) {
     currStepIdx++;
