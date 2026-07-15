@@ -111,6 +111,38 @@ TEST_F(ResolverIntegrationTest, ResolvesExistentThisMemberAccess) {
   EXPECT_NO_THROW(runResolverOnSource(source, resolver));
 }
 
+TEST_F(ResolverIntegrationTest, ResolvesParenthesizedThisMemberAccess) {
+  std::string source = R"(
+    spec Product {
+      field price: Number { }
+      invariant grouped_this_member {
+        (this).price == 50;
+      }
+    }
+  )";
+
+  Resolver resolver;
+  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+}
+
+TEST_F(ResolverIntegrationTest,
+       ResolvesNestedParenthesizedThisChainedMemberAccess) {
+  std::string source = R"(
+    spec Address {
+      field zip: String { }
+    }
+    spec User {
+      field location: Address { }
+      invariant nested_grouping_member {
+        ((this)).location.zip == "10001";
+      }
+    }
+  )";
+
+  Resolver resolver;
+  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+}
+
 TEST_F(ResolverIntegrationTest, RejectsUnorderedCustomTypeCrossReferences) {
   std::string source = R"(
     spec User {
@@ -167,6 +199,20 @@ TEST_F(ResolverIntegrationTest, RejectsNonExistentThisMemberAccess) {
       field price: Number { }
       invariant bad_member {
         this.sku == "unknown";
+      }
+    }
+  )";
+
+  Resolver resolver;
+  EXPECT_THROW(runResolverOnSource(source, resolver), std::runtime_error);
+}
+
+TEST_F(ResolverIntegrationTest, RejectsParenthesizedThisMissingMemberAccess) {
+  std::string source = R"(
+    spec Product {
+      field price: Number { }
+      invariant bad_grouped_member {
+        (this).sku == "unknown";
       }
     }
   )";

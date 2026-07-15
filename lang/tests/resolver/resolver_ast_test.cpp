@@ -261,6 +261,51 @@ TEST(ResolverTest, MemberAccessThrowsOnMissingField) {
   EXPECT_THROW(resolver(spec), std::runtime_error);
 }
 
+TEST(ResolverTest, GroupedThisMemberAccessResolvesCorrectly) {
+  Resolver resolver;
+
+  ast::FieldStmt field{.identifier = "price",
+                       .type = std::make_unique<ast::Type>(
+                           ast::SimpleType{.value = ast::BuiltinType::Number})};
+
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "price"});
+
+  ast::InvariantStmt invariant{
+      .identifier = "valid",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{
+              .base = std::make_unique<ast::Expr>(ast::GroupingExpr{
+                  .expression = std::make_unique<ast::Expr>(
+                      ast::GroupingExpr{.expression = std::make_unique<ast::Expr>(
+                          ast::ThisExpr{})})}),
+              .ops = std::move(ops)}))};
+
+  ast::SpecStmt spec{
+      .identifier = "Order",
+      .members = makeMembers(std::move(field), std::move(invariant))};
+  EXPECT_NO_THROW(resolver(spec));
+}
+
+TEST(ResolverTest, GroupedThisMemberAccessThrowsOnMissingField) {
+  Resolver resolver;
+
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "unknown_field"});
+
+  ast::InvariantStmt invariant{
+      .identifier = "invalid_access",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::GroupingExpr{
+                               .expression =
+                                   std::make_unique<ast::Expr>(ast::ThisExpr{})}),
+                           .ops = std::move(ops)}))};
+
+  ast::SpecStmt spec{.identifier = "Order",
+                     .members = makeMembers(std::move(invariant))};
+  EXPECT_THROW(resolver(spec), std::runtime_error);
+}
+
 TEST(ResolverTest, ChainedMemberAccessResolvesThroughCustomSpecType) {
   Resolver resolver;
 
