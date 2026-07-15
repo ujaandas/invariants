@@ -1,11 +1,11 @@
 import numpy as np
-import invariants
+import invariants_cpp
 from invariants.Buffer import FieldBuffer
 
 
 class ConstraintProcessor:
     def __init__(
-        self, runtime: invariants.Runtime, buffer: FieldBuffer, top_k: int = 1000
+        self, runtime: invariants_cpp.Runtime, buffer: FieldBuffer, top_k: int = 1000
     ):
         self.runtime = runtime
         self.buffer = buffer
@@ -27,7 +27,7 @@ class ConstraintProcessor:
             status = self.runtime.validate_active_field_partial(proposed_str)
 
             # If OK, restore original probability
-            if status != invariants.ValidationStatus.Invalid:
+            if status != invariants_cpp.ValidationStatus.Invalid:
                 masked_scores[token_id] = scores[token_id]
                 valid_tokens_found += 1
 
