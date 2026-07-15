@@ -161,23 +161,44 @@ void Resolver::operator()(const ast::PostfixExpr& e) {
   // Resolve base expr first
   std::visit(std::ref(*this), e.base->value);
 
-  bool isBaseThis = std::holds_alternative<ast::ThisExpr>(e.base->value);
+  // bool isBaseThis = std::holds_alternative<ast::ThisExpr>(e.base->value);
+  const SpecSymbol* activeSpec =
+      std::holds_alternative<ast::ThisExpr>(e.base->value)
+          ? table.lookup_spec(currSpecName)
+          : nullptr;
 
   for (const auto& op : e.ops) {
     if (std::holds_alternative<ast::MemberAccessOp>(op)) {
       const auto& memOp = std::get<ast::MemberAccessOp>(op);
 
-      if (isBaseThis) {
-        // Enforce field validity against st
-        if (!table.lookup_field(currSpecName, memOp.member)) {
-          throw std::runtime_error("Specification '" + currSpecName +
-                                   "' has no field named '" + memOp.member +
-                                   "'");
+      // if (isBaseThis) {
+      //   // Enforce field validity against st
+      //   if (!table.lookup_field(currSpecName, memOp.member)) {
+      //     throw std::runtime_error("Specification '" + currSpecName +
+      //                              "' has no field named '" + memOp.member +
+      //                              "'");
+      if (!activeSpec) {
+        continue;
+      }
+      const auto* field = table.lookup_field(activeSpec->name, memOp.member);
+      if (!field) {
+        throw std::runtime_error("Specification '" + activeSpec->name +
+                                 "' has no field named '" + memOp.member + "'");
+      }
+      // If the field is a custom spec type, allow chained member access to
+      // resolve against that spec.
+      activeSpec = nullptr;
+      if (field->type &&
+          std::holds_alternative<ast::SimpleType>(field->type->value)) {
+        const auto& st = std::get<ast::SimpleType>(field->type->value);
+        if (std::holds_alternative<std::string>(st.value)) {
+          activeSpec = table.lookup_spec(std::get<std::string>(st.value));
         }
       }
     } else {
       const auto& idxOp = std::get<ast::IndexOp>(op);
       if (idxOp.index) std::visit(std::ref(*this), idxOp.index->value);
+      activeSpec = nullptr;
     }
   }
 }

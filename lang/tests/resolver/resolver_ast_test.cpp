@@ -259,3 +259,55 @@ TEST(ResolverTest, MemberAccessThrowsOnMissingField) {
                      .members = makeMembers(std::move(invariant))};
   EXPECT_THROW(resolver(spec), std::runtime_error);
 }
+
+TEST(ResolverTest, ChainedMemberAccessResolvesThroughCustomSpecType) {
+  Resolver resolver;
+
+  // spec Address { field city: String }
+  resolver(makeSpecStmt("Address",
+                        makeMembers(makeCustomFieldStmt("city", "String"))));
+
+  // invariant { this.address.city; }
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "address"});
+  ops.push_back(ast::MemberAccessOp{.member = "city"});
+
+  ast::InvariantStmt invariant{
+      .identifier = "valid_address",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
+                           .ops = std::move(ops)}))};
+
+  ast::SpecStmt user{
+      .identifier = "User",
+      .members = makeMembers(makeCustomFieldStmt("address", "Address"),
+                             std::move(invariant))};
+
+  EXPECT_NO_THROW(resolver(user));
+}
+
+TEST(ResolverTest, ChainedMemberAccessThrowsOnMissingNestedField) {
+  Resolver resolver;
+
+  // spec Address { field city: String }
+  resolver(makeSpecStmt("Address",
+                        makeMembers(makeCustomFieldStmt("city", "String"))));
+
+  // invariant { this.address.zipcode; }
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "address"});
+  ops.push_back(ast::MemberAccessOp{.member = "zipcode"});
+
+  ast::InvariantStmt invariant{
+      .identifier = "invalid_address",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
+                           .ops = std::move(ops)}))};
+
+  ast::SpecStmt user{
+      .identifier = "User",
+      .members = makeMembers(makeCustomFieldStmt("address", "Address"),
+                             std::move(invariant))};
+
+  EXPECT_THROW(resolver(user), std::runtime_error);
+}
