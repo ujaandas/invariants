@@ -160,9 +160,6 @@ TEST(ResolverTest, StructuralStatementTraversalSucceeds) {
                            makeMembers(makeFieldWithConstraints("quantity"),
                                        makeInvariant("valid_total_price")));
 
-  // Verifies that the cascading traversal passes through Module -> Spec ->
-  // Field/Invariant -> Constraint -> Expr cleanly without encountering
-  // zero-dereference bugs or syntax crashes.
   EXPECT_NO_THROW(resolver(spec));
 }
 
