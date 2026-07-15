@@ -65,6 +65,11 @@ bool isValidDoublePrefix(std::string_view s) {
 
 }  // namespace
 
+Runtime::Runtime() {
+  initSchema();
+  reset();
+}
+
 void Runtime::initSchema() {
   // Hard-coded - only total_price depends on unit_price and quantity
   genOrder = {"unit_price", "quantity", "currency", "total_price"};
