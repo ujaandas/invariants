@@ -7,11 +7,13 @@ class Engine:
         self,
         repo_id: str = "Qwen/Qwen2.5-3B-Instruct-GGUF",
         filename: str = "*q4_k_m.gguf",
+        seed: int = -1,
     ):
         self.llm = Llama.from_pretrained(
             repo_id=repo_id,
             filename=filename,
             n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
+            seed=seed,
             verbose=False,
         )
 
@@ -24,7 +26,10 @@ class Engine:
         return self.llm.detokenize(tokens).decode("utf-8", errors="ignore")
 
     def prefill(
-        self, prompt_text: str, logits_processor: LogitsProcessor | None = None
+        self,
+        prompt_text: str,
+        logits_processor: LogitsProcessor | None = None,
+        temperature: float = 0.7,
     ) -> DecodeState:
         """
         Tokenizes the prompt, primes the KV cache, and returns a state tracker
@@ -41,7 +46,7 @@ class Engine:
         gen = self.llm.generate(
             prompt_tokens,
             logits_processor=processors,
-            temp=0.0,  # Greedy decoding is mandatory for strict validation
+            temp=temperature,  # Greedy decoding is mandatory for strict validation
         )
 
         return DecodeState(step_generator=gen)
