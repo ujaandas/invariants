@@ -102,10 +102,10 @@ void Resolver::operator()(const ast::ConstraintStmt& e) {
   }
 }
 
-// TODO: Placeholders for linker
 void Resolver::operator()(const ast::LiteralExpr& e) {
   // Don't need mapping
 }
+
 void Resolver::operator()(const ast::IdentifierExpr& e) {
   // Only allowed if explicit 'value'
   if (e.name == "value") {
