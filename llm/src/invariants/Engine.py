@@ -1,72 +1,50 @@
-from typing import cast
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-    PreTrainedTokenizerBase,
-)
-import torch
-
+from llama_cpp import Llama, LogitsProcessorList, LogitsProcessor
 from invariants.State import DecodeState
 
 
 class Engine:
     def __init__(
         self,
-        model_name: str,
-        tokenizer_name: str | None = None,
-        device: str = "cuda",
-        quantize: bool = True,
+        repo_id: str = "Qwen/Qwen2.5-3B-Instruct-GGUF",
+        filename: str = "*q4_k_m.gguf",
     ):
-        self.device: str = device
-
-        self.tokenizer = cast(
-            PreTrainedTokenizerBase,
-            AutoTokenizer.from_pretrained(tokenizer_name or model_name),
+        self.llm = Llama.from_pretrained(
+            repo_id=repo_id,
+            filename=filename,
+            n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
+            verbose=False,
         )
 
-        quant_config = None
-        if quantize:
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_compute_dtype=torch.float16,
-            )
+    def prefill(self, prompt_text: str, processor: LogitsProcessor) -> DecodeState:
+        """
+        Initializes the context and returns the generator state.
+        """
+        prompt_tokens = self.llm.tokenize(
+            prompt_text.encode("utf-8"), add_special_tokens=False
+        )
+        processor_list = LogitsProcessorList([processor])
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=quant_config,
-            device_map=device,
+        # Create the generator. KV cache is updated on every next() call.
+        gen = self.llm.generate(
+            prompt_tokens,
+            logits_processor=processor_list,
+            temp=0.0,  # Greedy decoding for structured generation
         )
 
-        self.model.eval()
+        return DecodeState(step_generator=gen, generated_tokens=[])
 
-    def prefill(
-        self, input_ids: torch.Tensor, attn_mask: torch.Tensor | None = None
-    ) -> DecodeState:
-        # Ensure shape is [1, seq]
-        if input_ids.dim() == 1:
-            input_ids = input_ids.unsqueeze(0)
+    def step(self, state: DecodeState) -> int | None:
+        """
+        Advances the model by exactly one token.
+        """
+        try:
+            token = next(state.step_generator)
 
-        # Load in GPU
-        input_ids = input_ids.to(self.device)
+            if token == self.llm.token_eos():
+                return None
 
-        if attn_mask is not None:
-            attn_mask = attn_mask.to(self.device)
+            state.generated_tokens.append(token)
+            return token
 
-        # Initialize KV cache
-        with torch.inference_mode():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attn_mask,
-                use_cache=True,
-            )
-
-        return DecodeState(
-            past_kv=outputs.past_key_values,
-            logits=outputs.logits[
-                :, -1, :
-            ],  # Full vocab logits (shaped as batch, seq_len, vocab)
-            generated=input_ids[0].tolist(),  # Maintain full history
-        )
+        except StopIteration:
+            return None

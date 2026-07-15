@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-import torch
-from typing import Any
+from typing import Generator
 
 
 @dataclass
 class DecodeState:
-    past_kv: Any
-    logits: torch.Tensor
-    generated: list[int]
+    step_generator: Generator[
+        int, None, None
+    ]  # Llama.generate() yields integers (tokens)
+    generated_tokens: list[int]
