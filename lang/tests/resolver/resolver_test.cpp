@@ -12,6 +12,33 @@ namespace ast = invariants::ast;
 
 namespace {
 
+template <typename T, typename... Args>
+std::vector<std::unique_ptr<T>> makePtrVector(Args&&... args) {
+  std::vector<std::unique_ptr<T>> vec;
+  vec.reserve(sizeof...(args));
+  (vec.push_back(std::make_unique<T>(std::move(args))), ...);
+  return vec;
+}
+
+ast::ConstraintStmt makeConstraint() {
+  return ast::ConstraintStmt{.expression = std::make_unique<ast::Expr>(
+                                 ast::LiteralExpr{.value = true})};
+}
+
+ast::FieldStmt makeFieldWithConstraints(const std::string& name) {
+  return ast::FieldStmt{.identifier = name,
+                        .type = std::make_unique<ast::Type>(
+                            ast::SimpleType{.value = ast::BuiltinType::Number}),
+                        .constraints = makePtrVector<ast::ConstraintStmt>(
+                            makeConstraint(), makeConstraint())};
+}
+
+ast::InvariantStmt makeInvariant(const std::string& name) {
+  return ast::InvariantStmt{
+      .identifier = name,
+      .constraints = makePtrVector<ast::ConstraintStmt>(makeConstraint())};
+}
+
 ast::SpecStmt makeSpecStmt(const std::string& name,
                            std::vector<ast::SpecMember> members = {}) {
   return ast::SpecStmt{.identifier = name, .members = std::move(members)};
@@ -124,4 +151,33 @@ TEST(ResolverTest, ResolvesValidCustomType) {
                           makeFieldStmt("age")));
 
   EXPECT_NO_THROW(resolver(userSpec));
+}
+
+TEST(ResolverTest, StructuralStatementTraversalSucceeds) {
+  Resolver resolver;
+
+  auto spec = makeSpecStmt("BulkOrder",
+                           makeMembers(makeFieldWithConstraints("quantity"),
+                                       makeInvariant("valid_total_price")));
+
+  // Verifies that the cascading traversal passes through Module -> Spec ->
+  // Field/Invariant -> Constraint -> Expr cleanly without encountering
+  // zero-dereference bugs or syntax crashes.
+  EXPECT_NO_THROW(resolver(spec));
+}
+
+TEST(ResolverTest, SafelyIgnoresNullptrsInStatementVectors) {
+  Resolver resolver;
+
+  std::vector<ast::ConstraintPtr> corruptConstraints;
+  corruptConstraints.push_back(nullptr);
+
+  ast::InvariantStmt corruptInvariant{
+      .identifier = "broken_invariant",
+      .constraints = std::move(corruptConstraints)};
+
+  auto spec =
+      makeSpecStmt("BrokenSpec", makeMembers(std::move(corruptInvariant)));
+
+  EXPECT_NO_THROW(resolver(spec));
 }
