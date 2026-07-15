@@ -1,72 +1,70 @@
-from typing import cast
-from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
-    BitsAndBytesConfig,
-    PreTrainedTokenizerBase,
-)
-import torch
-
+from llama_cpp import Llama, LogitsProcessorList, LogitsProcessor
 from invariants.State import DecodeState
 
 
 class Engine:
     def __init__(
         self,
-        model_name: str,
-        tokenizer_name: str | None = None,
-        device: str = "cuda",
-        quantize: bool = True,
+        repo_id: str = "Qwen/Qwen2.5-3B-Instruct-GGUF",
+        filename: str = "*q4_k_m.gguf",
+        seed: int = -1,
     ):
-        self.device: str = device
-
-        self.tokenizer = cast(
-            PreTrainedTokenizerBase,
-            AutoTokenizer.from_pretrained(tokenizer_name or model_name),
+        self.llm = Llama.from_pretrained(
+            repo_id=repo_id,
+            filename=filename,
+            n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
+            seed=seed,
+            verbose=False,
         )
 
-        quant_config = None
-        if quantize:
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_compute_dtype=torch.float16,
-            )
+    def tokenize(self, text: str) -> list[int]:
+        """Convert a string into a list of token IDs"""
+        return self.llm.tokenize(text.encode("utf-8"))
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=quant_config,
-            device_map=device,
-        )
-
-        self.model.eval()
+    def decode(self, tokens: list[int]) -> str:
+        """Convert a list of token IDs back into a UTF-8 string"""
+        return self.llm.detokenize(tokens).decode("utf-8", errors="ignore")
 
     def prefill(
-        self, input_ids: torch.Tensor, attn_mask: torch.Tensor | None = None
+        self,
+        prompt_text: str,
+        logits_processor: LogitsProcessor | None = None,
+        temperature: float = 0.7,
     ) -> DecodeState:
-        # Ensure shape is [1, seq]
-        if input_ids.dim() == 1:
-            input_ids = input_ids.unsqueeze(0)
+        """
+        Tokenizes the prompt, primes the KV cache, and returns a state tracker
+        ready to step token-by-token.
+        """
+        prompt_tokens = self.tokenize(prompt_text)
 
-        # Load in GPU
-        input_ids = input_ids.to(self.device)
+        processors = LogitsProcessorList()
 
-        if attn_mask is not None:
-            attn_mask = attn_mask.to(self.device)
+        if logits_processor is not None:
+            processors.append(logits_processor)
 
-        # Initialize KV cache
-        with torch.inference_mode():
-            outputs = self.model(
-                input_ids=input_ids,
-                attention_mask=attn_mask,
-                use_cache=True,
-            )
-
-        return DecodeState(
-            past_kv=outputs.past_key_values,
-            logits=outputs.logits[
-                :, -1, :
-            ],  # Full vocab logits (shaped as batch, seq_len, vocab)
-            generated=input_ids[0].tolist(),  # Maintain full history
+        # Manages the KV cache state internally
+        gen = self.llm.generate(
+            prompt_tokens,
+            logits_processor=processors,
+            temp=temperature,  # Greedy decoding is mandatory for strict validation
         )
+
+        return DecodeState(step_generator=gen)
+
+    def step(self, state: DecodeState) -> int | None:
+        """
+        Advances the model by exactly one token.
+        Returns the new token ID, or None if EOS or generation limits are reached.
+        """
+        try:
+            token = next(state.step_generator)
+
+            # Check if we hit the EOS token
+            if token == self.llm.token_eos():
+                return None
+
+            state.generated_tokens.append(token)
+            return token
+
+        except StopIteration:
+            return None

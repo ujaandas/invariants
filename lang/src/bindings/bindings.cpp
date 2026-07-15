@@ -6,7 +6,7 @@
 namespace py = pybind11;
 using namespace invariants::runtime;
 
-PYBIND11_MODULE(invariants, m) {
+PYBIND11_MODULE(invariants_cpp, m) {
   m.doc() = "Invariants LLM constrained execution runtime engine";
 
   // Export FieldType enum

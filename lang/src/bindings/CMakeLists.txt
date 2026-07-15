@@ -2,7 +2,7 @@ find_package(pybind11 CONFIG REQUIRED)
 
 pybind11_add_module(invariants_python_module bindings.cpp)
 
-set_target_properties(invariants_python_module PROPERTIES OUTPUT_NAME "invariants")
+set_target_properties(invariants_python_module PROPERTIES OUTPUT_NAME "invariants_cpp")
 
 target_link_libraries(invariants_python_module PRIVATE invariants_runtime)
 
