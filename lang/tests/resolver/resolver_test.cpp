@@ -67,6 +67,12 @@ std::vector<ast::SpecMember> makeMembers(Args&&... args) {
   return members;
 }
 
+template <typename T>
+ast::ConstraintStmt wrapExpr(T&& innerExpr) {
+  return ast::ConstraintStmt{
+      .expression = std::make_unique<ast::Expr>(std::forward<T>(innerExpr))};
+}
+
 }  // namespace
 
 TEST(ResolverTest, ResolvingEmptySpecAddsToSymbolTable) {
@@ -177,4 +183,80 @@ TEST(ResolverTest, SafelyIgnoresNullptrsInStatementVectors) {
       makeSpecStmt("BrokenSpec", makeMembers(std::move(corruptInvariant)));
 
   EXPECT_NO_THROW(resolver(spec));
+}
+
+TEST(ResolverTest, ImplicitValueKeywordSucceedsInFieldBlock) {
+  Resolver resolver;
+
+  // field quantity: Integer { value >= 1; }
+  ast::FieldStmt field{
+      .identifier = "quantity",
+      .type = std::make_unique<ast::Type>(
+          ast::SimpleType{.value = ast::BuiltinType::Integer}),
+      .constraints = makePtrVector<ast::ConstraintStmt>(
+          wrapExpr(ast::BinaryExpr{.left = std::make_unique<ast::Expr>(
+                                       ast::IdentifierExpr{.name = "value"}),
+                                   .op = ast::BinaryOp::GreaterEqual,
+                                   .right = std::make_unique<ast::Expr>(
+                                       ast::LiteralExpr{.value = 1.0})}))};
+
+  ast::SpecStmt spec{.identifier = "Order",
+                     .members = makeMembers(std::move(field))};
+  EXPECT_NO_THROW(resolver(spec));
+}
+
+TEST(ResolverTest, ImplicitValueKeywordThrowsInInvariantBlock) {
+  Resolver resolver;
+
+  // invariant broken { value > 0; } -> invalid
+  ast::InvariantStmt invalidInvariant{
+      .identifier = "broken",
+      .constraints = makePtrVector<ast::ConstraintStmt>(
+          wrapExpr(ast::IdentifierExpr{.name = "value"}))};
+
+  ast::SpecStmt spec{.identifier = "Order",
+                     .members = makeMembers(std::move(invalidInvariant))};
+  EXPECT_THROW(resolver(spec), std::runtime_error);
+}
+
+TEST(ResolverTest, MemberAccessResolvesCorrectlyWithThisKeywords) {
+  Resolver resolver;
+
+  // field price: Number
+  ast::FieldStmt field{.identifier = "price",
+                       .type = std::make_unique<ast::Type>(
+                           ast::SimpleType{.value = ast::BuiltinType::Number})};
+
+  // invariant valid { this.price > 0.0; }
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "price"});
+
+  ast::InvariantStmt invariant{
+      .identifier = "valid",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
+                           .ops = std::move(ops)}))};
+
+  ast::SpecStmt spec{
+      .identifier = "Order",
+      .members = makeMembers(std::move(field), std::move(invariant))};
+  EXPECT_NO_THROW(resolver(spec));
+}
+
+TEST(ResolverTest, MemberAccessThrowsOnMissingField) {
+  Resolver resolver;
+
+  std::vector<ast::PostfixOp> ops;
+  ops.push_back(ast::MemberAccessOp{.member = "unknown_field"});
+
+  // invariant valid { this.unknown_field; }
+  ast::InvariantStmt invariant{
+      .identifier = "invalid_access",
+      .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
+          ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
+                           .ops = std::move(ops)}))};
+
+  ast::SpecStmt spec{.identifier = "Order",
+                     .members = makeMembers(std::move(invariant))};
+  EXPECT_THROW(resolver(spec), std::runtime_error);
 }

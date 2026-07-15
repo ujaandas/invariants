@@ -51,11 +51,16 @@ void Resolver::operator()(const ast::FieldStmt& e) {
                              " in spec " + currSpecName);
   }
 
+  std::string oldField = currFieldName;
+  currFieldName = e.identifier;
+
   for (const auto& constraint : e.constraints) {
     if (constraint) {
       (*this)(*constraint);
     }
   }
+
+  currFieldName = oldField;
 }
 
 void Resolver::operator()(const ast::SimpleType& e) {
