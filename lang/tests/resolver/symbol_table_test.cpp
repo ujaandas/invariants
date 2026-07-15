@@ -16,7 +16,8 @@ std::unique_ptr<SpecSymbol> makeSpec(SpecId id, const std::string& name) {
 }
 
 std::unique_ptr<FieldSymbol> makeField(FieldId id, const std::string& name) {
-  invariants::ast::Type dummyType(invariants::ast::SimpleType{});
+  static const invariants::ast::Type dummyType(invariants::ast::SimpleType{
+      .value = invariants::ast::BuiltinType::Number});
 
   return std::make_unique<FieldSymbol>(
       FieldSymbol{.id = id, .name = name, .type = &dummyType, .decl = nullptr});
