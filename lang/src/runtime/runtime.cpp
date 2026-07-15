@@ -220,3 +220,36 @@ FieldType Runtime::getActiveFieldType() const {
 const std::vector<std::string>& Runtime::getGenOrder() const {
   return genOrder;
 }
+
+void Runtime::submitVal(std::string_view name, const Value& val) {
+  std::string key{name};
+  environment[key] = val;
+  if (getActiveFieldName() == key) {
+    currStepIdx++;
+  }
+}
+
+void Runtime::submitValStr(std::string_view name, std::string_view raw_str) {
+  std::string key{name};
+  const auto& field = fields.at(key);
+
+  if (field.type == FieldType::Integer) {
+    int val;
+    if (tryParseInt(raw_str, val)) {
+      submitVal(name, Value(val));
+    } else {
+      throw std::runtime_error("Failed to parse Integer value: " +
+                               std::string(raw_str));
+    }
+  } else if (field.type == FieldType::Number) {
+    double val;
+    if (tryParseDouble(raw_str, val)) {
+      submitVal(name, Value(val));
+    } else {
+      throw std::runtime_error("Failed to parse Number value: " +
+                               std::string(raw_str));
+    }
+  } else if (field.type == FieldType::String) {
+    submitVal(name, Value(std::string(raw_str)));
+  }
+}
