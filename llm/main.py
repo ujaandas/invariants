@@ -46,18 +46,36 @@ def main():
 
                 char_chunk = engine.decode([token])
 
-                # Stop conditions
-                if "," in char_chunk or "\n" in char_chunk or "}" in char_chunk:
-                    break
+                exit_chars = [",", "\n", "}"]
+                if any(c in char_chunk for c in exit_chars):
+                    # Salvage text before the exit character
+                    for c in exit_chars:
+                        if c in char_chunk:
+                            char_chunk = char_chunk.split(c)[0]
+                            break
+
+                    generated_val += char_chunk
+                    print(char_chunk, end="", flush=True)
+                    break  # Now we break safely
 
                 buffer.commit_token(token)
                 generated_val += char_chunk
-
-                # Print to terminal as it generates
                 print(char_chunk, end="", flush=True)
 
-            # Submit value back to C++ to update global state
-            rt.submit_val_str(field_name, generated_val.strip())
+            final_json += generated_val
+            # Submit value to C++ to update global state
+            clean_val = generated_val.strip()
+
+            # If string field, remove JSON quotes before submitting to C++
+            if rt.get_active_field_type() == invariants_cpp.FieldType.String:
+                if clean_val.startswith('"') or clean_val.startswith("'"):
+                    clean_val = clean_val[1:]
+                if clean_val.endswith('"') or clean_val.endswith("'"):
+                    clean_val = clean_val[:-1]
+
+            # Submit raw value back to C++ to update global state
+            rt.submit_val_str(field_name, clean_val)
+
             print(" (LLM generated)", flush=True)
 
         # Add structural commas and newlines
