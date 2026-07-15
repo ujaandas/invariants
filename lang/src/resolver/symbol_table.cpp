@@ -47,12 +47,8 @@ bool SymbolTable::add_field(std::string_view specName,
     return false;
   }
 
-  const auto& spec = it->second;
-  std::string field_key(fieldName);
-  if (spec->fields.find(field_key) != spec->fields.end()) {
-    return false;
-  }
-
-  spec->fields[field_key] = std::move(field);
-  return true;
+  auto& fields = it->second->fields;
+  auto [_, inserted] =
+      fields.try_emplace(std::string(fieldName), std::move(field));
+  return inserted;
 }
