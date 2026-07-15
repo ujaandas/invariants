@@ -36,4 +36,43 @@ struct FieldNode {
   std::function<Value(const Environment&)> compute_value;
 };
 
+class Runtime {
+ private:
+  std::unordered_map<std::string, FieldNode> fields;
+  std::vector<std::string> genOrder;  // Hand-rolled topological sort order
+
+  // Active State
+  Environment environment;
+  size_t currStepIdx = 0;
+
+  // Setup helper to define our "mocked" BulkOrder schema
+  void initSchema();
+
+ public:
+  Runtime();
+
+  // DAG nav n flow control
+  bool hasMoreFields() const;
+  std::string getActiveFieldName() const;
+  FieldType getActiveFieldType() const;
+  std::vector<std::string> getGenOrder() const;
+
+  // Call when finish generating field to mutate state
+  void submitVal(std::string_view, const Value&);
+  void submitVal(std::string_view, std::string_view);
+
+  // Solvers
+  bool isAciveFieldDeterministic() const;
+  std::string
+  solveDeterministic();  // Computes, saves, and returns string representation
+
+  // Checks if appending 'proposedChars' keeps active field in safety
+  // constraints
+  ValidationStatus validate_active_field_partial(std::string_view) const;
+
+  // Inspect
+  const Environment& get_environment() const;
+  void reset();
+};
+
 }  // namespace invariants::runtime
