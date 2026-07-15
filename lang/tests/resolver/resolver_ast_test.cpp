@@ -5,6 +5,7 @@
 
 #include "resolver.hpp"
 #include "statements.hpp"
+#include "types.hpp"
 
 using namespace invariants::resolver;
 namespace ast = invariants::ast;
@@ -263,17 +264,18 @@ TEST(ResolverTest, MemberAccessThrowsOnMissingField) {
 TEST(ResolverTest, ChainedMemberAccessResolvesThroughCustomSpecType) {
   Resolver resolver;
 
-  // spec Address { field city: String }
-  resolver(makeSpecStmt("Address",
-                        makeMembers(makeCustomFieldStmt("city", "String"))));
+  ast::FieldStmt cityField{.identifier = "city",
+                           .type = std::make_unique<ast::Type>(ast::SimpleType{
+                               .value = ast::BuiltinType::String})};
 
-  // invariant { this.address.city; }
+  resolver(makeSpecStmt("Address", makeMembers(std::move(cityField))));
+
   std::vector<ast::PostfixOp> ops;
   ops.push_back(ast::MemberAccessOp{.member = "address"});
   ops.push_back(ast::MemberAccessOp{.member = "city"});
 
   ast::InvariantStmt invariant{
-      .identifier = "valid_address",
+      .identifier = "valid",
       .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
           ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
                            .ops = std::move(ops)}))};
@@ -289,17 +291,18 @@ TEST(ResolverTest, ChainedMemberAccessResolvesThroughCustomSpecType) {
 TEST(ResolverTest, ChainedMemberAccessThrowsOnMissingNestedField) {
   Resolver resolver;
 
-  // spec Address { field city: String }
-  resolver(makeSpecStmt("Address",
-                        makeMembers(makeCustomFieldStmt("city", "String"))));
+  ast::FieldStmt cityField{.identifier = "city",
+                           .type = std::make_unique<ast::Type>(ast::SimpleType{
+                               .value = ast::BuiltinType::String})};
 
-  // invariant { this.address.zipcode; }
+  resolver(makeSpecStmt("Address", makeMembers(std::move(cityField))));
+
   std::vector<ast::PostfixOp> ops;
   ops.push_back(ast::MemberAccessOp{.member = "address"});
   ops.push_back(ast::MemberAccessOp{.member = "zipcode"});
 
   ast::InvariantStmt invariant{
-      .identifier = "invalid_address",
+      .identifier = "invalid",
       .constraints = makePtrVector<ast::ConstraintStmt>(wrapExpr(
           ast::PostfixExpr{.base = std::make_unique<ast::Expr>(ast::ThisExpr{}),
                            .ops = std::move(ops)}))};
