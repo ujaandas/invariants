@@ -6,10 +6,14 @@ readme = "README.md"
 authors = [
     { name = "Ujaan Das", email = "ujaandas03@gmail.com" }
 ]
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "accelerate>=1.14.0",
     "bitsandbytes>=0.49.2",
+    "huggingface-hub>=1.21.0",
+    "llama-cpp-python>=0.3.34",
+    "mlx-lm>=0.31.3",
+    "numpy>=2.5.0",
     "pydantic>=2.13.4",
     "pytest>=9.1.1",
     "tokenizers>=0.22.2",
@@ -20,3 +24,8 @@ dependencies = [
 [build-system]
 requires = ["uv_build>=0.11.2,<0.12.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "../.nix-dev/build/src/bindings"
+]

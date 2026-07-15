@@ -14,7 +14,14 @@
       let
         inherit (nixpkgs) lib;
         pkgs = nixpkgs.legacyPackages.${system};
-        sourcePaths = "lang/src lang/tests";
+        # sourcePaths = "lang/src lang/tests";
+
+        pybind11 = (
+          pkgs.python3.withPackages (ps: [
+            ps.pybind11
+            ps.setuptools
+          ])
+        );
 
         dev-configure = pkgs.writeShellApplication {
           name = "dev-configure";
@@ -24,6 +31,7 @@
             cmake
             ninja
             gtest
+            pybind11
           ];
           text = ''
             set -euo pipefail
@@ -98,6 +106,7 @@
 
           buildInputs = with pkgs; [
             gtest
+            pybind11
           ];
 
           doCheck = true;
@@ -148,6 +157,7 @@
         devShells.default = pkgs.mkShell.override { stdenv = pkgs.clangStdenv; } {
           packages = with pkgs; [
             python313
+            pybind11
             uv
             clang-tools
             cmake
@@ -160,7 +170,10 @@
             emscripten
           ];
 
-          env = lib.optionalAttrs pkgs.stdenv.isLinux {
+          env = {
+            PYTHONPATH = "../.nix-dev/build/src/bindings";
+          }
+          // lib.optionalAttrs pkgs.stdenv.isLinux {
             LD_LIBRARY_PATH = "/usr/lib/wsl/lib:${lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1}";
           };
         };
