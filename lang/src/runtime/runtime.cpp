@@ -15,6 +15,8 @@ bool isDigitsOnly(std::string_view s) {
 // Parses double, returning true if it's a completely valid float/double
 bool tryParseDouble(std::string_view s, double& out) {
   if (s.empty()) return false;
+  if (s.back() == '.') return false;
+
   try {
     std::string temp(s);  // Requires a null-terminated string
     size_t processed_chars = 0;
