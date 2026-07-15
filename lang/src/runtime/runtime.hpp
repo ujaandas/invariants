@@ -59,7 +59,7 @@ class Runtime {
 
   // Call when finish generating field to mutate state
   void submitVal(std::string_view, const Value&);
-  void submitVal(std::string_view, std::string_view);
+  void submitValStr(std::string_view, std::string_view);
 
   // Solvers
   bool isAciveFieldDeterministic() const;
