@@ -159,6 +159,15 @@ nvtx = [
 ]
 
 [[package]]
+name = "diskcache"
+version = "5.6.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/3f/21/1c1ffc1a039ddcc459db43cc108658f32c57d271d7289a2794e401d0fdb6/diskcache-5.6.3.tar.gz", hash = "sha256:2c3a3fa2743d8535d832ec61c2054a1641f41775aa7c556758a109941e33e4fc", size = 67916, upload-time = "2023-08-31T06:12:00.316Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/27/4570e78fc0bf5ea0ca45eb1de3818a23787af9b390c0b0a0033a1b8236f9/diskcache-5.6.3-py3-none-any.whl", hash = "sha256:5e31b2d5fbad117cc363ebaf6b689474db18a1f6438bc82358b024abd4c2ca19", size = 45550, upload-time = "2023-08-31T06:11:58.822Z" },
+]
+
+[[package]]
 name = "filelock"
 version = "3.29.4"
 source = { registry = "https://pypi.org/simple" }
@@ -283,7 +292,10 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
     { name = "bitsandbytes" },
+    { name = "huggingface-hub" },
+    { name = "llama-cpp-python" },
     { name = "mlx-lm" },
+    { name = "numpy" },
     { name = "pydantic" },
     { name = "pytest" },
     { name = "tokenizers" },
@@ -295,7 +307,10 @@ dependencies = [
 requires-dist = [
     { name = "accelerate", specifier = ">=1.14.0" },
     { name = "bitsandbytes", specifier = ">=0.49.2" },
+    { name = "huggingface-hub", specifier = ">=1.21.0" },
+    { name = "llama-cpp-python", specifier = ">=0.3.34" },
     { name = "mlx-lm", specifier = ">=0.31.3" },
+    { name = "numpy", specifier = ">=2.5.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "pytest", specifier = ">=9.1.1" },
     { name = "tokenizers", specifier = ">=0.22.2" },
@@ -314,6 +329,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c
 wheels = [
     { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
 ]
+
+[[package]]
+name = "llama-cpp-python"
+version = "0.3.34"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "diskcache" },
+    { name = "jinja2" },
+    { name = "numpy" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c1/2f/46487e949da42b31847853793ddbfd44c7414e94d4364c9a41f91f30af27/llama_cpp_python-0.3.34.tar.gz", hash = "sha256:d849d286d808284f1d3ec1bd6875572430d29d1f9574a010232caa4e9cef0e35", size = 71617302, upload-time = "2026-07-12T04:33:41.928Z" }
 
 [[package]]
 name = "markdown-it-py"
