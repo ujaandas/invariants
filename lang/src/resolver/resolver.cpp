@@ -103,13 +103,75 @@ void Resolver::operator()(const ast::ConstraintStmt& e) {
 }
 
 // TODO: Placeholders for linker
-void Resolver::operator()(const ast::LiteralExpr& e) {}
-void Resolver::operator()(const ast::IdentifierExpr& e) {}
-void Resolver::operator()(const ast::ThisExpr&) {}
-void Resolver::operator()(const ast::ListExpr& e) {}
-void Resolver::operator()(const ast::GroupingExpr& e) {}
-void Resolver::operator()(const ast::PostfixExpr& e) {}
-void Resolver::operator()(const ast::MemberAccessOp& e) {}
-void Resolver::operator()(const ast::IndexOp& e) {}
-void Resolver::operator()(const ast::UnaryExpr& e) {}
-void Resolver::operator()(const ast::BinaryExpr& e) {}
+void Resolver::operator()(const ast::LiteralExpr& e) {
+  // Don't need mapping
+}
+void Resolver::operator()(const ast::IdentifierExpr& e) {
+  // Only allowed if explicit 'value'
+  if (e.name == "value") {
+    if (currFieldName.empty()) {
+      throw std::runtime_error(
+          "The 'value' keyword can only be used inside field constraints.");
+    }
+  } else {
+    throw std::runtime_error("Unrecognized or naked identifier '" + e.name +
+                             "'. Did you mean 'this." + e.name + "'?");
+  }
+}
+
+void Resolver::operator()(const ast::ThisExpr& e) {
+  if (currSpecName.empty()) {
+    throw std::runtime_error(
+        "The 'this' keyword can only be used inside a specification block.");
+  }
+}
+
+void Resolver::operator()(const ast::GroupingExpr& e) {
+  if (e.expression) {
+    std::visit(std::ref(*this), e.expression->value);
+  }
+}
+
+void Resolver::operator()(const ast::ListExpr& e) {
+  for (const auto& elem : e.elements) {
+    if (elem) std::visit(std::ref(*this), elem->value);
+  }
+}
+
+void Resolver::operator()(const ast::UnaryExpr& e) {
+  if (e.operand) {
+    std::visit(std::ref(*this), e.operand->value);
+  }
+}
+
+void Resolver::operator()(const ast::BinaryExpr& e) {
+  if (e.left) std::visit(std::ref(*this), e.left->value);
+  if (e.right) std::visit(std::ref(*this), e.right->value);
+}
+
+void Resolver::operator()(const ast::PostfixExpr& e) {
+  if (!e.base) return;
+
+  // Resolve base expr first
+  std::visit(std::ref(*this), e.base->value);
+
+  bool isBaseThis = std::holds_alternative<ast::ThisExpr>(e.base->value);
+
+  for (const auto& op : e.ops) {
+    if (std::holds_alternative<ast::MemberAccessOp>(op)) {
+      const auto& memOp = std::get<ast::MemberAccessOp>(op);
+
+      if (isBaseThis) {
+        // Enforce field validity against st
+        if (!table.lookup_field(currSpecName, memOp.member)) {
+          throw std::runtime_error("Specification '" + currSpecName +
+                                   "' has no field named '" + memOp.member +
+                                   "'");
+        }
+      }
+    } else {
+      const auto& idxOp = std::get<ast::IndexOp>(op);
+      if (idxOp.index) std::visit(std::ref(*this), idxOp.index->value);
+    }
+  }
+}

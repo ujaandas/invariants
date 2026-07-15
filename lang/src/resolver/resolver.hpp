@@ -9,6 +9,7 @@ class Resolver {
  private:
   SymbolTable table;
   std::string currSpecName = "";
+  std::string currFieldName = "";
   SpecId nextSpecId = 0;
   FieldId nextFieldId = 0;
 
