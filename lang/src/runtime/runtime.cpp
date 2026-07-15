@@ -253,3 +253,47 @@ void Runtime::submitValStr(std::string_view name, std::string_view raw_str) {
     submitVal(name, Value(std::string(raw_str)));
   }
 }
+
+bool Runtime::isAciveFieldDeterministic() const {
+  if (!hasMoreFields()) return false;
+  return fields.at(getActiveFieldName()).is_deterministic;
+}
+
+ValidationStatus Runtime::validate_active_field_partial(
+    std::string_view proposedChars) const {
+  if (!hasMoreFields()) return ValidationStatus::Invalid;
+  return fields.at(getActiveFieldName()).validate(proposedChars, environment);
+}
+
+const Environment& Runtime::get_environment() const { return environment; }
+
+void Runtime::reset() {
+  environment.clear();
+  currStepIdx = 0;
+}
+
+std::string Runtime::solveDeterministic() {
+  if (!hasMoreFields()) throw std::runtime_error("No active field to solve.");
+  std::string name = getActiveFieldName();
+  const auto& field = fields.at(name);
+
+  if (!field.is_deterministic) {
+    throw std::runtime_error("Field " + name + " is not deterministic.");
+  }
+
+  Value resolved_val = field.compute_value(environment);
+
+  // Submit resolved value internally
+  submitVal(name, resolved_val);
+
+  // Convert to string to return to Python
+  std::string str_rep;
+  if (std::holds_alternative<int>(resolved_val)) {
+    str_rep = std::to_string(std::get<int>(resolved_val));
+  } else if (std::holds_alternative<double>(resolved_val)) {
+    str_rep = std::to_string(std::get<double>(resolved_val));
+  } else {
+    str_rep = std::get<std::string>(resolved_val);
+  }
+  return str_rep;
+}
