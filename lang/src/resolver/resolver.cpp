@@ -10,6 +10,7 @@ using namespace invariants::resolver;
 
 void Resolver::operator()(const ast::ModuleStmt& e) {
   for (const auto& spec : e.specs) {
+    if (!spec) continue;
     (*this)(*spec);
   }
 }
