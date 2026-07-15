@@ -24,6 +24,19 @@ class ConstraintProcessor:
 
         for token_id in top_k_indices:
             proposed_str = self.buffer.speculative_decode(token_id)
+
+            # Handle JSON boundary tokens
+            if any(proposed_str.endswith(c) for c in [",", "\n", "}", " "]):
+                # Strip JSON syntax to get raw value
+                clean_str = proposed_str.rstrip(",\n} ")
+
+                # ONLY allow stop token if the value generated so far is 100% valid
+                status = self.runtime.validate_active_field_partial(clean_str)
+                if status == invariants_cpp.ValidationStatus.Valid:
+                    masked_scores[token_id] = scores[token_id]
+                    valid_tokens_found += 1
+                continue
+
             status = self.runtime.validate_active_field_partial(proposed_str)
 
             # If OK, restore original probability
