@@ -33,13 +33,8 @@ bool SymbolTable::add_spec(std::string_view name,
                            std::unique_ptr<SpecSymbol> spec) {
   if (!spec) return false;
 
-  auto key = std::string(name);
-  if (specs.find(key) != specs.end()) {
-    return false;
-  }
-
-  specs[key] = std::move(spec);
-  return true;
+  auto [_, inserted] = specs.try_emplace(std::string(name), std::move(spec));
+  return inserted;
 }
 
 bool SymbolTable::add_field(std::string_view specName,
