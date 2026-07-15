@@ -50,6 +50,12 @@ void Resolver::operator()(const ast::FieldStmt& e) {
     throw std::runtime_error("Duplicate field definition: " + e.identifier +
                              " in spec " + currSpecName);
   }
+
+  for (const auto& constraint : e.constraints) {
+    if (constraint) {
+      (*this)(*constraint);
+    }
+  }
 }
 
 void Resolver::operator()(const ast::SimpleType& e) {
@@ -83,9 +89,27 @@ void Resolver::operator()(const ast::MapType& e) {
 }
 
 void Resolver::operator()(const ast::InvariantStmt& e) {
-  // TODO: Implement invariant resolution logic
+  for (const auto& constraint : e.constraints) {
+    if (constraint) {
+      (*this)(*constraint);
+    }
+  }
 }
 
 void Resolver::operator()(const ast::ConstraintStmt& e) {
-  // TODO: Implement constraint resolution logic
+  if (e.expression) {
+    std::visit(std::ref(*this), e.expression->value);
+  }
 }
+
+// TODO: Placeholders for linker
+void Resolver::operator()(const ast::LiteralExpr& e) {}
+void Resolver::operator()(const ast::IdentifierExpr& e) {}
+void Resolver::operator()(const ast::ThisExpr&) {}
+void Resolver::operator()(const ast::ListExpr& e) {}
+void Resolver::operator()(const ast::GroupingExpr& e) {}
+void Resolver::operator()(const ast::PostfixExpr& e) {}
+void Resolver::operator()(const ast::MemberAccessOp& e) {}
+void Resolver::operator()(const ast::IndexOp& e) {}
+void Resolver::operator()(const ast::UnaryExpr& e) {}
+void Resolver::operator()(const ast::BinaryExpr& e) {}
