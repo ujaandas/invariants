@@ -20,16 +20,15 @@ using namespace invariants::ast;
 
 namespace {
 
-void runResolverOnSource(const std::string& source, Resolver& resolver) {
+ModulePtr parseSource(const std::string& source) {
   Lexer lexer(source);
   auto tokens = lexer.scanTokens();
 
   Parser parser(tokens);
   auto module = parser.parseModule();
 
-  ASSERT_NE(module, nullptr) << "Parser failed to produce an AST.";
-
-  resolver(*module);
+  EXPECT_NE(module, nullptr);
+  return module;
 }
 
 }  // namespace
@@ -53,8 +52,9 @@ TEST_F(ResolverIntegrationTest, ResolvesValidBulkOrderAndSymbolTable) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+  EXPECT_NO_THROW(resolver(*module));
 
   const auto& table = resolver.getSt();
 
@@ -88,8 +88,9 @@ TEST_F(ResolverIntegrationTest, ResolvesOrderedCustomTypeCrossReferences) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+  EXPECT_NO_THROW(resolver(*module));
 
   const auto& table = resolver.getSt();
   EXPECT_NE(table.lookup_spec("Address"), nullptr);
@@ -107,8 +108,9 @@ TEST_F(ResolverIntegrationTest, ResolvesExistentThisMemberAccess) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+  EXPECT_NO_THROW(resolver(*module));
 }
 
 TEST_F(ResolverIntegrationTest, ResolvesParenthesizedThisMemberAccess) {
@@ -121,8 +123,9 @@ TEST_F(ResolverIntegrationTest, ResolvesParenthesizedThisMemberAccess) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+  EXPECT_NO_THROW(resolver(*module));
 }
 
 TEST_F(ResolverIntegrationTest,
@@ -139,8 +142,9 @@ TEST_F(ResolverIntegrationTest,
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_NO_THROW(runResolverOnSource(source, resolver));
+  EXPECT_NO_THROW(resolver(*module));
 }
 
 TEST_F(ResolverIntegrationTest, RejectsUnorderedCustomTypeCrossReferences) {
@@ -153,23 +157,24 @@ TEST_F(ResolverIntegrationTest, RejectsUnorderedCustomTypeCrossReferences) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_THROW(runResolverOnSource(source, resolver), std::runtime_error);
+  EXPECT_THROW(resolver(*module), std::runtime_error);
 }
 
 TEST_F(ResolverIntegrationTest, RejectsInvalidValueScopeInInvariants) {
-  Resolver resolver;
-
   try {
     std::string source = R"(
-    spec User {
-      field age: Integer { }
-      invariant bad_scope {
-        value > 18;
-      }
-    }
-  )";
-    runResolverOnSource(source, resolver);
+      spec User {
+        field age: Integer { }
+        invariant bad_scope {
+          value > 18;
+          }
+          }
+          )";
+    auto module = parseSource(source);
+    Resolver resolver;
+    resolver(*module);
     FAIL() << "Expected std::runtime_error due to 'value' being used outside a "
               "field scope.";
   } catch (const std::runtime_error& err) {
@@ -189,8 +194,9 @@ TEST_F(ResolverIntegrationTest, RejectsNakedVariableIdentifiers) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_THROW(runResolverOnSource(source, resolver), std::runtime_error);
+  EXPECT_THROW(resolver(*module), std::runtime_error);
 }
 
 TEST_F(ResolverIntegrationTest, RejectsNonExistentThisMemberAccess) {
@@ -203,8 +209,9 @@ TEST_F(ResolverIntegrationTest, RejectsNonExistentThisMemberAccess) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_THROW(runResolverOnSource(source, resolver), std::runtime_error);
+  EXPECT_THROW(resolver(*module), std::runtime_error);
 }
 
 TEST_F(ResolverIntegrationTest, RejectsParenthesizedThisMissingMemberAccess) {
@@ -217,6 +224,7 @@ TEST_F(ResolverIntegrationTest, RejectsParenthesizedThisMissingMemberAccess) {
     }
   )";
 
+  auto module = parseSource(source);
   Resolver resolver;
-  EXPECT_THROW(runResolverOnSource(source, resolver), std::runtime_error);
+  EXPECT_THROW(resolver(*module), std::runtime_error);
 }
