@@ -162,8 +162,15 @@ void Resolver::operator()(const ast::PostfixExpr& e) {
   std::visit(std::ref(*this), e.base->value);
 
   // bool isBaseThis = std::holds_alternative<ast::ThisExpr>(e.base->value);
+  const ast::Expr* baseExpr = e.base.get();
+  while (baseExpr &&
+         std::holds_alternative<ast::GroupingExpr>(baseExpr->value)) {
+    const auto& grouping = std::get<ast::GroupingExpr>(baseExpr->value);
+    baseExpr = grouping.expression.get();
+  }
+
   const SpecSymbol* activeSpec =
-      std::holds_alternative<ast::ThisExpr>(e.base->value)
+      (baseExpr && std::holds_alternative<ast::ThisExpr>(baseExpr->value))
           ? table.lookup_spec(currSpecName)
           : nullptr;
 
