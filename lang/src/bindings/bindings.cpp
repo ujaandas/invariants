@@ -65,3 +65,21 @@ PYBIND11_MODULE(invariants, m) {
       .def("reset", &Runtime::reset,
            "Resets the state machine and environment.");
 }
+
+/*
+To verify Python can see the invariants lib quickly, run this:
+
+nix shell .#default --command python3 -c '
+import sys
+sys.path.append(".nix-dev/build/src/bindings")
+
+import invariants
+
+print("Success! pybind11 is working!")
+print("ValidationStatus.Valid is:", invariants.ValidationStatus.Valid)
+print("FieldType.Integer is:", invariants.FieldType.Integer)
+
+rt = invariants.Runtime()
+print("Active field is:", rt.get_active_field_name())
+'
+*/
