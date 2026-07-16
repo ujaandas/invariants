@@ -22,4 +22,4 @@ jobs:
 
       - name: Build and test
         # Runs CMake + CTest
-        run: nix run .#test
+        run: nix build --show-trace
