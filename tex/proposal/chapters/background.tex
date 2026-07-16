@@ -1,0 +1,116 @@
+\section{Background \& Related Work}
+Naturally, the pursuit of structured generated outputs has two distinct branches
+or "paradigms" to approach the problem: inference-time constraint decoding or
+training-time weight alignment. Thus, we must analyze the computational
+trade-offs in these approaches, and identify the critical latency-verification
+gaps that necessitate a dual-objective framework like this.
+
+% Review FSM based masking (outlines, JSON schemas, etc...)
+  \subsection{Inference-Time Constraint Mechanisms}
+  As aforementioned, the standard method for enforcing structural validity relies
+  on projecting the generative vocabulary onto a formal grammar during the
+  decoding step in the transformer. Frameworks such as Outlines~\cite{willard2023efficient} and
+  LMQL~\cite{beurer2023prompting} utilize FSMs to compute a boolean mask over
+  the vocabulary space $V$ at each timestep $t$. By mapping invalid token
+  probabilities to $-\infty$, these systems can guarantee adherence to
+  CFGs, such as standard JSON syntax, with negligible
+  latency overhead.
+
+  However, the memoryless nature of FSM-based decoding renders it fundamentally
+  incapable of enforcing Context-Sensitive Invariants (CSIs). Complex
+  domain-specific languages (DSLs) and API schemas frequently demand cross-field
+  arithmetic bounds, dynamic type resolution, or referential integrity (e.g.,
+  referencing a dynamically instantiated variable in a subsequent payload block).
+  These constraints must therefore be validated \textit{post-hoc}, requiring
+  regeneration when violations occur and increasing system latency. Attempting to
+  encode such semantics directly within an FSM would result in a combinatorial
+  state-space explosion, rendering the approach computationally infeasible for
+  richly typed DSLs.
+
+  Consequently, any viable formal verification framework must decouple the
+  enforcement of CFG structure from higher-order semantic constraints.
+
+  \subsection{Semantic-Aware Decoding}
+  To enforce operational semantics, recent literature has explored integrating
+  symbolic validation directly into the decoding process.
+
+  PICARD~\cite{scholak2021picard}, for instance, parses the top-$k$ beams into
+  Abstract Syntax Trees (ASTs) during decoding and prunes candidates that violate
+  database schemas. While this elevates constraint enforcement from syntax to
+  semantics, the neural model itself remains unaware of these constraints and
+  therefore frequently proposes invalid distributions, forcing the system into
+  repeated rejection cycles.
+
+  Similarly, Syncromesh~\cite{poesia2022synchromesh} employs completion engines that query an external
+  abstract machine to compute admissible continuations during generation. While
+  mathematically rigorous, the continuous token-level interaction between the
+  neural decoder and external symbolic state tracker introduces significant overhead.
+
+  To mitigate these costs, Kogler et al.~\cite{kogler2026towards} decouple semantic verification
+  from token-level decoding by delegating constraint evaluation to discrete
+  structural boundaries. When a completed element violates a constraint, the
+  system performs a rollback and regenerates the element.
+  This strategy preserves the rigor of symbolic validation while minimizing
+  synchronization overhead.
+
+  % How does LoRA work and is it really efficient?
+  \subsection{Parameter-Efficient Fine-Tuning (PEFT)}
+  Parallel to decoding research, efforts have also focused on shifting the
+  model's predictive density ($P_\theta(Y|X)$) towards a target DSL through
+  training-time alignment.
+
+  Gorilla~\cite{patil2024gorilla}, an LLM connected with massive APIs, demonstrated that Supervised Fine-Tuning (SFT)
+  over API call traces can drastically reduce structural hallucination rates.
+  Furthermore, Low-Rank Adaptation (LoRA)~\cite{hu2022lora} has proven highly effective for
+  this task. By freezing pre-trained weights and injecting trainable low-rank
+  update matrices, LoRA enables models to internalize the structural patterns of
+  specific DSLs with minimal computational overhead.
+
+  However, purely neural approaches cannot provide formal guarantees. Even if
+  fine-tuning pushes a model to extremely high accuracy, the inherent
+  probabilistic nature of transformer decoding implies that invalid outputs may
+  still occasionally occur. Consequently, PEFT methods are best viewed as an
+  optimization mechanism rather than a standalone solution for enforcing strict
+  operational semantics.
+
+  % Approaches combining both?
+  \subsection{Dual-Objective Architectures}
+  Finally, several recent systems attempt to unify neural predictive models with symbolic
+  reasoning engines, combining training-time alignment with inference-time
+  verification.
+
+  AlphaGeometry~\cite{trinh2024solving} couples a neural language model trained on synthetic
+  reasoning traces with a deterministic symbolic deduction engine. In this
+  architecture, the neural model acts as a heuristic prior that navigates the
+  combinatorial search space, while the symbolic system provides the ground truth
+  of semantic correctness.
+
+  However, these systems typically structure the interface between neural and
+  symbolic components as an iterative propose-and-verify loop~\cite{jiang2022draft}. The language model
+  generates a complete candidate sequence, which is then passed to a symbolic
+  engine for evaluation. If a violation is detected, the engine returns an error
+  trace and the model must regenerate the output~\cite{jiang2022draft}.
+
+  This macro-level architecture introduces three key limitations:
+  \begin{itemize}
+  \item Latency: repeated hand-offs between the GPU-bound neural model and the
+  CPU-bound symbolic verifier significantly degrade inference throughput.
+  \item Redundant compute: the model frequently generates large invalid subtrees
+  before violations are detected.
+  \item Lack of quantification: these systems cannot formally measure how neural
+  policy alignment reduces the symbolic engine's workload.
+  \end{itemize}
+
+  A closely related approach, NeSyS~\cite{zhao2026neuro}, alternates training between a
+  symbolic world model and a neural generator, allowing symbolic rules to
+  constrain the model's output probability distribution. Similarly, Kogler
+  et al.~\cite{kogler2026towards} proposed a neuro-symbolic DSL generation framework that combines
+  token-level syntactic validation with an element-level logical reasoning
+  constraint solver.
+
+  While these systems demonstrate that symbolic engines can constrain neural
+  outputs, they still treat the neural model and constraint solver as largely
+  static partners. Their architectures optimize the inference engine to handle
+  constraint solving, but accept the computational overhead of verification as a
+  fixed cost. As a result, they do not leverage the neural policy itself to
+  proactively reduce the workload of the symbolic verifier.

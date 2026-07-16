@@ -1,0 +1,22 @@
+\chapter{Methodology}
+
+\section{Mathematical Formulation}
+
+We define the objective function:
+
+\begin{equation}
+J(\theta) = \sum_{i=1}^{n} (y_i - f(x_i; \theta))^2
+\end{equation}
+
+\section{Proposed Algorithm}
+
+\begin{algorithm}[H]
+\caption{Gradient Descent}
+\begin{algorithmic}
+\STATE Initialize $\theta$
+\FOR{each iteration}
+    \STATE Compute gradient
+    \STATE Update parameters
+\ENDFOR
+\end{algorithmic}
+\end{algorithm}

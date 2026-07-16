@@ -1,0 +1,33 @@
+\documentclass[12pt,a4paper]{report}
+
+% Preamble 
+\input{preamble}
+
+\begin{document}
+
+% Frontmatter
+\pagenumbering{roman}
+
+\input{frontmatter/title}
+\input{frontmatter/abstract}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\clearpage
+\pagenumbering{arabic}
+
+% Chapters
+\include{chapters/introduction}
+\include{chapters/methodology}
+
+% Bibliography
+\bibliographystyle{plain}
+\bibliography{references}
+
+% Appendices
+\appendix
+\include{appendices/appendixA}
+
+\end{document}

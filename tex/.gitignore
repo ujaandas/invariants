@@ -1,0 +1,15 @@
+.direnv
+result
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.loc
+*.toc
+*.pdf
+*.swp

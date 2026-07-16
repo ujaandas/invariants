@@ -1,0 +1,166 @@
+\section{Methodology}
+The overall system operates as a compilation and inference pipeline. First, an 
+annotated DSL specification is compiled into a 
+verification structure referred to as the Syntax Oracle. The Oracle 
+enforces both syntactic and semantic constraints during text generation. Second, 
+the Oracle is integrated into the inference loop of an LLM, 
+constraining token generation through dynamic masking and post-hoc semantic 
+validation. Finally, the Oracle is used offline to synthesize training data 
+used to fine-tune the base model through LoRA~\cite{hu2021lora}, enabling 
+the model to internalize structural constraints.
+
+\subsection{Specification Language and Schema Compilation}
+Rather than relying on a statically defined grammar, the proposed system 
+introduces a specification protocol that extends JSON Schema with 
+CSI annotations. These annotations allow 
+domain constraints to be expressed directly within the schema definition (e.g., 
+relational constraints such as \texttt{max\_instances $\ge$ min\_instances}).
+
+The annotated schema is parsed by a Schema Compiler, which generates an 
+executable verification structure referred to as the Syntax Oracle. The Oracle is 
+formally defined as:
+
+\begin{equation}
+O = \langle M_{\text{syn}}, E_{\text{sem}} \rangle
+\end{equation}
+
+where $M_{\text{syn}}$ enforces syntactic validity and $E_{\text{sem}}$ 
+evaluates semantic constraints.
+
+\subsubsection{Syntactic Module}
+The syntactic component $M_{\text{syn}}$ is constructed by translating the 
+schema's CFG into a deterministic FSM:
+
+\begin{equation}
+M_{\text{syn}} = (Q, \Sigma, \delta, q_0, F)
+\end{equation}
+
+where:
+
+\begin{itemize}
+\item $Q$ is the set of parser states,
+\item $\Sigma$ corresponds to the model tokenizer vocabulary $V$,
+\item $\delta : Q \times \Sigma \rightarrow Q$ defines valid transitions,
+\item $q_0$ is the initial state, and
+\item $F$ denotes the set of terminal states.
+\end{itemize}
+
+This FSM encodes the structural constraints of the DSL and ensures that 
+generated sequences remain syntactically valid, utilizing the efficient guided generation 
+principles established in~\cite{willard2023efficient}.
+
+\subsubsection{Semantic Module}
+To capture cross-field dependencies without incurring exponential state 
+growth, semantic constraints are represented as a directed dependency graph:
+
+\begin{equation}
+G = (V, E)
+\end{equation}
+
+where vertices $V$ correspond to generated fields and edges $E$ represent 
+logical constraints between fields. Each edge $e \in E$ is compiled into 
+an executable validation function.
+
+Rather than evaluating all constraints continuously, semantic checks are 
+triggered only when the FSM reaches designated terminal states. This 
+event-driven design minimizes computational overhead while ensuring that 
+completed DSL elements satisfy the specified invariants.
+
+\subsection{Integration with Autoregressive Generation}
+The Syntax Oracle is integrated into the inference process of the language 
+model by modifying the generation loop prior to token sampling. Specifically, 
+a custom logits processor---similar to those utilized in the Transformers library~\cite{wolf2020transformers}--
+intercepts the model's output distribution and 
+applies syntactic constraints. Let
+
+\begin{equation}
+z_t \in \mathbb{R}^{|V|}
+\end{equation}
+
+denote the raw logit vector produced by the model at timestep $t$. The 
+constrained logits are computed as:
+
+\begin{equation}
+\tilde{z}_t = z_t + M_{\text{cfg},t}
+\end{equation}
+
+where $M_{\text{cfg},t} \in \{0, -\infty\}^{|V|}$ is a syntax mask 
+derived from the current FSM state. Invalid tokens are assigned $-\infty$, 
+preventing their selection during sampling.
+
+\subsection{Semantic Validation and Rollback}
+When the FSM reaches a designated terminal state, the generated token 
+subsequence corresponding to a DSL element is extracted and evaluated 
+by the semantic module. Let
+
+\begin{equation}
+Y_{\text{node}} = \{y_i, y_{i+1}, \dots, y_j\}
+\end{equation}
+
+denote the token span representing a completed element.
+
+If the semantic constraints are satisfied, generation proceeds normally. 
+Otherwise, the inference process performs a rollback by truncating the model's 
+key-value cache to the state preceding the invalid sequence. The model is then 
+forced to regenerate the element under additional constraints derived from the 
+failed validation.
+
+This rollback mechanism, inspired by speculative decoding techniques~\cite{leviathan2023fast}, 
+ensures that generated outputs remain consistent with the specified schema while allowing 
+the model to explore alternative valid continuations.
+
+\subsection{Oracle-Guided Model Adaptation}
+While runtime verification guarantees structural validity, repeated rollbacks 
+can degrade generation efficiency. To mitigate this issue, the Oracle is used 
+offline to synthesize a dataset of valid DSL instances.
+
+Dataset generation is performed using coverage-guided traversal of the 
+dependency graph $G$, ensuring that diverse structural configurations and 
+edge cases are represented. The resulting dataset $D$ is used to fine-tune 
+a pre-trained language model using Low-Rank Adaptation (LoRA)~\cite{hu2021lora}.
+
+Let the frozen base weight matrix be
+
+\begin{equation}
+W_0 \in \mathbb{R}^{d \times k}.
+\end{equation}
+
+LoRA introduces a trainable low-rank update:
+
+\begin{equation}
+W = W_0 + \Delta W = W_0 + BA
+\end{equation}
+
+where
+
+\begin{equation}
+B \in \mathbb{R}^{d \times r}, \quad A \in \mathbb{R}^{r \times k}
+\end{equation}
+
+and $r$ is the rank of the adaptation matrices.
+
+Training optimizes the standard causal language modeling objective:
+
+\begin{equation}
+\mathcal{L} = - \sum_{t=1}^{T} \log P_{\theta}(y_t \mid y_{<t}, X)
+\end{equation}
+
+where $X$ represents the natural language instruction and $y_t$ denotes 
+tokens drawn from Oracle-verified sequences.
+
+Through this process, the model learns to internalize common schema 
+constraints, reducing the frequency of runtime corrections during inference.
+
+\subsection{Implementation Details}
+The prototype system will be implemented using a hybrid Python/C++ architecture. 
+The language model and training pipeline will be developed in Python using the PyTorch~\cite{paszke2019pytorch} 
+framework and the HuggingFace Transformers library. The Syntax Oracle and Schema Compiler 
+will be implemented in C++ to enable efficient finite-state execution and low-latency 
+constraint evaluation. Interoperability between the neural inference engine and the Oracle 
+will be achieved using \texttt{pybind11}~\cite{jakob2024pybind11}, allowing direct access to tensors and enabling 
+modification of model logits during generation.
+
+Experiments will be conducted using an open-weight transformer model (e.g., LLaMA-class models~\cite{grattafiori2024llama}) 
+deployed on GPU hardware. All components of the system, including schema specifications, 
+generated datasets, and training configurations, will be version-controlled to 
+ensure reproducibility.

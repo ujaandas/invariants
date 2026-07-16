@@ -1,0 +1,34 @@
+\documentclass[conference]{styles/IEEEtran}
+
+% Preamble 
+\input{preamble}
+
+\begin{document}
+
+% Frontmatter
+\pagenumbering{roman}
+
+\input{frontmatter/title}
+\input{frontmatter/abstract}
+
+% \tableofcontents
+% \listoffigures
+% \listoftables
+
+\clearpage
+\pagenumbering{arabic}
+
+% Chapters
+\include{chapters/introduction}
+\include{chapters/methodology}
+
+% Bibliography
+\bibliographystyle{styles/IEEEtran}
+\bibliography{references}
+
+% Appendices
+% \clearpage
+% \appendix
+% \include{appendices/appendixA}
+
+\end{document}
