@@ -47,6 +47,7 @@
             cmake
             ninja
             gtest
+            pybind11
           ];
           text = ''
             set -euo pipefail
