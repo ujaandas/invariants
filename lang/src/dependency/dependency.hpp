@@ -1,36 +1,51 @@
 #pragma once
 
-#include <string>
-
 #include "expression.hpp"
+#include "graph.hpp"
 #include "statements.hpp"
 #include "types.hpp"
 
-namespace ast = invariants::ast;
-
+namespace invariants::dependency {
 class DependencyGraphGen {
+ private:
+  Graph graph;
+  std::optional<GraphNodeId> currSrc;
+
+  template <typename T>
+  void visit(const T& node) {
+    std::visit(*this, node);
+  }
+
+ public:
+  DependencyGraphGen() = default;
+
+  Graph build() &&;
+  const Graph& getGraph() const;
+
   // Expressions
-  std::string operator()(const ast::LiteralExpr& e) const;
-  std::string operator()(const ast::IdentifierExpr& e) const;
-  std::string operator()(const ast::ThisExpr&) const;
-  std::string operator()(const ast::ListExpr& e) const;
-  std::string operator()(const ast::GroupingExpr& e) const;
-  std::string operator()(const ast::PostfixExpr& e) const;
-  std::string operator()(const ast::MemberAccessOp& e) const;
-  std::string operator()(const ast::IndexOp& e) const;
-  std::string operator()(const ast::UnaryExpr& e) const;
-  std::string operator()(const ast::BinaryExpr& e) const;
+  void operator()(const ast::LiteralExpr& e);
+  void operator()(const ast::IdentifierExpr& e);
+  void operator()(const ast::ThisExpr&);
+  void operator()(const ast::ListExpr& e);
+  void operator()(const ast::GroupingExpr& e);
+  void operator()(const ast::PostfixExpr& e);
+  void operator()(const ast::MemberAccessOp& e);
+  void operator()(const ast::IndexOp& e);
+  void operator()(const ast::UnaryExpr& e);
+  void operator()(const ast::BinaryExpr& e);
 
   // Statements
-  std::string operator()(const ast::ConstraintStmt& e) const;
-  std::string operator()(const ast::FieldStmt& e) const;
-  std::string operator()(const ast::InvariantStmt&) const;
-  std::string operator()(const ast::SpecStmt& e) const;
-  std::string operator()(const ast::ModuleStmt& e) const;
+  void operator()(const ast::ConstraintStmt& e);
+  void operator()(const ast::FieldStmt& e);
+  void operator()(const ast::InvariantStmt&);
+  void operator()(const ast::SpecStmt& e);
+  void operator()(const ast::ModuleStmt& e);
 
   // Types
-  std::string operator()(const ast::BuiltinType& e) const;
-  std::string operator()(const ast::SimpleType& e) const;
-  std::string operator()(const ast::ArrayType&) const;
-  std::string operator()(const ast::MapType& e) const;
+  void operator()(const ast::BuiltinType& e);
+  void operator()(const ast::SimpleType& e);
+  void operator()(const ast::ArrayType&);
+  void operator()(const ast::MapType& e);
 };
+
+}  // namespace invariants::dependency
