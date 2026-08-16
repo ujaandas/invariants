@@ -1,31 +1,36 @@
 #pragma once
 
+#include <cstddef>
+#include <string>
+#include <string_view>
+
 #include "expression.hpp"
 #include "graph.hpp"
 #include "statements.hpp"
 #include "types.hpp"
 
 namespace invariants::dependency {
+
 class DependencyGraphGen {
  private:
   Graph graph;
-  std::optional<GraphNodeId> currSrc;
+  std::string currSpecName;
+  std::string currFieldName;
+  std::size_t nextInvariantId = 0;
 
-  template <typename T>
-  void visit(const T& node) {
-    std::visit(*this, node);
-  }
+  std::string qualifyName(std::string_view name) const;
 
  public:
   DependencyGraphGen() = default;
 
-  Graph build() &&;
-  const Graph& getGraph() const;
+  // Access the generated graph
+  const Graph& getGraph() const { return graph; }
+  Graph takeGraph() && { return std::move(graph); }
 
   // Expressions
   void operator()(const ast::LiteralExpr& e);
   void operator()(const ast::IdentifierExpr& e);
-  void operator()(const ast::ThisExpr&);
+  void operator()(const ast::ThisExpr& e);
   void operator()(const ast::ListExpr& e);
   void operator()(const ast::GroupingExpr& e);
   void operator()(const ast::PostfixExpr& e);
@@ -37,14 +42,14 @@ class DependencyGraphGen {
   // Statements
   void operator()(const ast::ConstraintStmt& e);
   void operator()(const ast::FieldStmt& e);
-  void operator()(const ast::InvariantStmt&);
+  void operator()(const ast::InvariantStmt& e);
   void operator()(const ast::SpecStmt& e);
   void operator()(const ast::ModuleStmt& e);
 
   // Types
   void operator()(const ast::BuiltinType& e);
   void operator()(const ast::SimpleType& e);
-  void operator()(const ast::ArrayType&);
+  void operator()(const ast::ArrayType& e);
   void operator()(const ast::MapType& e);
 };
 
