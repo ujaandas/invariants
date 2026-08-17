@@ -9,7 +9,7 @@
 #include "statements.hpp"
 #include "types.hpp"
 
-namespace invariants::resolver {
+namespace invariants::binder {
 
 // using ModuleId = std::uint32_t; // TODO: Add importing module support later
 

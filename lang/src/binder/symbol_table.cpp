@@ -4,7 +4,7 @@
 #include <string>
 #include <utility>
 
-using namespace invariants::resolver;
+using namespace invariants::binder;
 
 const SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) const {
   auto it = specs.find(std::string(spec));
