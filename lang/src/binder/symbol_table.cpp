@@ -29,26 +29,35 @@ const FieldSymbol* SymbolTable::lookup_field(std::string_view specName,
   return nullptr;
 }
 
-bool SymbolTable::add_spec(std::string_view name,
-                           std::unique_ptr<SpecSymbol> spec) {
-  if (!spec) return false;
+SpecSymbol* SymbolTable::add_spec(std::string_view name,
+                                  const ast::SpecStmt* decl) {
+  if (specs.contains(name)) return nullptr;
 
-  auto [_, inserted] = specs.try_emplace(std::string(name), std::move(spec));
-  return inserted;
+  auto spec = std::make_unique<SpecSymbol>();
+  spec->id = nextSpecId++;
+  spec->name = std::string(name);
+
+  auto* rawPtr = spec.get();
+  specs.emplace(std::string(name), std::move(spec));
+  return rawPtr;
 }
 
-bool SymbolTable::add_field(std::string_view specName,
-                            std::string_view fieldName,
-                            std::unique_ptr<FieldSymbol> field) {
-  if (!field) return false;
-
-  auto it = specs.find(std::string(specName));
-  if (it == specs.end()) {
-    return false;
-  }
+FieldSymbol* SymbolTable::add_field(std::string_view specName,
+                                    std::string_view fieldName,
+                                    ResolvedType type,
+                                    const ast::FieldStmt* decl) {
+  auto it = specs.find(specName);
+  if (it == specs.end()) return nullptr;
 
   auto& fields = it->second->fields;
-  auto [_, inserted] =
-      fields.try_emplace(std::string(fieldName), std::move(field));
-  return inserted;
+  if (fields.contains(fieldName)) return nullptr;
+
+  auto field = std::make_unique<FieldSymbol>();
+  field->id = nextFieldId++;
+  field->name = std::string(fieldName);
+  field->resType = std::move(type);
+
+  auto* rawPtr = field.get();
+  fields.emplace(std::string(fieldName), std::move(field));
+  return rawPtr;
 }

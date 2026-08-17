@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <variant>
 
+#include "statements.hpp"
 #include "types.hpp"
 
 namespace {
@@ -58,9 +59,9 @@ class SymbolTable {
   const SpecSymbol* lookup_spec(std::string_view) const;
   const FieldSymbol* lookup_field(std::string_view, std::string_view) const;
 
-  SpecSymbol* add_spec(std::string_view, std::unique_ptr<SpecSymbol>);
-  FieldSymbol* add_field(std::string_view, std::string_view,
-                         std::unique_ptr<FieldSymbol>);
+  SpecSymbol* add_spec(std::string_view, const ast::SpecStmt*);
+  FieldSymbol* add_field(std::string_view, std::string_view, ResolvedType,
+                         const ast::FieldStmt*);
 
   std::size_t get_total_field_count() const;
 
