@@ -97,7 +97,7 @@ void DependencyGraphGen::operator()(const ast::PostfixExpr& e) {
         // The first member accessed on 'this' (e.g., this.fieldName) is the
         // dependency
         if (isFirstMemberOp && !currFieldName.empty()) {
-          graph.addEdge(qualifyName(currFieldName), qualifyName(memOp.member));
+          graph.addEdge(qualifyName(memOp.member), qualifyName(currFieldName));
           isFirstMemberOp = false;
         }
       } else {
