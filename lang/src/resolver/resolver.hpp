@@ -18,29 +18,29 @@ class Resolver {
   const SymbolTable& getSt() const { return table; }
 
   // Statements
-  void operator()(const ast::ConstraintStmt& e);
-  void operator()(const ast::FieldStmt& e);
-  void operator()(const ast::InvariantStmt&);
-  void operator()(const ast::SpecStmt& e);
-  void operator()(const ast::ModuleStmt& e);
+  void operator()(ast::ConstraintStmt& e);
+  void operator()(ast::FieldStmt& e);
+  void operator()(ast::InvariantStmt&);
+  void operator()(ast::SpecStmt& e);
+  void operator()(ast::ModuleStmt& e);
 
   // Expressions
-  void operator()(const ast::LiteralExpr& e);
-  void operator()(const ast::IdentifierExpr& e);
-  void operator()(const ast::ThisExpr&);
-  void operator()(const ast::ListExpr& e);
-  void operator()(const ast::GroupingExpr& e);
-  void operator()(const ast::PostfixExpr& e);
-  void operator()(const ast::MemberAccessOp& e);
-  void operator()(const ast::IndexOp& e);
-  void operator()(const ast::UnaryExpr& e);
-  void operator()(const ast::BinaryExpr& e);
+  void operator()(ast::LiteralExpr& e);
+  void operator()(ast::IdentifierExpr& e);
+  void operator()(ast::ThisExpr&);
+  void operator()(ast::ListExpr& e);
+  void operator()(ast::GroupingExpr& e);
+  void operator()(ast::PostfixExpr& e);
+  void operator()(ast::MemberAccessOp& e);
+  void operator()(ast::IndexOp& e);
+  void operator()(ast::UnaryExpr& e);
+  void operator()(ast::BinaryExpr& e);
 
   // Types
-  void operator()(const ast::BuiltinType& e);
-  void operator()(const ast::SimpleType& e);
-  void operator()(const ast::ArrayType&);
-  void operator()(const ast::MapType& e);
+  void operator()(ast::BuiltinType& e);
+  void operator()(ast::SimpleType& e);
+  void operator()(ast::ArrayType&);
+  void operator()(ast::MapType& e);
 };
 
 }  // namespace invariants::resolver
