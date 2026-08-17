@@ -119,3 +119,41 @@ TEST(SymbolTableTest, ResolvesCustomSpecFieldType) {
   ASSERT_NE(found, nullptr);
   EXPECT_EQ(std::get<const SpecSymbol*>(found->resType.type), addressSpec);
 }
+
+TEST(SymbolTableTest, ResolvesArrayFieldType) {
+  SymbolTable table;
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
+
+  ResolvedType elementType{invariants::ast::BuiltinType::String};
+  ResolvedType arrayType{
+      std::make_shared<ResolvedArrayType>(ResolvedArrayType{elementType})};
+
+  const auto* tagsField = table.add_field("User", "tags", arrayType, nullptr);
+  ASSERT_NE(tagsField, nullptr);
+  EXPECT_TRUE(tagsField->resType.isArray());
+
+  const auto* found = table.lookup_field("User", "tags");
+  ASSERT_NE(found, nullptr);
+  auto ptr = std::get<std::shared_ptr<ResolvedArrayType>>(found->resType.type);
+  EXPECT_TRUE(ptr->element.isBuiltin());
+}
+
+TEST(SymbolTableTest, ResolvesMapFieldType) {
+  SymbolTable table;
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
+
+  ResolvedType keyType{invariants::ast::BuiltinType::String};
+  ResolvedType valType{invariants::ast::BuiltinType::Integer};
+  ResolvedType mapType{
+      std::make_shared<ResolvedMapType>(ResolvedMapType{keyType, valType})};
+
+  const auto* scoresField = table.add_field("User", "scores", mapType, nullptr);
+  ASSERT_NE(scoresField, nullptr);
+  EXPECT_TRUE(scoresField->resType.isMap());
+
+  const auto* found = table.lookup_field("User", "scores");
+  ASSERT_NE(found, nullptr);
+  auto ptr = std::get<std::shared_ptr<ResolvedMapType>>(found->resType.type);
+  EXPECT_TRUE(ptr->key.isBuiltin());
+  EXPECT_TRUE(ptr->value.isBuiltin());
+}
