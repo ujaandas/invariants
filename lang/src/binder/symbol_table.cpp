@@ -7,7 +7,7 @@
 using namespace invariants::binder;
 
 const SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) const {
-  auto it = specs.find(std::string(spec));
+  auto it = specs.find(spec);
   if (it != specs.end()) {
     return it->second.get();
   }
@@ -22,7 +22,7 @@ const FieldSymbol* SymbolTable::lookup_field(std::string_view specName,
   }
 
   auto& fields = foundSpec->fields;
-  auto it = fields.find(std::string(fieldName));
+  auto it = fields.find(fieldName);
   if (it != fields.end()) {
     return it->second.get();
   }

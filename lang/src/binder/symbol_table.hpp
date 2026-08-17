@@ -5,8 +5,22 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <variant>
 
 #include "types.hpp"
+
+namespace {
+struct TransparentStringHash {
+  using is_transparent = void;
+
+  std::size_t operator()(std::string_view sv) const noexcept {
+    return std::hash<std::string_view>{}(sv);
+  }
+  std::size_t operator()(const std::string& str) const noexcept {
+    return std::hash<std::string>{}(str);
+  }
+};
+}  // namespace
 
 namespace invariants::binder {
 
@@ -35,7 +49,7 @@ struct SpecSymbol {
   SpecId id;
   std::string name;
   std::unordered_map<std::string, std::unique_ptr<FieldSymbol>,
-                     std::hash<std::string_view>, std::equal_to<>>
+                     TransparentStringHash, std::equal_to<>>
       fields;
 };
 
@@ -55,7 +69,7 @@ class SymbolTable {
   FieldId nextFieldId = 0;
 
   std::unordered_map<std::string, std::unique_ptr<SpecSymbol>,
-                     std::hash<std::string_view>, std::equal_to<>>
+                     TransparentStringHash, std::equal_to<>>
       specs;
 };
 
