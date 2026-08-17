@@ -14,6 +14,13 @@ bool ResolvedType::isCustom() const {
   return std::holds_alternative<const SpecSymbol*>(type);
 }
 
+bool ResolvedType::isArray() const {
+  return std::holds_alternative<std::shared_ptr<ResolvedArrayType>>(type);
+}
+bool ResolvedType::isMap() const {
+  return std::holds_alternative<std::shared_ptr<ResolvedMapType>>(type);
+}
+
 const SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) const {
   auto it = specs.find(spec);
   if (it != specs.end()) {

@@ -26,13 +26,28 @@ using SpecId = std::uint32_t;
 using FieldId = std::uint32_t;
 
 struct SpecSymbol;
+struct ResolvedArrayType;
+struct ResolvedMapType;
 
-using TypeVar = std::variant<ast::BuiltinType, const SpecSymbol*>;
+using TypeVar = std::variant<ast::BuiltinType, const SpecSymbol*,
+                             std::shared_ptr<ResolvedArrayType>,
+                             std::shared_ptr<ResolvedMapType>>;
 
 struct ResolvedType {
   TypeVar type;
   bool isBuiltin() const;
   bool isCustom() const;
+  bool isArray() const;
+  bool isMap() const;
+};
+
+struct ResolvedArrayType {
+  ResolvedType element;
+};
+
+struct ResolvedMapType {
+  ResolvedType key;
+  ResolvedType value;
 };
 
 struct FieldSymbol {
