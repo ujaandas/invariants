@@ -2,28 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include <memory>
-#include <string>
-#include <utility>
-
-using namespace invariants::resolver;
-
-namespace {
-
-std::unique_ptr<SpecSymbol> makeSpec(SpecId id, const std::string& name) {
-  return std::make_unique<SpecSymbol>(
-      SpecSymbol{.id = id, .name = name, .decl = nullptr, .fields = {}});
-}
-
-std::unique_ptr<FieldSymbol> makeField(FieldId id, const std::string& name) {
-  static const invariants::ast::Type dummyType(invariants::ast::SimpleType{
-      .value = invariants::ast::BuiltinType::Number});
-
-  return std::make_unique<FieldSymbol>(
-      FieldSymbol{.id = id, .name = name, .type = &dummyType, .decl = nullptr});
-}
-
-}  // namespace
+using namespace invariants::binder;
 
 TEST(SymbolTableTest, LookupNonExistentSpecReturnsNullptr) {
   SymbolTable table;
@@ -34,30 +13,26 @@ TEST(SymbolTableTest, LookupNonExistentSpecReturnsNullptr) {
 TEST(SymbolTableTest, AddAndLookupSpec) {
   SymbolTable table;
 
-  auto spec = makeSpec(1, "User");
-  EXPECT_TRUE(table.add_spec("User", std::move(spec)));
+  const auto* spec = table.add_spec("User", nullptr);
+  ASSERT_NE(spec, nullptr);
+  EXPECT_EQ(spec->id, 0);
+  EXPECT_EQ(spec->name, "User");
 
   const auto* found = table.lookup_spec("User");
   ASSERT_NE(found, nullptr);
-  EXPECT_EQ(found->id, 1);
+  EXPECT_EQ(found->id, 0);
   EXPECT_EQ(found->name, "User");
 }
 
 TEST(SymbolTableTest, AddDuplicateSpecFails) {
   SymbolTable table;
 
-  EXPECT_TRUE(table.add_spec("User", makeSpec(1, "User")));
-  EXPECT_FALSE(table.add_spec("User", makeSpec(2, "UserDuplicate")));
+  EXPECT_NE(table.add_spec("User", nullptr), nullptr);
+  EXPECT_EQ(table.add_spec("User", nullptr), nullptr);
 
   const auto* found = table.lookup_spec("User");
   ASSERT_NE(found, nullptr);
-  EXPECT_EQ(found->id, 1);
-}
-
-TEST(SymbolTableTest, AddNullSpecReturnsFalse) {
-  SymbolTable table;
-
-  EXPECT_FALSE(table.add_spec("User", nullptr));
+  EXPECT_EQ(found->id, 0);
 }
 
 TEST(SymbolTableTest, LookupFieldInNonExistentSpecReturnsNullptr) {
@@ -69,56 +44,78 @@ TEST(SymbolTableTest, LookupFieldInNonExistentSpecReturnsNullptr) {
 TEST(SymbolTableTest, AddAndLookupField) {
   SymbolTable table;
 
-  ASSERT_TRUE(table.add_spec("User", makeSpec(1, "User")));
-  EXPECT_TRUE(table.add_field("User", "age", makeField(100, "age")));
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
 
-  const auto* field = table.lookup_field("User", "age");
+  ResolvedType intType{invariants::ast::BuiltinType::Integer};
+  const auto* field = table.add_field("User", "age", intType, nullptr);
   ASSERT_NE(field, nullptr);
-  EXPECT_EQ(field->id, 100);
+  EXPECT_EQ(field->id, 0);
   EXPECT_EQ(field->name, "age");
+  EXPECT_TRUE(field->resType.isBuiltin());
+
+  const auto* found = table.lookup_field("User", "age");
+  ASSERT_NE(found, nullptr);
+  EXPECT_EQ(found->id, 0);
+  EXPECT_EQ(found->name, "age");
+  EXPECT_EQ(table.get_total_field_count(), 1);
 }
 
 TEST(SymbolTableTest, AddFieldToNonExistentSpecFails) {
   SymbolTable table;
 
-  EXPECT_FALSE(table.add_field("MissingSpec", "age", makeField(100, "age")));
+  ResolvedType intType{invariants::ast::BuiltinType::Integer};
+  EXPECT_EQ(table.add_field("MissingSpec", "age", intType, nullptr), nullptr);
   EXPECT_EQ(table.lookup_field("MissingSpec", "age"), nullptr);
 }
 
 TEST(SymbolTableTest, AddDuplicateFieldFails) {
   SymbolTable table;
 
-  ASSERT_TRUE(table.add_spec("User", makeSpec(1, "User")));
-  EXPECT_TRUE(table.add_field("User", "age", makeField(100, "age")));
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
 
-  EXPECT_FALSE(table.add_field("User", "age", makeField(101, "ageDuplicate")));
+  ResolvedType intType{invariants::ast::BuiltinType::Integer};
+  EXPECT_NE(table.add_field("User", "age", intType, nullptr), nullptr);
+  EXPECT_EQ(table.add_field("User", "age", intType, nullptr), nullptr);
 
   const auto* field = table.lookup_field("User", "age");
   ASSERT_NE(field, nullptr);
-  EXPECT_EQ(field->id, 100);
-}
-
-TEST(SymbolTableTest, AddNullFieldReturnsFalse) {
-  SymbolTable table;
-
-  ASSERT_TRUE(table.add_spec("User", makeSpec(1, "User")));
-  EXPECT_FALSE(table.add_field("User", "age", nullptr));
+  EXPECT_EQ(field->id, 0);
 }
 
 TEST(SymbolTableTest, FieldsWithSameNameInDifferentSpecsDoNotCollide) {
   SymbolTable table;
 
-  ASSERT_TRUE(table.add_spec("User", makeSpec(1, "User")));
-  ASSERT_TRUE(table.add_spec("Admin", makeSpec(2, "Admin")));
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
+  ASSERT_NE(table.add_spec("Admin", nullptr), nullptr);
 
-  EXPECT_TRUE(table.add_field("User", "id", makeField(10, "id")));
-  EXPECT_TRUE(table.add_field("Admin", "id", makeField(20, "id")));
+  ResolvedType intType{invariants::ast::BuiltinType::Integer};
+  EXPECT_NE(table.add_field("User", "id", intType, nullptr), nullptr);
+  EXPECT_NE(table.add_field("Admin", "id", intType, nullptr), nullptr);
 
   const auto* userField = table.lookup_field("User", "id");
   const auto* adminField = table.lookup_field("Admin", "id");
 
   ASSERT_NE(userField, nullptr);
   ASSERT_NE(adminField, nullptr);
-  EXPECT_EQ(userField->id, 10);
-  EXPECT_EQ(adminField->id, 20);
+  EXPECT_EQ(userField->id, 0);
+  EXPECT_EQ(adminField->id, 1);
+  EXPECT_EQ(table.get_total_field_count(), 2);
+}
+
+TEST(SymbolTableTest, ResolvesCustomSpecFieldType) {
+  SymbolTable table;
+
+  const auto* addressSpec = table.add_spec("Address", nullptr);
+  ASSERT_NE(addressSpec, nullptr);
+  ASSERT_NE(table.add_spec("User", nullptr), nullptr);
+
+  ResolvedType customType{addressSpec};
+  const auto* locationField =
+      table.add_field("User", "location", customType, nullptr);
+  ASSERT_NE(locationField, nullptr);
+  EXPECT_TRUE(locationField->resType.isCustom());
+
+  const auto* found = table.lookup_field("User", "location");
+  ASSERT_NE(found, nullptr);
+  EXPECT_EQ(std::get<const SpecSymbol*>(found->resType.type), addressSpec);
 }

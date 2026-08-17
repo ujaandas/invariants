@@ -6,6 +6,14 @@
 
 using namespace invariants::binder;
 
+bool ResolvedType::isBuiltin() const {
+  return std::holds_alternative<ast::BuiltinType>(type);
+}
+
+bool ResolvedType::isCustom() const {
+  return std::holds_alternative<const SpecSymbol*>(type);
+}
+
 const SpecSymbol* SymbolTable::lookup_spec(std::string_view spec) const {
   auto it = specs.find(spec);
   if (it != specs.end()) {
@@ -61,3 +69,5 @@ FieldSymbol* SymbolTable::add_field(std::string_view specName,
   fields.emplace(std::string(fieldName), std::move(field));
   return rawPtr;
 }
+
+std::size_t SymbolTable::get_total_field_count() const { return nextFieldId; }
