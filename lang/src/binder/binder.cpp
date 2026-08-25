@@ -1,6 +1,7 @@
 #include "binder.hpp"
 
 #include <cstddef>
+#include <stdexcept>
 
 namespace invariants::binder {
 
