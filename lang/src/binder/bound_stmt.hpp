@@ -2,7 +2,7 @@
 
 #include "./bound_expr.hpp"
 
-using namespace invariants::binder;
+namespace invariants::binder {
 
 // Local constraint inside invariant
 struct BoundConstraint {
@@ -35,3 +35,5 @@ struct BoundSpec {
 struct BoundModule {
   std::vector<BoundSpec> specs;
 };
+
+}  // namespace invariants::binder
