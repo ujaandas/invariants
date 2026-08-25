@@ -8,6 +8,7 @@ namespace invariants::binder {
 BoundModule Binder::bind(const ast::ModuleStmt& moduleAst) {
   BoundModule boundModule;
   for (const auto& specAst : moduleAst.specs) {
+    if (!specAst) continue;
     boundModule.specs.push_back(bindSpec(*specAst));
   }
   return boundModule;
@@ -54,6 +55,7 @@ BoundField Binder::bindField(const ast::FieldStmt& fieldAst) {
   BoundField boundField{.symbol = activeField};
 
   for (const auto& constraintAst : fieldAst.constraints) {
+    if (!constraintAst) continue;
     boundField.local_constraints.push_back(bindConstraint(*constraintAst));
   }
 
