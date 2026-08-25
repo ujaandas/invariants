@@ -78,16 +78,36 @@ BoundConstraint Binder::bindConstraint(
 }
 
 BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
-  // Assuming invariant has a single root expression constraint for now
   if (invariantAst.constraints.empty()) {
     throw std::runtime_error("Invariant must have an expression.");
   }
 
-  BoundExprPtr expr = bindExpr(*invariantAst.constraints.front()->expression);
+  BoundExprPtr combined;
 
+  for (const auto& constraintAst : invariantAst.constraints) {
+    if (!constraintAst || !constraintAst->expression) continue;
+    BoundExprPtr expr = bindExpr(*constraintAst->expression);
+    if (!expr->type.isBuiltin() ||
+        std::get<ast::BuiltinType>(expr->type.type) !=
+            ast::BuiltinType::Boolean) {
+      throw std::runtime_error(
+          "Invariant constraint expression must evaluate to a Boolean.");
+    }
+    if (!combined) {
+      combined = std::move(expr);
+    } else {
+      combined = std::make_unique<BoundExpr>(
+          BoundBinaryExpr{std::move(combined), ast::BinaryOp::And,
+                          std::move(expr)},
+          ResolvedType{ast::BuiltinType::Boolean});
+    }
+  }
+  if (!combined) {
+    throw std::runtime_error("Invariant must have an expression.");
+  }
   BoundInvariant boundInv{
       .name = invariantAst.identifier,
-      .expression = std::move(expr),
+      .expression = std::move(combined),
       .isDeterministicPossible =
           false,  // TODO: Add detection for target fields later
       .target = nullptr};

@@ -122,6 +122,37 @@ TEST(BinderTest, RejectsNakedIdentifiers) {
   EXPECT_THROW(binder.bind(*module), std::runtime_error);
 }
 
+TEST(BinderTest, AllowsMultipleInvariantConstraints) {
+  std::string source = R"(
+    spec Product {
+      field price: Number {
+        value > 10.0;
+        value < 10000.0;
+      }
+    }
+  )";
+
+  auto module = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*module);
+
+  // Check the constraint expression
+  const auto& constraint1 = bound.specs[0].fields[0].local_constraints[0];
+  const auto& constraint2 = bound.specs[0].fields[0].local_constraints[1];
+  const auto& binExpr1 = std::get<BoundBinaryExpr>(constraint1.expr->value);
+  const auto& binExpr2 = std::get<BoundBinaryExpr>(constraint2.expr->value);
+
+  // Left side should be BoundValueAccessExpr
+  EXPECT_TRUE(
+      std::holds_alternative<BoundValueAccessExpr>(binExpr1.left->value));
+  EXPECT_TRUE(
+      std::holds_alternative<BoundValueAccessExpr>(binExpr2.left->value));
+
+  // Right side should be Literal
+  EXPECT_TRUE(std::holds_alternative<BoundLiteralExpr>(binExpr1.right->value));
+  EXPECT_TRUE(std::holds_alternative<BoundLiteralExpr>(binExpr2.right->value));
+}
+
 TEST(BinderTest, BindsThisMemberAccessAndResolvesDirectPointer) {
   std::string source = R"(
     spec Product {
