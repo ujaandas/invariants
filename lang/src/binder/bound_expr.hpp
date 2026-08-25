@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <variant>
 
@@ -12,7 +13,7 @@ using BoundExprPtr = std::unique_ptr<BoundExpr>;
 
 // Literal
 struct BoundLiteralExpr {
-  std::variant<double, int, std::string, bool> value;
+  std::variant<double, int, std::string, bool, std::nullptr_t> value;
 };
 
 // Field access
