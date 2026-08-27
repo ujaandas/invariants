@@ -55,17 +55,40 @@ const std::vector<binder::FieldId>& DependencyGraph::getDependents(
   return outgoingAdj[field];
 }
 
-// std::vector<FieldId> DependencyGraph::order() const {
-//   std::vector<std::size_t> currInDeg = inDeg;
-//   std::queue<binder::FieldId> zeroInDegQ;
+std::vector<FieldId> DependencyGraph::order() const {
+  std::vector<std::size_t> currInDeg = inDeg;
+  std::queue<binder::FieldId> zeroInDegQ;
 
-//   // Initialize queue with all source nodes (in-degree == 0)
-//   for (binder::FieldId id = 0; id < numFields; ++id) {
-//     if (currInDeg[id] == 0) {
-//       zeroInDegQ.push(id);
-//     }
-//   }
+  // Initialize queue with all source nodes (in-degree == 0)
+  for (binder::FieldId id = 0; id < numFields; ++id) {
+    if (currInDeg[id] == 0) {
+      zeroInDegQ.push(id);
+    }
+  }
 
-// }
+  std::vector<binder::FieldId> order;
+  order.reserve(numFields);
+
+  // Khan's algo
+  while (!zeroInDegQ.empty()) {
+    binder::FieldId current = zeroInDegQ.front();
+    zeroInDegQ.pop();
+    order.push_back(current);
+
+    for (binder::FieldId neighbor : outgoingAdj[current]) {
+      if (--currInDeg[neighbor] == 0) {
+        zeroInDegQ.push(neighbor);
+      }
+    }
+  }
+
+  // If order does not contain all nodes, at least one cycle
+  if (order.size() != numFields) {
+    throw std::runtime_error(
+        "Cyclic dependency detected in specification invariants.");
+  }
+
+  return order;
+}
 
 }  // namespace invariants::analysis
