@@ -33,6 +33,8 @@ void DependencyGraph::addEdge(FieldId from, FieldId to) {
   inDeg[to]++;
 }
 
+std::size_t DependencyGraph::size() const { return numFields; }
+
 bool DependencyGraph::hasEdge(binder::FieldId from, binder::FieldId to) const {
   if (from >= numFields || to >= numFields) return false;
   const auto& edges = outgoingAdj[from];
