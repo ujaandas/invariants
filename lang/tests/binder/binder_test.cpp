@@ -56,7 +56,7 @@ TEST(BinderTest, BindsValidModuleAndPopulatesSymbolTable) {
   EXPECT_EQ(spec.fields[0].symbol->name, "unit_price");
   EXPECT_TRUE(spec.fields[0].symbol->resType.isBuiltin());
 
-  ASSERT_EQ(spec.fields[0].local_constraints.size(), 1);
+  ASSERT_EQ(spec.fields[0].constraints.size(), 1);
   ASSERT_EQ(spec.invariants.size(), 1);
 
   // Verify ST state
@@ -80,7 +80,7 @@ TEST(BinderTest, ResolvesValueKeywordInsideFieldConstraints) {
   BoundModule bound = binder.bind(*module);
 
   // Check the constraint expression
-  const auto& constraint = bound.specs[0].fields[0].local_constraints[0];
+  const auto& constraint = bound.specs[0].fields[0].constraints[0];
   const auto& binExpr = std::get<BoundBinaryExpr>(constraint.expr->value);
 
   // Left side should be BoundValueAccessExpr
@@ -137,8 +137,8 @@ TEST(BinderTest, AllowsMultipleInvariantConstraints) {
   BoundModule bound = binder.bind(*module);
 
   // Check the constraint expression
-  const auto& constraint1 = bound.specs[0].fields[0].local_constraints[0];
-  const auto& constraint2 = bound.specs[0].fields[0].local_constraints[1];
+  const auto& constraint1 = bound.specs[0].fields[0].constraints[0];
+  const auto& constraint2 = bound.specs[0].fields[0].constraints[1];
   const auto& binExpr1 = std::get<BoundBinaryExpr>(constraint1.expr->value);
   const auto& binExpr2 = std::get<BoundBinaryExpr>(constraint2.expr->value);
 
@@ -210,7 +210,7 @@ TEST(BinderTest, StripsParenthesesSyntacticNoise) {
 
   // Despite the parentheses in the AST, the BoundTree should just have a direct
   // BinaryExpr
-  const auto& constraint = bound.specs[0].fields[0].local_constraints[0];
+  const auto& constraint = bound.specs[0].fields[0].constraints[0];
   const auto& binExpr = std::get<BoundBinaryExpr>(constraint.expr->value);
 
   EXPECT_TRUE(

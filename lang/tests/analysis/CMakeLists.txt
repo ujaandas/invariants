@@ -1,6 +1,6 @@
-add_executable(analysis_test dependency_graph_test.cpp)
+add_executable(analysis_test dependency_graph_test.cpp dependency_analyzer_test.cpp dependency_analyzer_src_test.cpp)
 
-target_link_libraries(analysis_test PRIVATE invariants_analysis GTest::gtest_main)
+target_link_libraries(analysis_test PRIVATE invariants_analysis invariants_parser invariants_lexer GTest::gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(analysis_test)
