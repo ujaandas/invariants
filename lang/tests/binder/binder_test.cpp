@@ -269,3 +269,59 @@ TEST(BinderTest, BindsComplexArrayAndMapTypes) {
   const auto& scoresField = bound.specs[0].fields[1];
   EXPECT_TRUE(scoresField.symbol->resType.isMap());
 }
+
+TEST(BinderTest, BindsHomogeneousListsAndInOperator) {
+  std::string source = R"(
+    spec Config {
+      field currency: String {
+        value IN ["USD", "EUR", "GBP"];
+      }
+    }
+  )";
+  auto ast = parseSource(source);
+  Binder binder;
+  EXPECT_NO_THROW(binder.bind(*ast));  // Should type-check perfectly
+}
+
+TEST(BinderTest, ThrowsOnMixedTypeList) {
+  std::string source = R"(
+    spec Config {
+      field mixed: String {
+        value IN ["USD", 5.0, "GBP"]; // Mixed String and Number
+      }
+    }
+  )";
+  auto ast = parseSource(source);
+  Binder binder;
+  // Should throw because "USD" is String but 5.0 is Number
+  EXPECT_THROW(binder.bind(*ast), std::runtime_error);
+}
+
+TEST(BinderTest, ThrowsOnInOperatorTypeMismatch) {
+  std::string source = R"(
+    spec Config {
+      field count: Integer {
+        value IN ["A", "B"]; // count is Integer, list is Array<String>
+      }
+    }
+  )";
+  auto ast = parseSource(source);
+  Binder binder;
+  // Should throw because Left side (Integer) doesn't match Array Element
+  // (String)
+  EXPECT_THROW(binder.bind(*ast), std::runtime_error);
+}
+
+TEST(BinderTest, ThrowsOnEmptyList) {
+  std::string source = R"(
+    spec Config {
+      field empty: String {
+        value IN []; 
+      }
+    }
+  )";
+  auto ast = parseSource(source);
+  Binder binder;
+  // Should throw because we cannot infer the type of an empty list
+  EXPECT_THROW(binder.bind(*ast), std::runtime_error);
+}
