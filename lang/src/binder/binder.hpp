@@ -30,6 +30,8 @@ class Binder {
 
   BoundExprPtr bindExpr(const ast::Expr& exprAst);
 
+  BoundExprPtr bindListExpr(const ast::ListExpr& ast);
+
   // Expression helpers
   BoundExprPtr bindLiteral(const ast::LiteralExpr& expr);
   BoundExprPtr bindIdentifier(const ast::IdentifierExpr& expr);

@@ -1,10 +1,12 @@
 #include "binder.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <variant>
 
 #include "bound_expr.hpp"
+#include "expression.hpp"
 
 namespace invariants::binder {
 
@@ -193,13 +195,54 @@ BoundExprPtr Binder::bindExpr(const ast::Expr& exprAst) {
           return bindBinary(arg);
         } else if constexpr (std::is_same_v<T, ast::UnaryExpr>) {
           return bindUnary(arg);
+        } else if constexpr (std::is_same_v<T, ast::ListExpr>) {
+          return bindListExpr(arg);
         } else if constexpr (std::is_same_v<T, ast::ThisExpr>) {
           throw std::runtime_error("'this' cannot be evaluated on its own.");
-        } else if constexpr (std::is_same_v<T, ast::ListExpr>) {
-          throw std::runtime_error("List expr binding not implemented yet.");
         }
       },
       exprAst.value);
+}
+
+BoundExprPtr Binder::bindListExpr(const ast::ListExpr& ast) {
+  if (ast.elements.empty()) {
+    throw std::runtime_error(
+        "Empty lists are not supported yet (cannot infer type).");
+  }
+
+  std::vector<BoundExprPtr> boundElements;
+  std::optional<ResolvedType> elementType;
+
+  for (const auto& el : ast.elements) {
+    auto boundEl = bindExpr(*el);
+
+    // Ensure all elements in the list are the exact same type
+    if (!elementType) {
+      elementType = boundEl->type;
+    } else {
+      bool isEqual = false;
+
+      // TODO: Assume lists only contain built-in primitives
+      if (elementType->isBuiltin() && boundEl->type.isBuiltin()) {
+        isEqual = std::get<ast::BuiltinType>(elementType->type) ==
+                  std::get<ast::BuiltinType>(boundEl->type.type);
+      }
+
+      if (!isEqual) {
+        throw std::runtime_error(
+            "All elements in a list must be of the same type.");
+      }
+    }
+
+    boundElements.push_back(std::move(boundEl));
+  }
+
+  // Create the array type using the shared_ptr expected by TypeVar
+  auto resolvedArray = std::make_shared<binder::ResolvedArrayType>(
+      binder::ResolvedArrayType{*elementType});
+
+  return std::make_unique<BoundExpr>(BoundListExpr{std::move(boundElements)},
+                                     ResolvedType{std::move(resolvedArray)});
 }
 
 BoundExprPtr Binder::bindLiteral(const ast::LiteralExpr& expr) {
@@ -278,6 +321,30 @@ BoundExprPtr Binder::bindBinary(const ast::BinaryExpr& expr) {
   auto left = bindExpr(*expr.left);
   auto right = bindExpr(*expr.right);
 
+  // Check array types
+  if (expr.op == ast::BinaryOp::In || expr.op == ast::BinaryOp::NotIn) {
+    // Check that the right side is an Array
+    if (!std::holds_alternative<std::shared_ptr<binder::ResolvedArrayType>>(
+            right->type.type)) {
+      throw std::runtime_error("Right side of 'IN' operator must be an Array.");
+    }
+
+    // Check that the left side matches the array's inner element type
+    auto arrayType =
+        std::get<std::shared_ptr<binder::ResolvedArrayType>>(right->type.type);
+    bool isMatch = false;
+
+    if (left->type.isBuiltin() && arrayType->element.isBuiltin()) {
+      isMatch = std::get<ast::BuiltinType>(left->type.type) ==
+                std::get<ast::BuiltinType>(arrayType->element.type);
+    }
+
+    if (!isMatch) {
+      throw std::runtime_error(
+          "Left side of 'IN' operator must match the array's element type.");
+    }
+  }
+
   // Basic type deduction
   ResolvedType outType;
   if (expr.op == ast::BinaryOp::Equal || expr.op == ast::BinaryOp::NotEqual ||
@@ -285,7 +352,7 @@ BoundExprPtr Binder::bindBinary(const ast::BinaryExpr& expr) {
       expr.op == ast::BinaryOp::GreaterEqual ||
       expr.op == ast::BinaryOp::LessEqual || expr.op == ast::BinaryOp::And ||
       expr.op == ast::BinaryOp::Or || expr.op == ast::BinaryOp::In ||
-      expr.op == ast::BinaryOp::Imply) {
+      expr.op == ast::BinaryOp::Imply || expr.op == ast::BinaryOp::NotIn) {
     outType = ResolvedType{ast::BuiltinType::Boolean};
   } else {
     // Math ops return the type of the left operand for now
