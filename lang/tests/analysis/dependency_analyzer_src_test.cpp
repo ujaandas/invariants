@@ -505,3 +505,140 @@ TEST(DependencyAnalyzerIntegrationTest,
   EXPECT_LT(getPos("option_a"), getPos("selection"));
   EXPECT_LT(getPos("option_b"), getPos("selection"));
 }
+
+TEST(DependencyAnalyzerIntegrationTest,
+     SchedulesSelfReferentialFieldConstraints) {
+  // Proves that a standard field constraint (e.g. value > 0) is correctly
+  // scheduled on the field itself, and properly flagged as a field constraint
+  // (parentInv == nullptr)
+  std::string source = R"(
+    spec Basic {
+      field positive_num: Number {
+        value > 0.0;
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule =
+      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+
+  FieldId id = binder.getSt().lookup_field("Basic", "positive_num")->id;
+
+  ASSERT_EQ(schedule.triggers[id].size(), 1);
+  // parentInv should be nullptr because this constraint belongs to the field,
+  // not an invariant block
+  EXPECT_EQ(schedule.triggers[id][0].parentInv, nullptr);
+}
+
+TEST(DependencyAnalyzerIntegrationTest,
+     ExtractsEdgesFromCrossFieldConstraints) {
+  // Proves that if a field's domain relies on another field (value >
+  // this.min_val), the analyzer extracts the dependency and forces min_val to
+  // generate before max_val
+  std::string source = R"(
+    spec Bounded {
+      field min_val: Number { }
+      field max_val: Number {
+        value > this.min_val;
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule =
+      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+
+  auto getId = [&](const std::string& name) {
+    return binder.getSt().lookup_field("Bounded", name)->id;
+  };
+  auto getPos = [&](const std::string& name) {
+    auto it =
+        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
+    return std::distance(schedule.order.begin(), it);
+  };
+
+  // Topological check: min_val MUST precede max_val
+  EXPECT_LT(getPos("min_val"), getPos("max_val"));
+
+  // Trigger check: The constraint uses `this.min_val` and `value` (which
+  // implies max_val). Therefore, it must schedule on max_val.
+  FieldId maxId = getId("max_val");
+  ASSERT_EQ(schedule.triggers[maxId].size(), 1);
+  EXPECT_EQ(schedule.triggers[maxId][0].parentInv, nullptr);
+}
+
+TEST(DependencyAnalyzerIntegrationTest,
+     InterleavesFieldAndInvariantDependencies) {
+  // Field dependencies and Invariant assignments combined.
+  std::string source = R"(
+    spec MixedGraph {
+      field a: Number { }
+      field b: Number { 
+        value > this.a; // Field constraint creates edge: a -> b
+      } 
+      field c: Number { } 
+      field d: Number { } 
+      
+      // Assignment creates edges: b -> d and c -> d
+      invariant assign_d {
+        this.d == this.b + this.c;
+      }
+
+      // Validation uses d, triggering on the last field
+      invariant check_d {
+        this.d > 100.0;
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule =
+      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+
+  auto getId = [&](const std::string& name) {
+    return binder.getSt().lookup_field("MixedGraph", name)->id;
+  };
+  auto getPos = [&](const std::string& name) {
+    auto it =
+        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
+    return std::distance(schedule.order.begin(), it);
+  };
+
+  // Complex Topological Check
+  EXPECT_LT(getPos("a"), getPos("b"));  // From field constraint
+  EXPECT_LT(getPos("b"), getPos("d"));  // From invariant assignment
+  EXPECT_LT(getPos("c"), getPos("d"));  // From invariant assignment
+
+  // Transitive checks
+  EXPECT_LT(getPos("a"), getPos("d"));
+
+  // Check that both triggers landed perfectly
+  FieldId bId = getId("b");
+  FieldId dId = getId("d");
+
+  // Field `b` should have 1 trigger (its own field constraint)
+  ASSERT_EQ(schedule.triggers[bId].size(), 1);
+  EXPECT_EQ(schedule.triggers[bId][0].parentInv, nullptr);
+
+  // Field `d` should have 1 trigger (`check_d` validation invariant)
+  ASSERT_EQ(schedule.triggers[dId].size(), 1);
+  ASSERT_NE(schedule.triggers[dId][0].parentInv, nullptr);
+  EXPECT_EQ(schedule.triggers[dId][0].parentInv->name, "check_d");
+
+  // Fields `a` and `c` have no constraints and shouldn't have triggers
+  EXPECT_EQ(schedule.triggers[getId("a")].size(), 0);
+  EXPECT_EQ(schedule.triggers[getId("c")].size(), 0);
+}
