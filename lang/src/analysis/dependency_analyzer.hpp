@@ -9,7 +9,7 @@
 namespace invariants::analysis {
 
 struct InvariantTrigger {
-  const binder::BoundInvariant* parent_invariant;
+  const binder::BoundInvariant* parentInv;
   const binder::BoundConstraint* constraint;
 };
 
