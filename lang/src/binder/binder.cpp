@@ -2,6 +2,9 @@
 
 #include <cstddef>
 #include <stdexcept>
+#include <variant>
+
+#include "bound_expr.hpp"
 
 namespace invariants::binder {
 
@@ -112,11 +115,32 @@ BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
           "Invariant constraint expression must evaluate to a Boolean.");
     }
 
+    bool isDet = false;
+    const FieldSymbol* target = nullptr;
+
+    if (std::holds_alternative<BoundBinaryExpr>(expr->value)) {
+      const auto& binExpr = std::get<BoundBinaryExpr>(expr->value);
+
+      // Look for an equality check (==)
+      if (binExpr.op == ast::BinaryOp::Equal) {
+        // Is the left side `this.some_field`?
+        if (std::holds_alternative<BoundFieldAccessExpr>(binExpr.left->value)) {
+          isDet = true;
+          target = std::get<BoundFieldAccessExpr>(binExpr.left->value).field;
+        }
+        // Is the right side `this.some_field`?
+        else if (std::holds_alternative<BoundFieldAccessExpr>(
+                     binExpr.right->value)) {
+          isDet = true;
+          target = std::get<BoundFieldAccessExpr>(binExpr.right->value).field;
+        }
+      }
+    }
+
     boundInv.constraints.push_back(BoundConstraint{
         .expr = std::move(expr),
-        .isDeterministicPossible =
-            false,  // TODO: Add detection for target fields later
-        .target = nullptr,
+        .isDeterministicPossible = isDet,
+        .target = target,
     });
   }
 
