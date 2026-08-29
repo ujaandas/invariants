@@ -1,4 +1,4 @@
-add_library(invariants_analysis dependency_graph.cpp)
+add_library(invariants_analysis dependency_graph.cpp dependency_extractor.cpp dependency_analyzer.cpp)
 
 target_include_directories(invariants_analysis PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
