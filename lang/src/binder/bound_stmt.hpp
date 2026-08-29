@@ -21,7 +21,7 @@ struct BoundInvariant {
 // A fully bound field
 struct BoundField {
   const FieldSymbol* symbol;
-  std::vector<BoundConstraint> local_constraints;
+  std::vector<BoundConstraint> constraints;
 };
 
 // A fully bound spec

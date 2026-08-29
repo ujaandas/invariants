@@ -56,7 +56,7 @@ BoundField Binder::bindField(const ast::FieldStmt& fieldAst) {
 
   for (const auto& constraintAst : fieldAst.constraints) {
     if (!constraintAst) continue;
-    boundField.local_constraints.push_back(bindConstraint(*constraintAst));
+    boundField.constraints.push_back(bindConstraint(*constraintAst));
   }
 
   activeField = nullptr;
