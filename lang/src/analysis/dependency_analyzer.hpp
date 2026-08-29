@@ -20,7 +20,7 @@ class DependencyAnalyzer {
   ExecutionSchedule analyze(const binder::BoundModule& module,
                             std::size_t total_fields);
 
-  static std::unordered_set<binder::FieldId> extract_dependencies(
+  static std::unordered_set<binder::FieldId> extractDeps(
       const binder::BoundExpr& expr);
 };
 
