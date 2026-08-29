@@ -20,13 +20,13 @@ struct BoundInvariant {
 
 // A fully bound field
 struct BoundField {
-  const FieldSymbol* symbol;
+  const FieldSymbol* symbol = nullptr;
   std::vector<BoundConstraint> constraints;
 };
 
 // A fully bound spec
 struct BoundSpec {
-  const SpecSymbol* symbol;
+  const SpecSymbol* symbol = nullptr;
   std::vector<BoundField> fields;
   std::vector<BoundInvariant> invariants;
 };
