@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "types.hpp"
+
 using namespace invariants::analysis;
 using namespace invariants::binder;
 
@@ -59,6 +61,14 @@ BoundInvariant makeValidation(std::string name, BoundExprPtr expr) {
                                             .isDeterministicPossible = false,
                                             .target = nullptr});
   return inv;
+}
+
+BoundExprPtr makeList(std::vector<BoundExprPtr> elements) {
+  return std::make_unique<BoundExpr>(
+      BoundListExpr{std::move(elements)},
+      ResolvedType{invariants::ast::BuiltinType::Number}
+      // Type is irrelevant for extraction
+  );
 }
 
 }  // namespace
@@ -296,4 +306,23 @@ TEST(DependencyAnalyzerTest, TriggerFallsBackToFirstFieldIfNoDependencies) {
   // Should trigger immediately on the very first field generated
   ASSERT_EQ(schedule.triggers[0].size(), 1);
   EXPECT_EQ(schedule.triggers[0][0].parentInv->name, "LiteralCheck");
+}
+
+TEST(DependencyAnalyzerTest, ExtractsDependenciesFromWithinLists) {
+  auto f1 = makeField(1);
+  auto f2 = makeField(2);
+
+  // Construct: [this.f1, 5.0, this.f2]
+  std::vector<BoundExprPtr> elements;
+  elements.push_back(makeAccess(&f1));
+  elements.push_back(makeLiteral(5.0));
+  elements.push_back(makeAccess(&f2));
+
+  auto listExpr = makeList(std::move(elements));
+  auto deps = DependencyAnalyzer::extractDeps(*listExpr);
+
+  // Should extract field 1 and 2, ignoring the literal 5.0
+  EXPECT_EQ(deps.size(), 2);
+  EXPECT_TRUE(deps.count(1));
+  EXPECT_TRUE(deps.count(2));
 }
