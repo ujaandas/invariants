@@ -66,26 +66,44 @@ BoundField Binder::bindField(const ast::FieldStmt& fieldAst) {
 BoundConstraint Binder::bindConstraint(
     const ast::ConstraintStmt& constraintAst) {
   BoundExprPtr expr = bindExpr(*constraintAst.expression);
-
-  // Validate it returns a boolean
   if (!expr->type.isBuiltin() || std::get<ast::BuiltinType>(expr->type.type) !=
                                      ast::BuiltinType::Boolean) {
-    throw std::runtime_error(
-        "Constraint expression must evaluate to a Boolean.");
+    throw std::runtime_error("Constraint expression must evaluate to Boolean.");
   }
 
-  return BoundConstraint{.expr = std::move(expr)};
+  bool isDeterministic = false;
+  const FieldSymbol* target = nullptr;
+
+  if (std::holds_alternative<BoundBinaryExpr>(expr->value)) {
+    const auto& bin = std::get<BoundBinaryExpr>(expr->value);
+    if (bin.op == ast::BinaryOp::Equal) {
+      if (std::holds_alternative<BoundFieldAccessExpr>(bin.left->value)) {
+        isDeterministic = true;
+        target = std::get<BoundFieldAccessExpr>(bin.left->value).field;
+      } else if (std::holds_alternative<BoundFieldAccessExpr>(
+                     bin.right->value)) {
+        isDeterministic = true;
+        target = std::get<BoundFieldAccessExpr>(bin.right->value).field;
+      }
+    }
+  }
+
+  return BoundConstraint{
+      .expr = std::move(expr),
+      .isDeterministicPossible = isDeterministic,
+      .target = target,
+  };
 }
 
 BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
-  if (invariantAst.constraints.empty()) {
-    throw std::runtime_error("Invariant must have an expression.");
-  }
-
-  BoundExprPtr combined;
+  BoundInvariant boundInv{
+      .name = invariantAst.identifier,
+      .constraints = {},
+  };
 
   for (const auto& constraintAst : invariantAst.constraints) {
     if (!constraintAst || !constraintAst->expression) continue;
+
     BoundExprPtr expr = bindExpr(*constraintAst->expression);
     if (!expr->type.isBuiltin() ||
         std::get<ast::BuiltinType>(expr->type.type) !=
@@ -93,24 +111,18 @@ BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
       throw std::runtime_error(
           "Invariant constraint expression must evaluate to a Boolean.");
     }
-    if (!combined) {
-      combined = std::move(expr);
-    } else {
-      combined = std::make_unique<BoundExpr>(
-          BoundBinaryExpr{std::move(combined), ast::BinaryOp::And,
-                          std::move(expr)},
-          ResolvedType{ast::BuiltinType::Boolean});
-    }
+
+    boundInv.constraints.push_back(BoundConstraint{
+        .expr = std::move(expr),
+        .isDeterministicPossible =
+            false,  // TODO: Add detection for target fields later
+        .target = nullptr,
+    });
   }
-  if (!combined) {
+
+  if (boundInv.constraints.empty()) {
     throw std::runtime_error("Invariant must have an expression.");
   }
-  BoundInvariant boundInv{
-      .name = invariantAst.identifier,
-      .expression = std::move(combined),
-      .isDeterministicPossible =
-          false,  // TODO: Add detection for target fields later
-      .target = nullptr};
 
   return boundInv;
 }

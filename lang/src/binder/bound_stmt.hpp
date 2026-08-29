@@ -7,15 +7,16 @@ namespace invariants::binder {
 // Local constraint inside invariant
 struct BoundConstraint {
   BoundExprPtr expr;
+
+  // Assignment metadata (populated if root is `this.x == ...`)
+  bool isDeterministicPossible = false;
+  const FieldSymbol* target = nullptr;
 };
 
 // Cross-field invariant
 struct BoundInvariant {
   std::string name;
-  BoundExprPtr expression;  // The logic
-
-  bool isDeterministicPossible = false;
-  const FieldSymbol* target = nullptr;  // Set if this computes a value
+  std::vector<BoundConstraint> constraints;
 };
 
 // A fully bound field
