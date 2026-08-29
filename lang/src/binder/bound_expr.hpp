@@ -39,10 +39,15 @@ struct BoundBinaryExpr {
   BoundExprPtr right;
 };
 
+// List
+struct BoundListExpr {
+  std::vector<BoundExprPtr> elements;
+};
+
 struct BoundExpr {
   using ExprT =
       std::variant<BoundLiteralExpr, BoundFieldAccessExpr, BoundValueAccessExpr,
-                   BoundUnaryExpr, BoundBinaryExpr>;
+                   BoundUnaryExpr, BoundBinaryExpr, BoundListExpr>;
   ExprT value;
   ResolvedType type;
 
