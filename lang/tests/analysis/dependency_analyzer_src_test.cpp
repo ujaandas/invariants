@@ -137,16 +137,16 @@ TEST(DependencyAnalyzerSrcTest, ComputesTopologicalOrderForAssignments) {
 
   // Assert Topological Order: price and qty must precede subtotal. subtotal
   // must precede total
-  auto get_pos = [&](const std::string& name) {
+  auto getPos = [&](const std::string& name) {
     const FieldSymbol* field = binder.getSt().lookup_field("Invoice", name);
     auto it =
         std::find(schedule.order.begin(), schedule.order.end(), field->id);
     return std::distance(schedule.order.begin(), it);
   };
 
-  EXPECT_LT(get_pos("price"), get_pos("subtotal"));
-  EXPECT_LT(get_pos("qty"), get_pos("subtotal"));
-  EXPECT_LT(get_pos("subtotal"), get_pos("total"));
+  EXPECT_LT(getPos("price"), getPos("subtotal"));
+  EXPECT_LT(getPos("qty"), getPos("subtotal"));
+  EXPECT_LT(getPos("subtotal"), getPos("total"));
 }
 
 TEST(DependencyAnalyzerSrcTest, DetectsCyclesInAssignments) {
@@ -222,12 +222,12 @@ TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
 
   // Generation order should put 'base' (0) before 'derived' (1). 'standalone'
   // (2) can be anywhere
-  auto get_pos = [&](FieldId id) {
+  auto getPos = [&](FieldId id) {
     return std::distance(
         schedule.order.begin(),
         std::find(schedule.order.begin(), schedule.order.end(), id));
   };
-  EXPECT_LT(get_pos(0), get_pos(1));
+  EXPECT_LT(getPos(0), getPos(1));
 
   // The standalone validation should trigger solely on the standalone field (id
   // 2)
@@ -280,26 +280,26 @@ TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpec) {
   auto schedule =
       analyzer.analyze(bound, binder.getSt().get_total_field_count());
 
-  auto get_id = [&](const std::string& name) {
+  auto getId = [&](const std::string& name) {
     return binder.getSt().lookup_field("BulkOrder", name)->id;
   };
-  auto get_pos = [&](const std::string& name) {
+  auto getPos = [&](const std::string& name) {
     auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), get_id(name));
+        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
     return std::distance(schedule.order.begin(), it);
   };
 
   // Verify Topological Order (dependencies precede target)
-  EXPECT_LT(get_pos("unit_price"), get_pos("total_price"));
-  EXPECT_LT(get_pos("quantity"), get_pos("total_price"));
+  EXPECT_LT(getPos("unit_price"), getPos("total_price"));
+  EXPECT_LT(getPos("quantity"), getPos("total_price"));
 
   // Verify Triggers
   // bulk_discount uses quantity, unit_price, and total_price.
   // Because total_price is guaranteed to be generated after the other two,
   // the trigger must land exactly on total_price.
-  FieldId target_id = get_id("total_price");
-  ASSERT_EQ(schedule.triggers[target_id].size(), 1);
-  EXPECT_EQ(schedule.triggers[target_id][0].parentInv->name, "bulk_discount");
+  FieldId targetId = getId("total_price");
+  ASSERT_EQ(schedule.triggers[targetId].size(), 1);
+  EXPECT_EQ(schedule.triggers[targetId][0].parentInv->name, "bulk_discount");
 }
 
 TEST(DependencyAnalyzerIntegrationTest,
@@ -345,7 +345,7 @@ TEST(DependencyAnalyzerIntegrationTest,
   auto schedule =
       analyzer.analyze(bound, binder.getSt().get_total_field_count());
 
-  auto get_pos = [&](const std::string& name) {
+  auto getPos = [&](const std::string& name) {
     const auto* field = binder.getSt().lookup_field("PayrollCalculation", name);
     auto it =
         std::find(schedule.order.begin(), schedule.order.end(), field->id);
@@ -354,15 +354,15 @@ TEST(DependencyAnalyzerIntegrationTest,
 
   // Verify cascading order constraints
   // Stage 1 dependencies
-  EXPECT_LT(get_pos("gross_salary"), get_pos("tax_amount"));
-  EXPECT_LT(get_pos("tax_rate"), get_pos("tax_amount"));
+  EXPECT_LT(getPos("gross_salary"), getPos("tax_amount"));
+  EXPECT_LT(getPos("tax_rate"), getPos("tax_amount"));
 
   // Stage 2 dependencies
-  EXPECT_LT(get_pos("tax_amount"), get_pos("net_salary"));
-  EXPECT_LT(get_pos("bonus"), get_pos("net_salary"));
+  EXPECT_LT(getPos("tax_amount"), getPos("net_salary"));
+  EXPECT_LT(getPos("bonus"), getPos("net_salary"));
 
   // Transitive dependency sanity check
-  EXPECT_LT(get_pos("gross_salary"), get_pos("net_salary"));
+  EXPECT_LT(getPos("gross_salary"), getPos("net_salary"));
 
   // Verify validation triggers on the absolute end of the cascade
   FieldId net_id =
@@ -413,4 +413,95 @@ TEST(DependencyAnalyzerIntegrationTest,
   // Because nested_equality touches a, b, c and math_equality touches a, b
   // We just ensure we didn't accidentally drop the triggers or throw a cycle
   EXPECT_GE(schedule.triggers[last_field].size(), 1);
+}
+
+TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpecWithLists) {
+  std::string source = R"(
+    spec BulkOrder {
+      field unit_price: Number { value > 0.0; }
+      field quantity: Integer { value >= 1; value <= 1000; }
+      
+      // List binding
+      field currency: String {
+        value IN ["USD", "EUR", "GBP"];
+      }
+      
+      field total_price: Number { }
+
+      invariant valid_total_price {
+        this.total_price == this.unit_price * this.quantity;
+      }
+      invariant bulk_discount {
+        !(this.quantity > 500) || (this.total_price < (this.unit_price * this.quantity));
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule =
+      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+
+  auto getId = [&](const std::string& name) {
+    return binder.getSt().lookup_field("BulkOrder", name)->id;
+  };
+  auto getPos = [&](const std::string& name) {
+    auto it =
+        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
+    return std::distance(schedule.order.begin(), it);
+  };
+
+  // Core Topological Check still holds
+  EXPECT_LT(getPos("unit_price"), getPos("total_price"));
+  EXPECT_LT(getPos("quantity"), getPos("total_price"));
+
+  // The discount trigger still lands precisely on total_price
+  FieldId targetId = getId("total_price");
+  ASSERT_EQ(schedule.triggers[targetId].size(), 1);
+  EXPECT_EQ(schedule.triggers[targetId][0].parentInv->name, "bulk_discount");
+
+  // The currency field's built-in IN constraint triggers exactly on itself
+  FieldId currId = getId("currency");
+  ASSERT_EQ(schedule.triggers[currId].size(), 1);
+  // Constraints applied to fields directly don't have a named parent invariant
+  EXPECT_EQ(schedule.triggers[currId][0].parentInv, nullptr);
+}
+
+TEST(DependencyAnalyzerIntegrationTest,
+     ExtractsCrossFieldDependenciesInsideLists) {
+  // This test proves that the dependency analyzer looks inside lists to find
+  // field references
+  std::string source = R"(
+    spec CrossFieldList {
+      field option_a: String { }
+      field option_b: String { }
+      
+      field selection: String {
+        // Selection must be one of the dynamically generated options
+        value IN [this.option_a, this.option_b];
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule =
+      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+
+  auto getPos = [&](const std::string& name) {
+    auto id = binder.getSt().lookup_field("CrossFieldList", name)->id;
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), id);
+    return std::distance(schedule.order.begin(), it);
+  };
+
+  // Because selection depends on the list [this.option_a, this.option_b],
+  // selection MUST be generated after both of them in the topological order!
+  EXPECT_LT(getPos("option_a"), getPos("selection"));
+  EXPECT_LT(getPos("option_b"), getPos("selection"));
 }
