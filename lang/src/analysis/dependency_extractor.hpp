@@ -15,6 +15,7 @@ struct DependencyExtractor {
   void operator()(const binder::BoundFieldAccessExpr&) const;
   void operator()(const binder::BoundUnaryExpr&) const;
   void operator()(const binder::BoundBinaryExpr&) const;
+  void operator()(const binder::BoundListExpr&) const;
 };
 
 }  // namespace invariants::analysis

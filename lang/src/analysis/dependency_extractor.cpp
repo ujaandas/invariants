@@ -33,4 +33,12 @@ void DependencyExtractor::operator()(const binder::BoundBinaryExpr& e) const {
   }
 }
 
+void DependencyExtractor::operator()(const binder::BoundListExpr& expr) const {
+  for (const auto& el : expr.elements) {
+    if (el) {
+      std::visit(*this, el->value);
+    }
+  }
+}
+
 }  // namespace invariants::analysis
