@@ -117,12 +117,16 @@ TEST(DependencyAnalyzerSrcTest, ComputesTopologicalOrderForAssignments) {
 
   // MANUALLY patch the bound tree to simulate the Binder detecting assignments
   // Subtotal (id 2) depends on Price (id 0) and Qty (id 1)
-  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  ASSERT_TRUE(
+      bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
+
   bound.specs[0].invariants[0].constraints[0].target =
       bound.specs[0].fields[2].symbol;
 
   // Total (id 3) depends on Subtotal (id 2)
-  bound.specs[0].invariants[1].constraints[0].isDeterministicPossible = true;
+  ASSERT_TRUE(
+      bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
+
   bound.specs[0].invariants[1].constraints[0].target =
       bound.specs[0].fields[3].symbol;
 
@@ -164,11 +168,15 @@ TEST(DependencyAnalyzerSrcTest, DetectsCyclesInAssignments) {
   BoundModule bound = binder.bind(*ast);
 
   // Patch bounds to simulate assignment
-  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  ASSERT_TRUE(
+      bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
+
   bound.specs[0].invariants[0].constraints[0].target =
       bound.specs[0].fields[0].symbol;  // x
 
-  bound.specs[0].invariants[1].constraints[0].isDeterministicPossible = true;
+  ASSERT_TRUE(
+      bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
+
   bound.specs[0].invariants[1].constraints[0].target =
       bound.specs[0].fields[1].symbol;  // y
 
@@ -201,7 +209,9 @@ TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
   BoundModule bound = binder.bind(*ast);
 
   // Mark only the assignment
-  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  ASSERT_TRUE(
+      bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
+
   bound.specs[0].invariants[0].constraints[0].target =
       bound.specs[0].fields[1].symbol;  // derived
 
