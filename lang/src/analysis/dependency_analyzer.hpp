@@ -8,11 +8,17 @@
 
 namespace invariants::analysis {
 
+struct InvariantTrigger {
+  const binder::BoundInvariant* parentInv;
+  const binder::BoundConstraint* constraint;
+};
+
 struct ExecutionSchedule {
   std::vector<binder::FieldId> order;
-  std::unordered_map<binder::FieldId,
-                     std::vector<const binder::BoundInvariant*>>
-      triggers;
+
+  // Maps a FieldId to all constraint checks triggered when that field is
+  // resolved
+  std::unordered_map<binder::FieldId, std::vector<InvariantTrigger>> triggers;
 };
 
 class DependencyAnalyzer {
