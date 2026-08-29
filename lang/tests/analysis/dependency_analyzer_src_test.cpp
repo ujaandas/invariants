@@ -57,7 +57,7 @@ TEST(DependencyAnalyzerSrcTest, SchedulesLateBoundValidationTriggers) {
   // The validation should trigger on the LATEST field evaluated (end_date, id:
   // 1)
   ASSERT_EQ(schedule.triggers[1].size(), 1);
-  EXPECT_EQ(schedule.triggers[1][0]->name, "date_logic");
+  EXPECT_EQ(schedule.triggers[1][0].parentInv->name, "date_logic");
   EXPECT_TRUE(schedule.triggers[0].empty());  // start_date has no triggers
 }
 
@@ -87,7 +87,7 @@ TEST(DependencyAnalyzerSrcTest, AnalyzesDeeplyNestedExpressions) {
   // The expression references a(0), b(1), c(2), and d(3)
   // The latest field generated in the topological order is d(3)
   ASSERT_EQ(schedule.triggers[3].size(), 1);
-  EXPECT_EQ(schedule.triggers[3][0]->name, "complex_check");
+  EXPECT_EQ(schedule.triggers[3][0].parentInv->name, "complex_check");
 
   EXPECT_TRUE(schedule.triggers[0].empty());
   EXPECT_TRUE(schedule.triggers[1].empty());
@@ -117,12 +117,14 @@ TEST(DependencyAnalyzerSrcTest, ComputesTopologicalOrderForAssignments) {
 
   // MANUALLY patch the bound tree to simulate the Binder detecting assignments
   // Subtotal (id 2) depends on Price (id 0) and Qty (id 1)
-  bound.specs[0].invariants[0].isDeterministicPossible = true;
-  bound.specs[0].invariants[0].target = bound.specs[0].fields[2].symbol;
+  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  bound.specs[0].invariants[0].constraints[0].target =
+      bound.specs[0].fields[2].symbol;
 
   // Total (id 3) depends on Subtotal (id 2)
-  bound.specs[0].invariants[1].isDeterministicPossible = true;
-  bound.specs[0].invariants[1].target = bound.specs[0].fields[3].symbol;
+  bound.specs[0].invariants[1].constraints[0].isDeterministicPossible = true;
+  bound.specs[0].invariants[1].constraints[0].target =
+      bound.specs[0].fields[3].symbol;
 
   DependencyAnalyzer analyzer;
   auto schedule =
@@ -162,11 +164,13 @@ TEST(DependencyAnalyzerSrcTest, DetectsCyclesInAssignments) {
   BoundModule bound = binder.bind(*ast);
 
   // Patch bounds to simulate assignment
-  bound.specs[0].invariants[0].isDeterministicPossible = true;
-  bound.specs[0].invariants[0].target = bound.specs[0].fields[0].symbol;  // x
+  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  bound.specs[0].invariants[0].constraints[0].target =
+      bound.specs[0].fields[0].symbol;  // x
 
-  bound.specs[0].invariants[1].isDeterministicPossible = true;
-  bound.specs[0].invariants[1].target = bound.specs[0].fields[1].symbol;  // y
+  bound.specs[0].invariants[1].constraints[0].isDeterministicPossible = true;
+  bound.specs[0].invariants[1].constraints[0].target =
+      bound.specs[0].fields[1].symbol;  // y
 
   DependencyAnalyzer analyzer;
 
@@ -197,8 +201,8 @@ TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
   BoundModule bound = binder.bind(*ast);
 
   // Mark only the assignment
-  bound.specs[0].invariants[0].isDeterministicPossible = true;
-  bound.specs[0].invariants[0].target =
+  bound.specs[0].invariants[0].constraints[0].isDeterministicPossible = true;
+  bound.specs[0].invariants[0].constraints[0].target =
       bound.specs[0].fields[1].symbol;  // derived
 
   DependencyAnalyzer analyzer;
@@ -217,5 +221,5 @@ TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
   // The standalone validation should trigger solely on the standalone field (id
   // 2)
   ASSERT_EQ(schedule.triggers[2].size(), 1);
-  EXPECT_EQ(schedule.triggers[2][0]->name, "check_standalone");
+  EXPECT_EQ(schedule.triggers[2][0].parentInv->name, "check_standalone");
 }

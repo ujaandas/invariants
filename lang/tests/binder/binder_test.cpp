@@ -168,7 +168,8 @@ TEST(BinderTest, BindsThisMemberAccessAndResolvesDirectPointer) {
   BoundModule bound = binder.bind(*module);
 
   const auto& inv = bound.specs[0].invariants[0];
-  const auto& binExpr = std::get<BoundBinaryExpr>(inv.expression->value);
+  const auto& constraint = inv.constraints[0];
+  const auto& binExpr = std::get<BoundBinaryExpr>(constraint.expr->value);
 
   // Left side should be BoundFieldAccessExpr pointing to price
   ASSERT_TRUE(
@@ -234,13 +235,14 @@ TEST(BinderTest, InfersTypesForBinaryExpressions) {
   BoundModule bound = binder.bind(*module);
 
   const auto& inv = bound.specs[0].invariants[0];
+  const auto& constraint = inv.constraints[0];
 
   // The root expression is `==`, so its type should be Boolean
-  EXPECT_TRUE(inv.expression->type.isBuiltin());
-  EXPECT_EQ(std::get<BuiltinType>(inv.expression->type.type),
+  EXPECT_TRUE(constraint.expr->type.isBuiltin());
+  EXPECT_EQ(std::get<BuiltinType>(constraint.expr->type.type),
             invariants::ast::BuiltinType::Boolean);
 
-  const auto& equalityExpr = std::get<BoundBinaryExpr>(inv.expression->value);
+  const auto& equalityExpr = std::get<BoundBinaryExpr>(constraint.expr->value);
 
   // The right side is `*`, so its type should evaluate to Number
   EXPECT_TRUE(equalityExpr.right->type.isBuiltin());

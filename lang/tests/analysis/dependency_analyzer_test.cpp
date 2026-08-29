@@ -44,17 +44,21 @@ BoundExprPtr makeUnaryOp(invariants::ast::UnaryOp op, BoundExprPtr operand) {
 
 BoundInvariant makeAssignment(std::string name, BoundExprPtr expr,
                               const FieldSymbol* target) {
-  return BoundInvariant{.name = std::move(name),
-                        .expression = std::move(expr),
-                        .isDeterministicPossible = true,
-                        .target = target};
+  BoundInvariant inv;
+  inv.name = std::move(name);
+  inv.constraints.push_back(BoundConstraint{.expr = std::move(expr),
+                                            .isDeterministicPossible = true,
+                                            .target = target});
+  return inv;
 }
 
 BoundInvariant makeValidation(std::string name, BoundExprPtr expr) {
-  return BoundInvariant{.name = std::move(name),
-                        .expression = std::move(expr),
-                        .isDeterministicPossible = false,
-                        .target = nullptr};
+  BoundInvariant inv;
+  inv.name = std::move(name);
+  inv.constraints.push_back(BoundConstraint{.expr = std::move(expr),
+                                            .isDeterministicPossible = false,
+                                            .target = nullptr});
+  return inv;
 }
 
 }  // namespace
@@ -263,13 +267,13 @@ TEST(DependencyAnalyzerTest, SchedulesComplexTriggersCorrectly) {
 
   // Assert triggers landed on the exact correct late-bound fields
   ASSERT_EQ(schedule.triggers[2].size(), 1);
-  EXPECT_EQ(schedule.triggers[2][0]->name, "T1");
+  EXPECT_EQ(schedule.triggers[2][0].parentInv->name, "T1");
 
   ASSERT_EQ(schedule.triggers[3].size(), 1);
-  EXPECT_EQ(schedule.triggers[3][0]->name, "T2");
+  EXPECT_EQ(schedule.triggers[3][0].parentInv->name, "T2");
 
   ASSERT_EQ(schedule.triggers[1].size(), 1);
-  EXPECT_EQ(schedule.triggers[1][0]->name, "T3");
+  EXPECT_EQ(schedule.triggers[1][0].parentInv->name, "T3");
 
   // Fields 0 should have no triggers as it's never the "latest" in a pair
   EXPECT_EQ(schedule.triggers[0].size(), 0);
@@ -291,5 +295,5 @@ TEST(DependencyAnalyzerTest, TriggerFallsBackToFirstFieldIfNoDependencies) {
 
   // Should trigger immediately on the very first field generated
   ASSERT_EQ(schedule.triggers[0].size(), 1);
-  EXPECT_EQ(schedule.triggers[0][0]->name, "LiteralCheck");
+  EXPECT_EQ(schedule.triggers[0][0].parentInv->name, "LiteralCheck");
 }
