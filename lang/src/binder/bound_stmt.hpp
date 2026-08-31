@@ -10,7 +10,7 @@ struct BoundConstraint {
 
   // Assignment metadata (populated if root is `this.x == ...`)
   bool isDeterministicPossible = false;
-  const FieldSymbol* target = nullptr;
+  std::string target = "";
 };
 
 // Cross-field invariant

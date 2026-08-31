@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <utility>
@@ -13,15 +14,14 @@ using namespace invariants::binder;
 
 namespace {
 
-FieldSymbol makeField(FieldId id, const std::string& name = "") {
-  return FieldSymbol{
-      .id = id,
-      .name = name,
-      .resType = ResolvedType{invariants::ast::BuiltinType::Number}};
+FieldSymbol makeField(const std::string& name,
+                      ResolvedType type = ResolvedType{
+                          invariants::ast::BuiltinType::Number}) {
+  return FieldSymbol{.id = 0, .name = name, .resType = type};
 }
 
-BoundExprPtr makeAccess(const FieldSymbol* field) {
-  return std::make_unique<BoundExpr>(BoundFieldAccessExpr{field},
+BoundExprPtr makeAccess(const FieldSymbol* field, const std::string& path) {
+  return std::make_unique<BoundExpr>(BoundFieldAccessExpr{field, path},
                                      field->resType);
 }
 
@@ -45,7 +45,7 @@ BoundExprPtr makeUnaryOp(invariants::ast::UnaryOp op, BoundExprPtr operand) {
 }
 
 BoundInvariant makeAssignment(std::string name, BoundExprPtr expr,
-                              const FieldSymbol* target) {
+                              const std::string& target) {
   BoundInvariant inv;
   inv.name = std::move(name);
   inv.constraints.push_back(BoundConstraint{.expr = std::move(expr),
@@ -57,241 +57,277 @@ BoundInvariant makeAssignment(std::string name, BoundExprPtr expr,
 BoundInvariant makeValidation(std::string name, BoundExprPtr expr) {
   BoundInvariant inv;
   inv.name = std::move(name);
-  inv.constraints.push_back(BoundConstraint{.expr = std::move(expr),
-                                            .isDeterministicPossible = false,
-                                            .target = nullptr});
+  inv.constraints.push_back(BoundConstraint{
+      .expr = std::move(expr), .isDeterministicPossible = false, .target = ""});
   return inv;
 }
 
 BoundExprPtr makeList(std::vector<BoundExprPtr> elements) {
   return std::make_unique<BoundExpr>(
       BoundListExpr{std::move(elements)},
-      ResolvedType{invariants::ast::BuiltinType::Number}
-      // Type is irrelevant for extraction
-  );
+      ResolvedType{invariants::ast::BuiltinType::Number});
 }
 
 }  // namespace
 
 TEST(DependencyAnalyzerTest, ExtractsDeeplyNestedExpressions) {
-  // (((f0 + f1) * f2) > f3) == !(f4 < f5)
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
-  auto f3 = makeField(3);
-  auto f4 = makeField(4);
-  auto f5 = makeField(5);
+  auto f0 = makeField("f0");
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
+  auto f3 = makeField("f3");
+  auto f4 = makeField("f4");
+  auto f5 = makeField("f5");
 
-  auto e1 = makeBinOp(makeAccess(&f0), invariants::ast::BinaryOp::Add,
-                      makeAccess(&f1));
+  auto e1 = makeBinOp(makeAccess(&f0, "f0"), invariants::ast::BinaryOp::Add,
+                      makeAccess(&f1, "f1"));
   auto e2 = makeBinOp(std::move(e1), invariants::ast::BinaryOp::Multiply,
-                      makeAccess(&f2));
+                      makeAccess(&f2, "f2"));
   auto e3 = makeBinOp(std::move(e2), invariants::ast::BinaryOp::Greater,
-                      makeAccess(&f3));
+                      makeAccess(&f3, "f3"));
 
-  auto e4 = makeBinOp(makeAccess(&f4), invariants::ast::BinaryOp::Less,
-                      makeAccess(&f5));
+  auto e4 = makeBinOp(makeAccess(&f4, "f4"), invariants::ast::BinaryOp::Less,
+                      makeAccess(&f5, "f5"));
   auto e4_not = makeUnaryOp(invariants::ast::UnaryOp::Not, std::move(e4));
 
   auto root = makeBinOp(std::move(e3), invariants::ast::BinaryOp::Equal,
                         std::move(e4_not));
 
-  auto deps = DependencyAnalyzer::extractDeps(*root);
+  auto deps = DependencyAnalyzer::extractDeps(*root, "");
   EXPECT_EQ(deps.size(), 6);
-  for (FieldId i = 0; i <= 5; ++i) {
-    EXPECT_TRUE(deps.contains(i));
-  }
+  EXPECT_TRUE(deps.contains("f0"));
+  EXPECT_TRUE(deps.contains("f1"));
+  EXPECT_TRUE(deps.contains("f2"));
+  EXPECT_TRUE(deps.contains("f3"));
+  EXPECT_TRUE(deps.contains("f4"));
+  EXPECT_TRUE(deps.contains("f5"));
 }
 
 TEST(DependencyAnalyzerTest, SchedulesLongDependencyChain) {
-  // E (4) depends on D (3) depends on C (2) depends on B (1) depends on A (0)
-  auto f0 = makeField(0, "A");
-  auto f1 = makeField(1, "B");
-  auto f2 = makeField(2, "C");
-  auto f3 = makeField(3, "D");
-  auto f4 = makeField(4, "E");
+  auto f0 = makeField("A");
+  auto f1 = makeField("B");
+  auto f2 = makeField("C");
+  auto f3 = makeField("D");
+  auto f4 = makeField("E");
 
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
-  // Intentionally add them out of order to ensure topological sort is doing the
-  // work
-  spec.invariants.push_back(makeAssignment("calc_E", makeAccess(&f3), &f4));
-  spec.invariants.push_back(makeAssignment("calc_B", makeAccess(&f0), &f1));
-  spec.invariants.push_back(makeAssignment("calc_D", makeAccess(&f2), &f3));
-  spec.invariants.push_back(makeAssignment("calc_C", makeAccess(&f1), &f2));
+  spec.symbol = &rootSym;
+
+  spec.fields.push_back(BoundField{&f0});
+  spec.fields.push_back(BoundField{&f1});
+  spec.fields.push_back(BoundField{&f2});
+  spec.fields.push_back(BoundField{&f3});
+  spec.fields.push_back(BoundField{&f4});
+
+  spec.invariants.push_back(
+      makeAssignment("calc_E", makeAccess(&f3, "D"), "E"));
+  spec.invariants.push_back(
+      makeAssignment("calc_B", makeAccess(&f0, "A"), "B"));
+  spec.invariants.push_back(
+      makeAssignment("calc_D", makeAccess(&f2, "C"), "D"));
+  spec.invariants.push_back(
+      makeAssignment("calc_C", makeAccess(&f1, "B"), "C"));
 
   BoundModule module;
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  auto schedule = analyzer.analyze(module, 5);
+  auto schedule = analyzer.analyze(module, "TestSpec");
 
-  std::vector<FieldId> expected = {0, 1, 2, 3, 4};
+  std::vector<std::string> expected = {"A", "B", "C", "D", "E"};
   EXPECT_EQ(schedule.order, expected);
 }
 
 TEST(DependencyAnalyzerTest, HandlesIndependentParallelChains) {
-  // Chain 1: 0 -> 1 -> 2
-  // Chain 2: 3 -> 4 -> 5
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
+  auto f0 = makeField("f0");
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
+  auto f3 = makeField("f3");
+  auto f4 = makeField("f4");
+  auto f5 = makeField("f5");
 
-  auto f3 = makeField(3);
-  auto f4 = makeField(4);
-  auto f5 = makeField(5);
-
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
-  spec.invariants.push_back(makeAssignment("c1_step1", makeAccess(&f0), &f1));
-  spec.invariants.push_back(makeAssignment("c1_step2", makeAccess(&f1), &f2));
+  spec.symbol = &rootSym;
 
-  spec.invariants.push_back(makeAssignment("c2_step1", makeAccess(&f3), &f4));
-  spec.invariants.push_back(makeAssignment("c2_step2", makeAccess(&f4), &f5));
+  spec.fields.push_back(BoundField{&f0});
+  spec.fields.push_back(BoundField{&f1});
+  spec.fields.push_back(BoundField{&f2});
+  spec.fields.push_back(BoundField{&f3});
+  spec.fields.push_back(BoundField{&f4});
+  spec.fields.push_back(BoundField{&f5});
+
+  spec.invariants.push_back(
+      makeAssignment("c1_step1", makeAccess(&f0, "f0"), "f1"));
+  spec.invariants.push_back(
+      makeAssignment("c1_step2", makeAccess(&f1, "f1"), "f2"));
+
+  spec.invariants.push_back(
+      makeAssignment("c2_step1", makeAccess(&f3, "f3"), "f4"));
+  spec.invariants.push_back(
+      makeAssignment("c2_step2", makeAccess(&f4, "f4"), "f5"));
 
   BoundModule module;
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  auto schedule = analyzer.analyze(module, 6);
+  auto schedule = analyzer.analyze(module, "TestSpec");
 
-  // Both chains must remain internally ordered
-  // Kahn's algorithm will likely interleave them (e.g. 0, 3, 1, 4, 2, 5)
-  // We just verify that within the result, 0 comes before 1, 1 before 2, etc.
-  auto pos = [&](FieldId id) {
+  auto pos = [&](const std::string& id) {
     auto it = std::find(schedule.order.begin(), schedule.order.end(), id);
     return std::distance(schedule.order.begin(), it);
   };
 
-  EXPECT_LT(pos(0), pos(1));
-  EXPECT_LT(pos(1), pos(2));
-  EXPECT_LT(pos(3), pos(4));
-  EXPECT_LT(pos(4), pos(5));
+  EXPECT_LT(pos("f0"), pos("f1"));
+  EXPECT_LT(pos("f1"), pos("f2"));
+  EXPECT_LT(pos("f3"), pos("f4"));
+  EXPECT_LT(pos("f4"), pos("f5"));
 }
 
-TEST(DependencyAnalyzerTest, HandlesCrossSpecDependencies) {
-  // Simulates invariants in Spec B depending on fields in Spec A
-  // SpecA: field 0
-  // SpecB: field 1, field 2
-  // SpecB.f1 = SpecA.f0 * 2
-  // SpecB.f2 = SpecB.f1 + SpecA.f0
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
+TEST(DependencyAnalyzerTest, UnrollsAndFlattensNestedSpecs) {
+  SpecSymbol userSym{.id = 1, .name = "UserSpec"};
+  auto f_age = makeField("age");
+  BoundSpec userSpec;
+  userSpec.symbol = &userSym;
+  userSpec.fields.push_back(BoundField{&f_age});
 
-  BoundSpec specA;
-  BoundSpec specB;
+  SpecSymbol invoiceSym{.id = 2, .name = "InvoiceSpec"};
+  auto f_client = makeField("client", ResolvedType{&userSym});
+  auto f_total = makeField("total");
+  BoundSpec invoiceSpec;
+  invoiceSpec.symbol = &invoiceSym;
+  invoiceSpec.fields.push_back(BoundField{&f_client});
+  invoiceSpec.fields.push_back(BoundField{&f_total});
 
-  auto b1_expr = makeBinOp(makeAccess(&f0), invariants::ast::BinaryOp::Multiply,
-                           makeLiteral(2.0));
-  specB.invariants.push_back(
-      makeAssignment("b1_calc", std::move(b1_expr), &f1));
-
-  auto b2_expr = makeBinOp(makeAccess(&f1), invariants::ast::BinaryOp::Add,
-                           makeAccess(&f0));
-  specB.invariants.push_back(
-      makeAssignment("b2_calc", std::move(b2_expr), &f2));
+  auto calc_expr =
+      makeBinOp(makeAccess(&f_age, "client.age"),
+                invariants::ast::BinaryOp::Multiply, makeLiteral(2.0));
+  invoiceSpec.invariants.push_back(
+      makeAssignment("calc_total", std::move(calc_expr), "total"));
 
   BoundModule module;
-  module.specs.push_back(std::move(specA));
-  module.specs.push_back(std::move(specB));
+  module.specs.push_back(std::move(userSpec));
+  module.specs.push_back(std::move(invoiceSpec));
 
   DependencyAnalyzer analyzer;
-  auto schedule = analyzer.analyze(module, 3);
+  auto schedule = analyzer.analyze(module, "InvoiceSpec");
 
-  std::vector<FieldId> expected = {0, 1, 2};
+  std::vector<std::string> expected = {"client.age", "total"};
   EXPECT_EQ(schedule.order, expected);
 }
 
 TEST(DependencyAnalyzerTest, ThrowsOnComplexFourNodeCycle) {
-  // A(0) -> B(1) -> C(2) -> D(3) -> A(0)
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
-  auto f3 = makeField(3);
+  auto f0 = makeField("f0");
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
+  auto f3 = makeField("f3");
 
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
-  spec.invariants.push_back(makeAssignment("inv1", makeAccess(&f0), &f1));
-  spec.invariants.push_back(makeAssignment("inv2", makeAccess(&f1), &f2));
-  spec.invariants.push_back(makeAssignment("inv3", makeAccess(&f2), &f3));
-  spec.invariants.push_back(makeAssignment("inv4", makeAccess(&f3), &f0));
+  spec.symbol = &rootSym;
+  spec.fields.push_back(BoundField{&f0});
+  spec.fields.push_back(BoundField{&f1});
+  spec.fields.push_back(BoundField{&f2});
+  spec.fields.push_back(BoundField{&f3});
+
+  spec.invariants.push_back(
+      makeAssignment("inv1", makeAccess(&f0, "f0"), "f1"));
+  spec.invariants.push_back(
+      makeAssignment("inv2", makeAccess(&f1, "f1"), "f2"));
+  spec.invariants.push_back(
+      makeAssignment("inv3", makeAccess(&f2, "f2"), "f3"));
+  spec.invariants.push_back(
+      makeAssignment("inv4", makeAccess(&f3, "f3"), "f0"));
 
   BoundModule module;
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  EXPECT_THROW(analyzer.analyze(module, 4), std::runtime_error);
+  EXPECT_THROW(analyzer.analyze(module, "TestSpec"), std::runtime_error);
 }
 
 TEST(DependencyAnalyzerTest, ThrowsOnDisjointGraphWithIsolatedCycle) {
-  // Valid chain: 0 -> 1 -> 2
-  // Broken chain: 3 -> 4 -> 5 -> 3
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
-  auto f3 = makeField(3);
-  auto f4 = makeField(4);
-  auto f5 = makeField(5);
+  auto f0 = makeField("f0");
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
+  auto f3 = makeField("f3");
+  auto f4 = makeField("f4");
+  auto f5 = makeField("f5");
 
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
-  spec.invariants.push_back(makeAssignment("v1", makeAccess(&f0), &f1));
-  spec.invariants.push_back(makeAssignment("v2", makeAccess(&f1), &f2));
+  spec.symbol = &rootSym;
+  spec.fields.push_back(BoundField{&f0});
+  spec.fields.push_back(BoundField{&f1});
+  spec.fields.push_back(BoundField{&f2});
+  spec.fields.push_back(BoundField{&f3});
+  spec.fields.push_back(BoundField{&f4});
+  spec.fields.push_back(BoundField{&f5});
 
-  spec.invariants.push_back(makeAssignment("b1", makeAccess(&f3), &f4));
-  spec.invariants.push_back(makeAssignment("b2", makeAccess(&f4), &f5));
-  spec.invariants.push_back(makeAssignment("b3", makeAccess(&f5), &f3));
+  spec.invariants.push_back(makeAssignment("v1", makeAccess(&f0, "f0"), "f1"));
+  spec.invariants.push_back(makeAssignment("v2", makeAccess(&f1, "f1"), "f2"));
+
+  spec.invariants.push_back(makeAssignment("b1", makeAccess(&f3, "f3"), "f4"));
+  spec.invariants.push_back(makeAssignment("b2", makeAccess(&f4, "f4"), "f5"));
+  spec.invariants.push_back(makeAssignment("b3", makeAccess(&f5, "f5"), "f3"));
 
   BoundModule module;
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  EXPECT_THROW(analyzer.analyze(module, 6), std::runtime_error);
+  EXPECT_THROW(analyzer.analyze(module, "TestSpec"), std::runtime_error);
 }
 
 TEST(DependencyAnalyzerTest, SchedulesComplexTriggersCorrectly) {
-  // Since there are no assignment invariants, the graph has no edges
-  // Generation order defaults to [0, 1, 2, 3] due to Kahn's 0-indexed loop
-  // We will add 3 validation invariants:
-  // T1: 0 < 2   -> Should trigger on 2 (latest)
-  // T2: 1 < 3   -> Should trigger on 3 (latest)
-  // T3: 0 < 1   -> Should trigger on 1 (latest)
-  auto f0 = makeField(0);
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
-  auto f3 = makeField(3);
+  auto f0 = makeField("f0");
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
+  auto f3 = makeField("f3");
 
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
+  spec.symbol = &rootSym;
+  spec.fields.push_back(BoundField{&f0});
+  spec.fields.push_back(BoundField{&f1});
+  spec.fields.push_back(BoundField{&f2});
+  spec.fields.push_back(BoundField{&f3});
+
   spec.invariants.push_back(makeValidation(
-      "T1", makeBinOp(makeAccess(&f0), invariants::ast::BinaryOp::Less,
-                      makeAccess(&f2))));
+      "T1", makeBinOp(makeAccess(&f0, "f0"), invariants::ast::BinaryOp::Less,
+                      makeAccess(&f2, "f2"))));
   spec.invariants.push_back(makeValidation(
-      "T2", makeBinOp(makeAccess(&f1), invariants::ast::BinaryOp::Less,
-                      makeAccess(&f3))));
+      "T2", makeBinOp(makeAccess(&f1, "f1"), invariants::ast::BinaryOp::Less,
+                      makeAccess(&f3, "f3"))));
   spec.invariants.push_back(makeValidation(
-      "T3", makeBinOp(makeAccess(&f0), invariants::ast::BinaryOp::Less,
-                      makeAccess(&f1))));
+      "T3", makeBinOp(makeAccess(&f0, "f0"), invariants::ast::BinaryOp::Less,
+                      makeAccess(&f1, "f1"))));
 
   BoundModule module;
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  auto schedule = analyzer.analyze(module, 4);
+  auto schedule = analyzer.analyze(module, "TestSpec");
 
-  // Assert triggers landed on the exact correct late-bound fields
-  ASSERT_EQ(schedule.triggers[2].size(), 1);
-  EXPECT_EQ(schedule.triggers[2][0].parentInv->name, "T1");
+  ASSERT_EQ(schedule.triggers["f2"].size(), 1);
+  EXPECT_EQ(schedule.triggers["f2"][0].parentInv->name, "T1");
 
-  ASSERT_EQ(schedule.triggers[3].size(), 1);
-  EXPECT_EQ(schedule.triggers[3][0].parentInv->name, "T2");
+  ASSERT_EQ(schedule.triggers["f3"].size(), 1);
+  EXPECT_EQ(schedule.triggers["f3"][0].parentInv->name, "T2");
 
-  ASSERT_EQ(schedule.triggers[1].size(), 1);
-  EXPECT_EQ(schedule.triggers[1][0].parentInv->name, "T3");
+  ASSERT_EQ(schedule.triggers["f1"].size(), 1);
+  EXPECT_EQ(schedule.triggers["f1"][0].parentInv->name, "T3");
 
-  // Fields 0 should have no triggers as it's never the "latest" in a pair
-  EXPECT_EQ(schedule.triggers[0].size(), 0);
+  EXPECT_EQ(schedule.triggers["f0"].size(), 0);
 }
 
 TEST(DependencyAnalyzerTest, TriggerFallsBackToFirstFieldIfNoDependencies) {
-  // Edge case: an invariant with only literal operations, no cross-field deps
+  auto f0 = makeField("f0");
+
+  SpecSymbol rootSym{.id = 0, .name = "TestSpec"};
   BoundSpec spec;
+  spec.symbol = &rootSym;
+  spec.fields.push_back(BoundField{&f0});
+
   spec.invariants.push_back(makeValidation(
       "LiteralCheck",
       makeBinOp(makeLiteral(5.0), invariants::ast::BinaryOp::Equal,
@@ -301,28 +337,25 @@ TEST(DependencyAnalyzerTest, TriggerFallsBackToFirstFieldIfNoDependencies) {
   module.specs.push_back(std::move(spec));
 
   DependencyAnalyzer analyzer;
-  auto schedule = analyzer.analyze(module, 1);
+  auto schedule = analyzer.analyze(module, "TestSpec");
 
-  // Should trigger immediately on the very first field generated
-  ASSERT_EQ(schedule.triggers[0].size(), 1);
-  EXPECT_EQ(schedule.triggers[0][0].parentInv->name, "LiteralCheck");
+  ASSERT_EQ(schedule.triggers["f0"].size(), 1);
+  EXPECT_EQ(schedule.triggers["f0"][0].parentInv->name, "LiteralCheck");
 }
 
 TEST(DependencyAnalyzerTest, ExtractsDependenciesFromWithinLists) {
-  auto f1 = makeField(1);
-  auto f2 = makeField(2);
+  auto f1 = makeField("f1");
+  auto f2 = makeField("f2");
 
-  // Construct: [this.f1, 5.0, this.f2]
   std::vector<BoundExprPtr> elements;
-  elements.push_back(makeAccess(&f1));
+  elements.push_back(makeAccess(&f1, "f1"));
   elements.push_back(makeLiteral(5.0));
-  elements.push_back(makeAccess(&f2));
+  elements.push_back(makeAccess(&f2, "f2"));
 
   auto listExpr = makeList(std::move(elements));
-  auto deps = DependencyAnalyzer::extractDeps(*listExpr);
+  auto deps = DependencyAnalyzer::extractDeps(*listExpr, "");
 
-  // Should extract field 1 and 2, ignoring the literal 5.0
   EXPECT_EQ(deps.size(), 2);
-  EXPECT_TRUE(deps.count(1));
-  EXPECT_TRUE(deps.count(2));
+  EXPECT_TRUE(deps.contains("f1"));
+  EXPECT_TRUE(deps.contains("f2"));
 }

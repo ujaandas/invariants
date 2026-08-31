@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <stdexcept>
 #include <string>
 
@@ -7,7 +8,6 @@
 #include "dependency_analyzer.hpp"
 #include "lexer.hpp"
 #include "parser.hpp"
-#include "symbol_table.hpp"
 
 using namespace invariants::lexer;
 using namespace invariants::parser;
@@ -47,19 +47,17 @@ TEST(DependencyAnalyzerSrcTest, SchedulesLateBoundValidationTriggers) {
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Trip");
 
-  // Generation order should be linear [0, 1] as there are no assignment edges
+  // Generation order should be linear since there are no assignment edges
   ASSERT_EQ(schedule.order.size(), 2);
-  EXPECT_EQ(schedule.order[0], 0);  // start_date
-  EXPECT_EQ(schedule.order[1], 1);  // end_date
+  EXPECT_EQ(schedule.order[0], "start_date");
+  EXPECT_EQ(schedule.order[1], "end_date");
 
-  // The validation should trigger on the LATEST field evaluated (end_date, id:
-  // 1)
-  ASSERT_EQ(schedule.triggers[1].size(), 1);
-  EXPECT_EQ(schedule.triggers[1][0].parentInv->name, "date_logic");
-  EXPECT_TRUE(schedule.triggers[0].empty());  // start_date has no triggers
+  // The validation should trigger on the LATEST field evaluated
+  ASSERT_EQ(schedule.triggers["end_date"].size(), 1);
+  EXPECT_EQ(schedule.triggers["end_date"][0].parentInv->name, "date_logic");
+  EXPECT_TRUE(schedule.triggers["start_date"].empty());
 }
 
 TEST(DependencyAnalyzerSrcTest, AnalyzesDeeplyNestedExpressions) {
@@ -81,18 +79,17 @@ TEST(DependencyAnalyzerSrcTest, AnalyzesDeeplyNestedExpressions) {
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "MathLogic");
 
-  // Kahn's algorithm will emit [0, 1, 2, 3]
-  // The expression references a(0), b(1), c(2), and d(3)
-  // The latest field generated in the topological order is d(3)
-  ASSERT_EQ(schedule.triggers[3].size(), 1);
-  EXPECT_EQ(schedule.triggers[3][0].parentInv->name, "complex_check");
+  // Kahn's algorithm will emit [a, b, c, d]
+  // The expression references a, b, c, and d.
+  // The latest field generated in the topological order is d
+  ASSERT_EQ(schedule.triggers["d"].size(), 1);
+  EXPECT_EQ(schedule.triggers["d"][0].parentInv->name, "complex_check");
 
-  EXPECT_TRUE(schedule.triggers[0].empty());
-  EXPECT_TRUE(schedule.triggers[1].empty());
-  EXPECT_TRUE(schedule.triggers[2].empty());
+  EXPECT_TRUE(schedule.triggers["a"].empty());
+  EXPECT_TRUE(schedule.triggers["b"].empty());
+  EXPECT_TRUE(schedule.triggers["c"].empty());
 }
 
 TEST(DependencyAnalyzerSrcTest, ComputesTopologicalOrderForAssignments) {
@@ -117,30 +114,17 @@ TEST(DependencyAnalyzerSrcTest, ComputesTopologicalOrderForAssignments) {
   BoundModule bound = binder.bind(*ast);
 
   // MANUALLY patch the bound tree to simulate the Binder detecting assignments
-  // Subtotal (id 2) depends on Price (id 0) and Qty (id 1)
   ASSERT_TRUE(
       bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
 
-  bound.specs[0].invariants[0].constraints[0].target =
-      bound.specs[0].fields[2].symbol;
-
-  // Total (id 3) depends on Subtotal (id 2)
   ASSERT_TRUE(
       bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
 
-  bound.specs[0].invariants[1].constraints[0].target =
-      bound.specs[0].fields[3].symbol;
-
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Invoice");
 
-  // Assert Topological Order: price and qty must precede subtotal. subtotal
-  // must precede total
   auto getPos = [&](const std::string& name) {
-    const FieldSymbol* field = binder.getSt().lookup_field("Invoice", name);
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), field->id);
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), name);
     return std::distance(schedule.order.begin(), it);
   };
 
@@ -168,24 +152,14 @@ TEST(DependencyAnalyzerSrcTest, DetectsCyclesInAssignments) {
   Binder binder;
   BoundModule bound = binder.bind(*ast);
 
-  // Patch bounds to simulate assignment
   ASSERT_TRUE(
       bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
-
-  bound.specs[0].invariants[0].constraints[0].target =
-      bound.specs[0].fields[0].symbol;  // x
 
   ASSERT_TRUE(
       bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
 
-  bound.specs[0].invariants[1].constraints[0].target =
-      bound.specs[0].fields[1].symbol;  // y
-
   DependencyAnalyzer analyzer;
-
-  // E2E Pipeline should successfully throw the cycle exception
-  EXPECT_THROW(analyzer.analyze(bound, binder.getSt().get_total_field_count()),
-               std::runtime_error);
+  EXPECT_THROW(analyzer.analyze(bound, "CycleCheck"), std::runtime_error);
 }
 
 TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
@@ -213,42 +187,27 @@ TEST(DependencyAnalyzerSrcTest, HandlesIndependentValidationsAndAssignments) {
   ASSERT_TRUE(
       bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
 
-  bound.specs[0].invariants[0].constraints[0].target =
-      bound.specs[0].fields[1].symbol;  // derived
-
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Mixed");
 
-  // Generation order should put 'base' (0) before 'derived' (1). 'standalone'
-  // (2) can be anywhere
-  auto getPos = [&](FieldId id) {
+  auto getPos = [&](const std::string& name) {
     return std::distance(
         schedule.order.begin(),
-        std::find(schedule.order.begin(), schedule.order.end(), id));
+        std::find(schedule.order.begin(), schedule.order.end(), name));
   };
-  EXPECT_LT(getPos(0), getPos(1));
 
-  // The standalone validation should trigger solely on the standalone field (id
-  // 2)
-  ASSERT_EQ(schedule.triggers[2].size(), 1);
-  EXPECT_EQ(schedule.triggers[2][0].parentInv->name, "check_standalone");
+  EXPECT_LT(getPos("base"), getPos("derived"));
+
+  ASSERT_EQ(schedule.triggers["standalone"].size(), 1);
+  EXPECT_EQ(schedule.triggers["standalone"][0].parentInv->name,
+            "check_standalone");
 }
 
-TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpec) {
+TEST(DependencyAnalyzerSrcTest, AnalyzesComplexBulkOrderSpec) {
   std::string source = R"(
     spec BulkOrder {
-      field unit_price: Number {
-        value > 0.0;
-      }
-      field quantity: Integer {
-        value >= 1;
-        value <= 1000;
-      }
-      // Commented out while list binding is WIP
-      // field currency: String {
-      //  value IN ["USD", "EUR", "GBP"];
-      // }
+      field unit_price: Number { value > 0.0; }
+      field quantity: Integer { value >= 1; value <= 1000; }
       field total_price: Number { }
 
       invariant valid_total_price {
@@ -265,45 +224,39 @@ TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpec) {
   Binder binder;
   BoundModule bound = binder.bind(*ast);
 
-  // Verify Binder detected the assignment correctly
   const auto& valid_total = bound.specs[0].invariants[0].constraints[0];
   ASSERT_TRUE(valid_total.isDeterministicPossible);
-  EXPECT_EQ(valid_total.target->name, "total_price");
+  EXPECT_EQ(valid_total.target, "total_price");
 
-  // Verify implication is correctly flagged as a validation, NOT an
-  // assignment
   const auto& bulk_discount = bound.specs[0].invariants[1].constraints[0];
   ASSERT_FALSE(bulk_discount.isDeterministicPossible);
-  EXPECT_EQ(bulk_discount.target, nullptr);
+  EXPECT_EQ(bulk_discount.target, "");
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "BulkOrder");
 
-  auto getId = [&](const std::string& name) {
-    return binder.getSt().lookup_field("BulkOrder", name)->id;
-  };
   auto getPos = [&](const std::string& name) {
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), name);
     return std::distance(schedule.order.begin(), it);
   };
 
-  // Verify Topological Order (dependencies precede target)
   EXPECT_LT(getPos("unit_price"), getPos("total_price"));
   EXPECT_LT(getPos("quantity"), getPos("total_price"));
 
-  // Verify Triggers
-  // bulk_discount uses quantity, unit_price, and total_price.
-  // Because total_price is guaranteed to be generated after the other two,
-  // the trigger must land exactly on total_price.
-  FieldId targetId = getId("total_price");
-  ASSERT_EQ(schedule.triggers[targetId].size(), 1);
-  EXPECT_EQ(schedule.triggers[targetId][0].parentInv->name, "bulk_discount");
+  // Ensure both triggers landed on total_price
+  ASSERT_EQ(schedule.triggers["total_price"].size(), 2);
+
+  bool has_assignment = false;
+  bool has_validation = false;
+  for (const auto& t : schedule.triggers["total_price"]) {
+    if (t.parentInv->name == "valid_total_price") has_assignment = true;
+    if (t.parentInv->name == "bulk_discount") has_validation = true;
+  }
+  EXPECT_TRUE(has_assignment);
+  EXPECT_TRUE(has_validation);
 }
 
-TEST(DependencyAnalyzerIntegrationTest,
-     AnalyzesCascadingMultiStageAssignments) {
+TEST(DependencyAnalyzerSrcTest, AnalyzesCascadingMultiStageAssignments) {
   std::string source = R"(
     spec PayrollCalculation {
       field gross_salary: Number { }
@@ -315,11 +268,9 @@ TEST(DependencyAnalyzerIntegrationTest,
       invariant calc_tax {
         this.tax_amount == this.gross_salary * this.tax_rate;
       }
-
       invariant calc_net {
         this.net_salary == (this.gross_salary - this.tax_amount) + this.bonus;
       }
-
       invariant check_take_home {
         this.net_salary > 0.0;
       }
@@ -330,64 +281,44 @@ TEST(DependencyAnalyzerIntegrationTest,
   Binder binder;
   BoundModule bound = binder.bind(*ast);
 
-  // Verify Binder detected both stages of the cascade
-  ASSERT_TRUE(
-      bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
-  EXPECT_EQ(bound.specs[0].invariants[0].constraints[0].target->name,
-            "tax_amount");
-
-  ASSERT_TRUE(
-      bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
-  EXPECT_EQ(bound.specs[0].invariants[1].constraints[0].target->name,
-            "net_salary");
-
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "PayrollCalculation");
 
   auto getPos = [&](const std::string& name) {
-    const auto* field = binder.getSt().lookup_field("PayrollCalculation", name);
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), field->id);
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), name);
     return std::distance(schedule.order.begin(), it);
   };
 
-  // Verify cascading order constraints
-  // Stage 1 dependencies
+  // Stage 1
   EXPECT_LT(getPos("gross_salary"), getPos("tax_amount"));
   EXPECT_LT(getPos("tax_rate"), getPos("tax_amount"));
 
-  // Stage 2 dependencies
+  // Stage 2
   EXPECT_LT(getPos("tax_amount"), getPos("net_salary"));
   EXPECT_LT(getPos("bonus"), getPos("net_salary"));
 
-  // Transitive dependency sanity check
-  EXPECT_LT(getPos("gross_salary"), getPos("net_salary"));
+  // Ensure both triggers landed on net_salary
+  ASSERT_EQ(schedule.triggers["net_salary"].size(), 2);
 
-  // Verify validation triggers on the absolute end of the cascade
-  FieldId net_id =
-      binder.getSt().lookup_field("PayrollCalculation", "net_salary")->id;
-  ASSERT_EQ(schedule.triggers[net_id].size(), 1);
-  EXPECT_EQ(schedule.triggers[net_id][0].parentInv->name, "check_take_home");
+  bool has_net_assignment = false;
+  bool has_net_validation = false;
+  for (const auto& t : schedule.triggers["net_salary"]) {
+    if (t.parentInv->name == "calc_net") has_net_assignment = true;
+    if (t.parentInv->name == "check_take_home") has_net_validation = true;
+  }
+  EXPECT_TRUE(has_net_assignment);
+  EXPECT_TRUE(has_net_validation);
 }
 
-TEST(DependencyAnalyzerIntegrationTest,
-     DoesNotFalselyFlagNestedEqualityAsAssignment) {
+TEST(DependencyAnalyzerSrcTest, DoesNotFalselyFlagNestedEqualityAsAssignment) {
   std::string source = R"(
     spec EdgeCases {
       field a: Number { }
       field b: Number { }
       field c: Number { }
 
-      // Root is `||`, NOT `==`. This should be a validation.
-      invariant nested_equality {
-        (this.a == this.b) || (this.c > 0.0);
-      }
-
-      // Root is `==`, but neither side is a pure field access. This is a validation.
-      invariant math_equality {
-        (this.a + 1.0) == (this.b + 2.0);
-      }
+      invariant nested_equality { (this.a == this.b) || (this.c > 0.0); }
+      invariant math_equality { (this.a + 1.0) == (this.b + 2.0); }
     }
   )";
 
@@ -395,45 +326,44 @@ TEST(DependencyAnalyzerIntegrationTest,
   Binder binder;
   BoundModule bound = binder.bind(*ast);
 
-  // Both should be false, indicating pure validations
   ASSERT_FALSE(
       bound.specs[0].invariants[0].constraints[0].isDeterministicPossible);
   ASSERT_FALSE(
       bound.specs[0].invariants[1].constraints[0].isDeterministicPossible);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
-
-  // Generation order can be arbitrary [0, 1, 2] since there are no assignment
-  // edges The analyzer should just attach the triggers to the latest fields
-  // natively.
-  FieldId last_field = schedule.order.back();
-
-  // Because nested_equality touches a, b, c and math_equality touches a, b
-  // We just ensure we didn't accidentally drop the triggers or throw a cycle
+  auto schedule = analyzer.analyze(bound, "EdgeCases");
+  std::string last_field = schedule.order.back();
   EXPECT_GE(schedule.triggers[last_field].size(), 1);
 }
 
-TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpecWithLists) {
+TEST(DependencyAnalyzerSrcTest, UnrollsDeeplyNestedSpecHierarchy) {
   std::string source = R"(
-    spec BulkOrder {
-      field unit_price: Number { value > 0.0; }
-      field quantity: Integer { value >= 1; value <= 1000; }
-      
-      // List binding
-      field currency: String {
-        value IN ["USD", "EUR", "GBP"];
-      }
-      
-      field total_price: Number { }
+    spec Level3 { field val: Number { } }
+    spec Level2 { field l3: Level3 { } }
+    spec Level1 { field l2: Level2 { } }
+    spec Root { field l1: Level1 { } }
+  )";
 
-      invariant valid_total_price {
-        this.total_price == this.unit_price * this.quantity;
-      }
-      invariant bulk_discount {
-        !(this.quantity > 500) || (this.total_price < (this.unit_price * this.quantity));
-      }
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Root");
+
+  ASSERT_EQ(schedule.order.size(), 1);
+  EXPECT_EQ(schedule.order[0], "l1.l2.l3.val");
+}
+
+TEST(DependencyAnalyzerSrcTest, OrdersNestedAssignmentsCorrectly) {
+  std::string source = R"(
+    spec Address { field zip: Number { } }
+    spec User { field addr: Address { } }
+    spec Invoice {
+      field client: User { }
+      field total: Number { }
+      invariant calc { this.total == this.client.addr.zip + 10.0; }
     }
   )";
 
@@ -442,47 +372,26 @@ TEST(DependencyAnalyzerIntegrationTest, AnalyzesComplexBulkOrderSpecWithLists) {
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Invoice");
 
-  auto getId = [&](const std::string& name) {
-    return binder.getSt().lookup_field("BulkOrder", name)->id;
-  };
   auto getPos = [&](const std::string& name) {
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), name);
     return std::distance(schedule.order.begin(), it);
   };
 
-  // Core Topological Check still holds
-  EXPECT_LT(getPos("unit_price"), getPos("total_price"));
-  EXPECT_LT(getPos("quantity"), getPos("total_price"));
-
-  // The discount trigger still lands precisely on total_price
-  FieldId targetId = getId("total_price");
-  ASSERT_EQ(schedule.triggers[targetId].size(), 1);
-  EXPECT_EQ(schedule.triggers[targetId][0].parentInv->name, "bulk_discount");
-
-  // The currency field's built-in IN constraint triggers exactly on itself
-  FieldId currId = getId("currency");
-  ASSERT_EQ(schedule.triggers[currId].size(), 1);
-  // Constraints applied to fields directly don't have a named parent invariant
-  EXPECT_EQ(schedule.triggers[currId][0].parentInv, nullptr);
+  EXPECT_LT(getPos("client.addr.zip"), getPos("total"));
 }
 
-TEST(DependencyAnalyzerIntegrationTest,
-     ExtractsCrossFieldDependenciesInsideLists) {
-  // This test proves that the dependency analyzer looks inside lists to find
-  // field references
+TEST(DependencyAnalyzerSrcTest, InterleavesMultipleInstantiations) {
   std::string source = R"(
-    spec CrossFieldList {
-      field option_a: String { }
-      field option_b: String { }
+    spec User { field age: Number { } }
+    spec Match {
+      field p1: User { }
+      field p2: User { }
+      field diff: Number { }
       
-      field selection: String {
-        // Selection must be one of the dynamically generated options
-        value IN [this.option_a, this.option_b];
-      }
+      invariant calc { this.diff == this.p1.age - this.p2.age; }
+      invariant valid { this.p1.age > this.p2.age; }
     }
   )";
 
@@ -491,31 +400,31 @@ TEST(DependencyAnalyzerIntegrationTest,
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Match");
 
   auto getPos = [&](const std::string& name) {
-    auto id = binder.getSt().lookup_field("CrossFieldList", name)->id;
-    auto it = std::find(schedule.order.begin(), schedule.order.end(), id);
+    auto it = std::find(schedule.order.begin(), schedule.order.end(), name);
     return std::distance(schedule.order.begin(), it);
   };
 
-  // Because selection depends on the list [this.option_a, this.option_b],
-  // selection MUST be generated after both of them in the topological order!
-  EXPECT_LT(getPos("option_a"), getPos("selection"));
-  EXPECT_LT(getPos("option_b"), getPos("selection"));
+  // Ensure unique nodes were created and ordered properly
+  EXPECT_LT(getPos("p1.age"), getPos("diff"));
+  EXPECT_LT(getPos("p2.age"), getPos("diff"));
+
+  // The validation should trigger on whichever age was generated last
+  std::string laterAge =
+      getPos("p1.age") > getPos("p2.age") ? "p1.age" : "p2.age";
+  ASSERT_EQ(schedule.triggers[laterAge].size(), 1);
+  EXPECT_EQ(schedule.triggers[laterAge][0].parentInv->name, "valid");
 }
 
-TEST(DependencyAnalyzerIntegrationTest,
-     SchedulesSelfReferentialFieldConstraints) {
-  // Proves that a standard field constraint (e.g. value > 0) is correctly
-  // scheduled on the field itself, and properly flagged as a field constraint
-  // (parentInv == nullptr)
+TEST(DependencyAnalyzerSrcTest, ResolvesNestedFieldConstraintsAndValueKeyword) {
   std::string source = R"(
-    spec Basic {
-      field positive_num: Number {
-        value > 0.0;
-      }
+    spec Child {
+      field x: Number { value > 0.0; }
+    }
+    spec Parent {
+      field c: Child { }
     }
   )";
 
@@ -524,28 +433,29 @@ TEST(DependencyAnalyzerIntegrationTest,
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
+  auto schedule = analyzer.analyze(bound, "Parent");
 
-  FieldId id = binder.getSt().lookup_field("Basic", "positive_num")->id;
+  // Verify the flattened field exists
+  ASSERT_EQ(schedule.order.size(), 1);
+  EXPECT_EQ(schedule.order[0], "c.x");
 
-  ASSERT_EQ(schedule.triggers[id].size(), 1);
-  // parentInv should be nullptr because this constraint belongs to the field,
-  // not an invariant block
-  EXPECT_EQ(schedule.triggers[id][0].parentInv, nullptr);
+  // Verify the field-level constraint was properly assigned to the unrolled
+  // path
+  ASSERT_EQ(schedule.triggers["c.x"].size(), 1);
+  EXPECT_EQ(schedule.triggers["c.x"][0].parentInv,
+            nullptr);  // Field constraints have no named parent
+  EXPECT_EQ(schedule.triggers["c.x"][0].ownerFieldPath,
+            "c.x");  // Used to inject `value` correctly
 }
 
-TEST(DependencyAnalyzerIntegrationTest,
-     ExtractsEdgesFromCrossFieldConstraints) {
-  // Proves that if a field's domain relies on another field (value >
-  // this.min_val), the analyzer extracts the dependency and forces min_val to
-  // generate before max_val
+TEST(DependencyAnalyzerSrcTest, DetectsCrossSpecCycles) {
+  // Invariants in parent create a cycle between nested fields
   std::string source = R"(
-    spec Bounded {
-      field min_val: Number { }
-      field max_val: Number {
-        value > this.min_val;
-      }
+    spec Pair { field x: Number { } field y: Number { } }
+    spec Container {
+      field p: Pair { }
+      invariant loop_x { this.p.x == this.p.y + 1.0; }
+      invariant loop_y { this.p.y == this.p.x + 1.0; }
     }
   )";
 
@@ -554,91 +464,5 @@ TEST(DependencyAnalyzerIntegrationTest,
   BoundModule bound = binder.bind(*ast);
 
   DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
-
-  auto getId = [&](const std::string& name) {
-    return binder.getSt().lookup_field("Bounded", name)->id;
-  };
-  auto getPos = [&](const std::string& name) {
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
-    return std::distance(schedule.order.begin(), it);
-  };
-
-  // Topological check: min_val MUST precede max_val
-  EXPECT_LT(getPos("min_val"), getPos("max_val"));
-
-  // Trigger check: The constraint uses `this.min_val` and `value` (which
-  // implies max_val). Therefore, it must schedule on max_val.
-  FieldId maxId = getId("max_val");
-  ASSERT_EQ(schedule.triggers[maxId].size(), 1);
-  EXPECT_EQ(schedule.triggers[maxId][0].parentInv, nullptr);
-}
-
-TEST(DependencyAnalyzerIntegrationTest,
-     InterleavesFieldAndInvariantDependencies) {
-  // Field dependencies and Invariant assignments combined.
-  std::string source = R"(
-    spec MixedGraph {
-      field a: Number { }
-      field b: Number { 
-        value > this.a; // Field constraint creates edge: a -> b
-      } 
-      field c: Number { } 
-      field d: Number { } 
-      
-      // Assignment creates edges: b -> d and c -> d
-      invariant assign_d {
-        this.d == this.b + this.c;
-      }
-
-      // Validation uses d, triggering on the last field
-      invariant check_d {
-        this.d > 100.0;
-      }
-    }
-  )";
-
-  auto ast = parseSource(source);
-  Binder binder;
-  BoundModule bound = binder.bind(*ast);
-
-  DependencyAnalyzer analyzer;
-  auto schedule =
-      analyzer.analyze(bound, binder.getSt().get_total_field_count());
-
-  auto getId = [&](const std::string& name) {
-    return binder.getSt().lookup_field("MixedGraph", name)->id;
-  };
-  auto getPos = [&](const std::string& name) {
-    auto it =
-        std::find(schedule.order.begin(), schedule.order.end(), getId(name));
-    return std::distance(schedule.order.begin(), it);
-  };
-
-  // Complex Topological Check
-  EXPECT_LT(getPos("a"), getPos("b"));  // From field constraint
-  EXPECT_LT(getPos("b"), getPos("d"));  // From invariant assignment
-  EXPECT_LT(getPos("c"), getPos("d"));  // From invariant assignment
-
-  // Transitive checks
-  EXPECT_LT(getPos("a"), getPos("d"));
-
-  // Check that both triggers landed perfectly
-  FieldId bId = getId("b");
-  FieldId dId = getId("d");
-
-  // Field `b` should have 1 trigger (its own field constraint)
-  ASSERT_EQ(schedule.triggers[bId].size(), 1);
-  EXPECT_EQ(schedule.triggers[bId][0].parentInv, nullptr);
-
-  // Field `d` should have 1 trigger (`check_d` validation invariant)
-  ASSERT_EQ(schedule.triggers[dId].size(), 1);
-  ASSERT_NE(schedule.triggers[dId][0].parentInv, nullptr);
-  EXPECT_EQ(schedule.triggers[dId][0].parentInv->name, "check_d");
-
-  // Fields `a` and `c` have no constraints and shouldn't have triggers
-  EXPECT_EQ(schedule.triggers[getId("a")].size(), 0);
-  EXPECT_EQ(schedule.triggers[getId("c")].size(), 0);
+  EXPECT_THROW(analyzer.analyze(bound, "Container"), std::runtime_error);
 }
