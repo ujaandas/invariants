@@ -1,4 +1,4 @@
-add_library(invariants_runtime evaluator.cpp)
+add_library(invariants_runtime evaluator.cpp runtime.cpp)
 
 target_include_directories(invariants_runtime PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -90,6 +90,13 @@ BoundConstraint Binder::bindConstraint(
         isDeterministic = true;
         target = std::get<BoundFieldAccessExpr>(bin.right->value).flattenedPath;
       }
+      // Catch 'value' on either side. Leave target empty so the Analyzer
+      // maps it to the owner field
+      else if (std::holds_alternative<BoundValueAccessExpr>(bin.left->value) ||
+               std::holds_alternative<BoundValueAccessExpr>(bin.right->value)) {
+        isDeterministic = true;
+        target = "";
+      }
     }
   }
 

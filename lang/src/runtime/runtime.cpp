@@ -120,8 +120,10 @@ bool Runtime::isActiveFieldDeterministic() const {
   auto it = schedule.triggers.find(activePath);
   if (it != schedule.triggers.end()) {
     for (const auto& trigger : it->second) {
+      // Check if target matches exactly OR is empty (representing 'value')
       if (trigger.constraint->isDeterministicPossible &&
-          trigger.constraint->target == activePath) {
+          (trigger.constraint->target == activePath ||
+           trigger.constraint->target.empty())) {
         return true;
       }
     }
@@ -139,7 +141,8 @@ std::string Runtime::solveDeterministic() {
 
   for (const auto& trigger : schedule.triggers.at(activePath)) {
     if (trigger.constraint->isDeterministicPossible &&
-        trigger.constraint->target == activePath) {
+        (trigger.constraint->target == activePath ||
+         trigger.constraint->target.empty())) {
       assignmentConstraint = trigger.constraint;
       break;
     }
@@ -147,7 +150,34 @@ std::string Runtime::solveDeterministic() {
 
   const auto& equalityExpr =
       std::get<binder::BoundBinaryExpr>(assignmentConstraint->expr->value);
-  Value computedValue = evaluator.evaluate(*equalityExpr.right, environment);
+
+  const binder::BoundExpr* calcExpr = nullptr;
+
+  // Check if the Left side is our target
+  if (std::holds_alternative<binder::BoundValueAccessExpr>(
+          equalityExpr.left->value)) {
+    calcExpr = equalityExpr.right.get();
+  } else if (std::holds_alternative<binder::BoundFieldAccessExpr>(
+                 equalityExpr.left->value) &&
+             std::get<binder::BoundFieldAccessExpr>(equalityExpr.left->value)
+                     .flattenedPath == activePath) {
+    calcExpr = equalityExpr.right.get();
+  }
+  // Check if the Right side is our target
+  else if (std::holds_alternative<binder::BoundValueAccessExpr>(
+               equalityExpr.right->value)) {
+    calcExpr = equalityExpr.left.get();
+  } else if (std::holds_alternative<binder::BoundFieldAccessExpr>(
+                 equalityExpr.right->value) &&
+             std::get<binder::BoundFieldAccessExpr>(equalityExpr.right->value)
+                     .flattenedPath == activePath) {
+    calcExpr = equalityExpr.left.get();
+  } else {
+    throw std::runtime_error(
+        "Fatal: Could not locate assignment target in expression.");
+  }
+
+  Value computedValue = evaluator.evaluate(*calcExpr, environment);
 
   submitVal(activePath, computedValue);
   return valueToString(computedValue);
