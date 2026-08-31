@@ -123,3 +123,46 @@ TEST(RuntimeSrcTest, EnforcesPartialValidationRejections) {
 
   EXPECT_EQ(std::get<int>(runtime.getEnvironment().at("age")), 21);
 }
+
+TEST(RuntimeSrcTest, KahnsAlgorithmForcesFieldReordering) {
+  // Fields are declared in [a, b, c, d] order.
+  // Dependencies: a relies on b & c. b relies on c. d relies on a.
+  // Kahn's MUST reorder execution to: c -> b -> a -> d
+  std::string source = R"(
+    spec Topology {
+      field a: Number { value == this.b + this.c; }
+      field b: Number { value == this.c * 2.0; }
+      field c: Number {}
+      field d: Number { value == this.a + 10.0; }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Topology");
+  Runtime runtime(bound, schedule);
+
+  // 1. 'c' is the only independent variable
+  EXPECT_EQ(runtime.getActiveFieldName(), "c");
+  EXPECT_FALSE(runtime.isActiveFieldDeterministic());
+  runtime.submitValStr("c", "5.0");
+
+  // 2. 'b' solves next (5.0 * 2.0 = 10.0)
+  EXPECT_EQ(runtime.getActiveFieldName(), "b");
+  EXPECT_TRUE(runtime.isActiveFieldDeterministic());
+  EXPECT_EQ(runtime.solveDeterministic(), "10.000000");
+
+  // 3. 'a' solves next (10.0 + 5.0 = 15.0)
+  EXPECT_EQ(runtime.getActiveFieldName(), "a");
+  EXPECT_TRUE(runtime.isActiveFieldDeterministic());
+  EXPECT_EQ(runtime.solveDeterministic(), "15.000000");
+
+  // 4. 'd' solves last (15.0 + 10.0 = 25.0)
+  EXPECT_EQ(runtime.getActiveFieldName(), "d");
+  EXPECT_TRUE(runtime.isActiveFieldDeterministic());
+  EXPECT_EQ(runtime.solveDeterministic(), "25.000000");
+
+  EXPECT_FALSE(runtime.hasMoreFields());
+}
