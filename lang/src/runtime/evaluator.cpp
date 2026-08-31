@@ -3,7 +3,7 @@
 namespace invariants::runtime {
 
 Value Evaluator::evaluate(const binder::BoundExpr& expr,
-                          const Environment& env) {
+                          const Environment& env) const {
   // Store env for this pass
   currentEnv = &env;
   return std::visit(*this, expr.value);

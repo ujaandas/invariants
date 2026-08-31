@@ -1,327 +1,265 @@
 #include "runtime.hpp"
 
 #include <algorithm>
-#include <cmath>
+#include <sstream>
 #include <stdexcept>
+#include <variant>
 
-using namespace invariants::runtime::deprecated;
+namespace invariants::runtime {
 
-namespace {
-
-bool isDigitsOnly(std::string_view s) {
-  if (s.empty()) return false;
-  return std::all_of(s.begin(), s.end(), ::isdigit);
+static std::vector<std::string> splitPath(const std::string& s) {
+  std::vector<std::string> parts;
+  std::istringstream stream(s);
+  std::string part;
+  while (std::getline(stream, part, '.')) {
+    parts.push_back(part);
+  }
+  return parts;
 }
 
-// Parses double, returning true if it's a completely valid float/double
-bool tryParseDouble(std::string_view s, double& out) {
-  if (s.empty()) return false;
-  if (s.back() == '.') return false;
+static Value parseLLMString(std::string_view raw,
+                            const binder::ResolvedType& type) {
+  if (!type.isBuiltin()) {
+    throw std::runtime_error(
+        "Nested object parsing from LLM not supported directly.");
+  }
+
+  ast::BuiltinType builtin = std::get<ast::BuiltinType>(type.type);
+  std::string s(raw);
 
   try {
-    std::string temp(s);  // Requires a null-terminated string
-    size_t processed_chars = 0;
-    out = std::stod(temp, &processed_chars);
-    return processed_chars == s.size();
-  } catch (const std::invalid_argument&) {
-    return false;
-  } catch (const std::out_of_range&) {
-    return false;
-  }
-}
-
-// Parses int, returning true if completely valid
-bool tryParseInt(std::string_view s, int& out) {
-  if (s.empty()) return false;
-  try {
-    std::string temp(s);
-    size_t processed_chars = 0;
-    out = std::stoi(temp, &processed_chars);
-    return processed_chars == s.size();
-  } catch (const std::invalid_argument&) {
-    return false;
-  } catch (const std::out_of_range&) {
-    return false;
-  }
-}
-
-// Checks if a string could eventually become a valid double (for prefix checks)
-bool isValidDoublePrefix(std::string_view s) {
-  if (s.empty()) return true;
-  if (s == "+" || s == "-") return true;
-
-  // Check if it contains at most one dot and only digits/signs
-  bool has_dot = false;
-  size_t start = (s[0] == '-' || s[0] == '+') ? 1 : 0;
-  if (start == s.size()) return false;  // just a sign is fine, handled above
-
-  for (size_t i = start; i < s.size(); ++i) {
-    if (s[i] == '.') {
-      if (has_dot) return false;  // multiple dots
-      has_dot = true;
-    } else if (!::isdigit(s[i])) {
-      return false;
+    switch (builtin) {
+      case ast::BuiltinType::String:
+        if (s.size() >= 2 && s.front() == '"' && s.back() == '"') {
+          return s.substr(1, s.size() - 2);
+        }
+        return s;
+      case ast::BuiltinType::Integer:
+        return std::stoi(s);
+      case ast::BuiltinType::Number:
+        return std::stod(s);
+      case ast::BuiltinType::Boolean:
+        return (s == "true" || s == "True");
+      default:
+        return std::monostate{};
     }
+  } catch (...) {
+    throw std::runtime_error("Failed to cast LLM string '" + s +
+                             "' to expected type.");
   }
-  return true;
 }
 
-}  // namespace
+static std::string valueToString(const Value& val) {
+  if (std::holds_alternative<int>(val))
+    return std::to_string(std::get<int>(val));
+  if (std::holds_alternative<double>(val))
+    return std::to_string(std::get<double>(val));
+  if (std::holds_alternative<bool>(val))
+    return std::get<bool>(val) ? "true" : "false";
+  if (std::holds_alternative<std::string>(val))
+    return std::get<std::string>(val);
+  return "null";
+}
 
-Runtime::Runtime() {
-  initSchema();
+Runtime::Runtime(const binder::BoundModule& module,
+                 const analysis::ExecutionSchedule& schedule)
+    : boundModule(module), schedule(schedule) {
   reset();
 }
-
-void Runtime::initSchema() {
-  // Hard-coded - only total_price depends on unit_price and quantity
-  genOrder = {"unit_price", "quantity", "currency", "total_price"};
-
-  /*
-    field unit_price: Number {
-        value > 0.0;
-    }
-  */
-  fields["unit_price"] =
-      FieldNode{.name = "unit_price",
-                .type = FieldType::Number,
-                .is_deterministic = false,
-                .validate =
-                    [](std::string_view text, const Environment&) {
-                      if (text.empty()) return ValidationStatus::PartialValid;
-                      if (!isValidDoublePrefix(text))
-                        return ValidationStatus::Invalid;
-
-                      double val;
-                      if (tryParseDouble(text, val)) {
-                        // Constraint: value > 0.0
-                        return (val > 0.0) ? ValidationStatus::Valid
-                                           : ValidationStatus::Invalid;
-                      }
-                      return ValidationStatus::PartialValid;
-                    },
-                .compute_value = nullptr};
-
-  /*
-    field quantity: Integer {
-        value >= 1;
-        value <= 1000;
-    }
-  */
-  fields["quantity"] =
-      FieldNode{.name = "quantity",
-                .type = FieldType::Integer,
-                .is_deterministic = false,
-                .validate =
-                    [](std::string_view text, const Environment&) {
-                      if (text.empty()) return ValidationStatus::PartialValid;
-                      if (text == "+" || text == "-")
-                        return ValidationStatus::PartialValid;
-                      if (!isDigitsOnly(text)) return ValidationStatus::Invalid;
-
-                      int val;
-                      if (tryParseInt(text, val)) {
-                        // Constraint: value >= 1 && value <= 1000
-                        if (val >= 1 && val <= 1000)
-                          return ValidationStatus::Valid;
-                        return ValidationStatus::Invalid;
-                      }
-
-                      // If it's digits but doesn't fit in int, it's out of
-                      // bounds (> 1000)
-                      return ValidationStatus::Invalid;
-                    },
-                .compute_value = nullptr};
-
-  /*
-    field currency: String {
-        value in ["USD", "EUR", "GBP"];
-    }
-  */
-  fields["currency"] = FieldNode{
-      .name = "currency",
-      .type = FieldType::String,
-      .is_deterministic = false,
-      .validate =
-          [](std::string_view text, const Environment&) {
-            const std::vector<std::string> allowed = {"USD", "EUR", "GBP"};
-
-            // Constraint: check if current text is an exact match
-            if (std::ranges::any_of(
-                    allowed, [&](const auto& opt) { return text == opt; }))
-              return ValidationStatus::Valid;
-
-            // Check if current text is a prefix of any allowed string
-            if (std::ranges::any_of(allowed, [&](const auto& opt) {
-                  return opt.rfind(text, 0) == 0;
-                }))
-              return ValidationStatus::PartialValid;
-
-            return ValidationStatus::Invalid;
-          },
-      .compute_value = nullptr};
-
-  /*
-    field total_price: Number { }
-
-    invariant valid_total_price {
-        this.total_price == this.unit_price * this.quantity;
-    }
-
-    invariant bulk_discount {
-        this.quantity > 500 -> this.total_price < (this.unit_price *
-    this.quantity);
-    }
-  */
-  fields["total_price"] = FieldNode{
-      .name = "total_price",
-      .type = FieldType::Number,
-      .is_deterministic = true,
-      .validate =
-          [](std::string_view text, const Environment& env) {
-            if (text.empty()) return ValidationStatus::PartialValid;
-            if (!isValidDoublePrefix(text)) return ValidationStatus::Invalid;
-
-            double val;
-            if (tryParseDouble(text, val)) {
-              // Fetch dependencies
-              double unit_price = std::get<double>(env.at("unit_price"));
-              int quantity = std::get<int>(env.at("quantity"));
-
-              // Invariant 1
-              double expected = unit_price * static_cast<double>(quantity);
-              bool matches_total = (std::abs(val - expected) < 1e-5);
-
-              // Invariant 2
-              bool passes_bulk = true;
-              if (quantity > 500) {
-                passes_bulk = (val < expected);
-              }
-
-              if (matches_total && passes_bulk) {
-                return ValidationStatus::Valid;
-              }
-              return ValidationStatus::Invalid;
-            }
-            return ValidationStatus::PartialValid;
-          },
-      // Solve for deterministic value
-      .compute_value = [](const Environment& env) -> Value {
-        double unit_price = std::get<double>(env.at("unit_price"));
-        int quantity = std::get<int>(env.at("quantity"));
-        return unit_price * static_cast<double>(quantity);
-      }};
-}
-
-bool Runtime::hasMoreFields() const { return currStepIdx < genOrder.size(); }
-
-std::string Runtime::getActiveFieldName() const {
-  if (!hasMoreFields()) return "";
-  return genOrder[currStepIdx];
-}
-
-FieldType Runtime::getActiveFieldType() const {
-  if (!hasMoreFields()) throw std::runtime_error("No active field available.");
-  return fields.at(getActiveFieldName()).type;
-}
-
-const std::vector<std::string>& Runtime::getGenOrder() const {
-  return genOrder;
-}
-
-void Runtime::submitVal(std::string_view name, const Value& val) {
-  std::string key{name};
-  const auto& field = fields.at(key);
-
-  // Stringify variant value to pass to validator
-  std::string str_rep;
-  if (std::holds_alternative<int>(val)) {
-    str_rep = std::to_string(std::get<int>(val));
-  } else if (std::holds_alternative<double>(val)) {
-    str_rep = std::to_string(std::get<double>(val));
-  } else {
-    str_rep = std::get<std::string>(val);
-  }
-
-  // Validate
-  ValidationStatus status = field.validate(str_rep, environment);
-  if (status != ValidationStatus::Valid) {
-    throw std::runtime_error("Validation failed for field '" + key +
-                             "' with value: " + str_rep);
-  }
-
-  // Mutate if ok
-  environment[key] = val;
-  if (getActiveFieldName() == key) {
-    currStepIdx++;
-  }
-}
-
-void Runtime::submitValStr(std::string_view name, std::string_view raw_str) {
-  std::string key{name};
-  const auto& field = fields.at(key);
-
-  if (field.type == FieldType::Integer) {
-    int val;
-    if (tryParseInt(raw_str, val)) {
-      submitVal(name, Value(val));
-    } else {
-      throw std::runtime_error("Failed to parse Integer value: " +
-                               std::string(raw_str));
-    }
-  } else if (field.type == FieldType::Number) {
-    double val;
-    if (tryParseDouble(raw_str, val)) {
-      submitVal(name, Value(val));
-    } else {
-      throw std::runtime_error("Failed to parse Number value: " +
-                               std::string(raw_str));
-    }
-  } else if (field.type == FieldType::String) {
-    submitVal(name, Value(std::string(raw_str)));
-  }
-}
-
-bool Runtime::isAciveFieldDeterministic() const {
-  if (!hasMoreFields()) return false;
-  return fields.at(getActiveFieldName()).is_deterministic;
-}
-
-ValidationStatus Runtime::validate_active_field_partial(
-    std::string_view proposedChars) const {
-  if (!hasMoreFields()) return ValidationStatus::Invalid;
-  return fields.at(getActiveFieldName()).validate(proposedChars, environment);
-}
-
-const Environment& Runtime::get_environment() const { return environment; }
 
 void Runtime::reset() {
   environment.clear();
   currStepIdx = 0;
 }
 
-std::string Runtime::solveDeterministic() {
-  if (!hasMoreFields()) throw std::runtime_error("No active field to solve.");
-  std::string name = getActiveFieldName();
-  const auto& field = fields.at(name);
-
-  if (!field.is_deterministic) {
-    throw std::runtime_error("Field " + name + " is not deterministic.");
-  }
-
-  Value resolved_val = field.compute_value(environment);
-
-  // Submit resolved value internally
-  submitVal(name, resolved_val);
-
-  // Convert to string to return to Python
-  std::string str_rep;
-  if (std::holds_alternative<int>(resolved_val)) {
-    str_rep = std::to_string(std::get<int>(resolved_val));
-  } else if (std::holds_alternative<double>(resolved_val)) {
-    str_rep = std::to_string(std::get<double>(resolved_val));
-  } else {
-    str_rep = std::get<std::string>(resolved_val);
-  }
-  return str_rep;
+bool Runtime::hasMoreFields() const {
+  return currStepIdx < schedule.order.size();
 }
+
+std::string Runtime::getActiveFieldName() const {
+  if (!hasMoreFields()) throw std::runtime_error("Generation complete.");
+  return schedule.order[currStepIdx];
+}
+
+const binder::FieldSymbol* Runtime::getActiveFieldSymbol() const {
+  std::string activePath = getActiveFieldName();
+  auto parts = splitPath(activePath);
+
+  // Try treating each spec as the root spec until one successfully resolves the
+  // full path
+  for (const auto& potentialRoot : boundModule.specs) {
+    const binder::SpecSymbol* currentSpec = potentialRoot.symbol;
+    const binder::FieldSymbol* finalField = nullptr;
+    bool pathResolved = true;
+
+    for (size_t i = 0; i < parts.size(); ++i) {
+      bool found = false;
+
+      // Find the bound spec definition for our current level
+      auto specIt = std::ranges::find_if(boundModule.specs, [&](const auto& s) {
+        return s.symbol->name == currentSpec->name;
+      });
+
+      if (specIt != boundModule.specs.end()) {
+        auto fieldIt = std::ranges::find_if(specIt->fields, [&](const auto& f) {
+          return f.symbol->name == parts[i];
+        });
+
+        if (fieldIt != specIt->fields.end()) {
+          finalField = fieldIt->symbol;
+          found = true;
+
+          // If we have more parts to resolve, advance the current spec to the
+          // nested type
+          if (i < parts.size() - 1) {
+            currentSpec =
+                std::get<const binder::SpecSymbol*>(finalField->resType.type);
+          }
+        }
+      }
+
+      if (!found) {
+        pathResolved = false;
+        break;  // Path failed under this root candidate; break out to try the
+                // next spec
+      }
+    }
+
+    if (pathResolved && finalField) {
+      return finalField;  // Path fully resolved!
+    }
+  }
+
+  throw std::runtime_error("Could not resolve symbol for path: " + activePath);
+}
+
+bool Runtime::isActiveFieldDeterministic() const {
+  if (!hasMoreFields()) return false;
+  std::string activePath = getActiveFieldName();
+
+  auto it = schedule.triggers.find(activePath);
+  if (it != schedule.triggers.end()) {
+    return std::ranges::any_of(it->second, [&activePath](const auto& trigger) {
+      return trigger.constraint->isDeterministicPossible &&
+             (trigger.constraint->target == activePath ||
+              trigger.constraint->target.empty());
+    });
+  }
+  return false;
+}
+
+std::string Runtime::solveDeterministic() {
+  if (!isActiveFieldDeterministic()) {
+    throw std::runtime_error("Active field is not deterministic.");
+  }
+
+  std::string activePath = getActiveFieldName();
+  const binder::BoundConstraint* assignmentConstraint = nullptr;
+
+  const auto& triggers = schedule.triggers.at(activePath);
+  auto it = std::ranges::find_if(triggers, [&activePath](const auto& trigger) {
+    return trigger.constraint->isDeterministicPossible &&
+           (trigger.constraint->target == activePath ||
+            trigger.constraint->target.empty());
+  });
+
+  if (it != triggers.end()) {
+    assignmentConstraint = it->constraint;
+  }
+
+  if (!assignmentConstraint) {
+    throw std::runtime_error(
+        "Fatal: Could not find assignment constraint for deterministic field.");
+  }
+
+  const auto& equalityExpr =
+      std::get<binder::BoundBinaryExpr>(assignmentConstraint->expr->value);
+
+  const binder::BoundExpr* calcExpr = nullptr;
+
+  // Check if the Left side is our target
+  if (std::holds_alternative<binder::BoundValueAccessExpr>(
+          equalityExpr.left->value)) {
+    calcExpr = equalityExpr.right.get();
+  } else if (std::holds_alternative<binder::BoundFieldAccessExpr>(
+                 equalityExpr.left->value) &&
+             std::get<binder::BoundFieldAccessExpr>(equalityExpr.left->value)
+                     .flattenedPath == activePath) {
+    calcExpr = equalityExpr.right.get();
+  }
+  // Check if the Right side is our target
+  else if (std::holds_alternative<binder::BoundValueAccessExpr>(
+               equalityExpr.right->value)) {
+    calcExpr = equalityExpr.left.get();
+  } else if (std::holds_alternative<binder::BoundFieldAccessExpr>(
+                 equalityExpr.right->value) &&
+             std::get<binder::BoundFieldAccessExpr>(equalityExpr.right->value)
+                     .flattenedPath == activePath) {
+    calcExpr = equalityExpr.left.get();
+  } else {
+    throw std::runtime_error(
+        "Fatal: Could not locate assignment target in expression.");
+  }
+
+  Value computedValue = evaluator.evaluate(*calcExpr, environment);
+
+  submitVal(activePath, computedValue);
+  return valueToString(computedValue);
+}
+
+ValidationStatus Runtime::validatePartial(
+    std::string_view proposedChars) const {
+  if (!hasMoreFields()) return ValidationStatus::Invalid;
+
+  std::string activePath = getActiveFieldName();
+  const auto* activeField = getActiveFieldSymbol();
+
+  Value proposedVal;
+  try {
+    proposedVal = parseLLMString(proposedChars, activeField->resType);
+  } catch (...) {
+    return ValidationStatus::PartialValid;
+  }
+
+  Environment tempEnv = environment;
+  tempEnv["__value__"] = proposedVal;
+  tempEnv[activePath] = proposedVal;
+
+  auto it = schedule.triggers.find(activePath);
+  if (it != schedule.triggers.end()) {
+    for (const auto& trigger : it->second) {
+      if (trigger.constraint->isDeterministicPossible) continue;
+
+      try {
+        Value res = evaluator.evaluate(*trigger.constraint->expr, tempEnv);
+        if (std::holds_alternative<bool>(res) && !std::get<bool>(res)) {
+          return ValidationStatus::Invalid;
+        }
+      } catch (...) {
+        return ValidationStatus::Invalid;
+      }
+    }
+  }
+
+  return ValidationStatus::Valid;
+}
+
+void Runtime::submitValStr(std::string_view name, std::string_view raw_str) {
+  if (name != getActiveFieldName()) {
+    throw std::runtime_error(
+        "Attempted to submit value for an inactive field.");
+  }
+
+  const auto* activeField = getActiveFieldSymbol();
+  Value finalVal = parseLLMString(raw_str, activeField->resType);
+  submitVal(std::string(name), finalVal);
+}
+
+void Runtime::submitVal(const std::string& name, const Value& val) {
+  environment[name] = val;
+  currStepIdx++;
+}
+
+const Environment& Runtime::getEnvironment() const { return environment; }
+
+}  // namespace invariants::runtime

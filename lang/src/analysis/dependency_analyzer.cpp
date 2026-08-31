@@ -76,7 +76,10 @@ ExecutionSchedule DependencyAnalyzer::analyze(const binder::BoundModule& module,
   // Build Adjacency List
   for (const auto& trigger : allTriggers) {
     if (trigger.constraint->isDeterministicPossible) {
-      std::string target = trigger.instancePrefix + trigger.constraint->target;
+      std::string target =
+          trigger.constraint->target.empty()
+              ? trigger.ownerFieldPath
+              : trigger.instancePrefix + trigger.constraint->target;
       auto deps =
           extractDeps(*trigger.constraint->expr, trigger.instancePrefix);
 
@@ -112,9 +115,14 @@ ExecutionSchedule DependencyAnalyzer::analyze(const binder::BoundModule& module,
   }
 
   // Attach Triggers to the latest generated dependency
+  // Attach Triggers to the latest generated dependency
   for (const auto& trigger : allTriggers) {
     if (trigger.constraint->isDeterministicPossible) {
-      std::string target = trigger.instancePrefix + trigger.constraint->target;
+      // Apply the fallback so the trigger is saved to "total", not ""
+      std::string target =
+          trigger.constraint->target.empty()
+              ? trigger.ownerFieldPath
+              : trigger.instancePrefix + trigger.constraint->target;
       schedule.triggers[target].push_back(trigger);
     } else {
       auto deps =
