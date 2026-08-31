@@ -13,9 +13,8 @@ void DependencyExtractor::operator()(
 
 void DependencyExtractor::operator()(
     const binder::BoundFieldAccessExpr& e) const {
-  if (e.field) {
-    deps.insert(e.field->id);
-  }
+  // Use the flattened path + prefix for nested object tracking
+  deps.insert(prefix + e.flattenedPath);
 }
 
 void DependencyExtractor::operator()(const binder::BoundUnaryExpr& e) const {
