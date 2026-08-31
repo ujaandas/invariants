@@ -92,8 +92,9 @@ ExecutionSchedule DependencyAnalyzer::analyze(const binder::BoundModule& module,
   // Execute Kahn's Topological Sort
   ExecutionSchedule schedule;
   std::queue<std::string> q;
-  for (const auto& [node, degree] : inDegree) {
-    if (degree == 0) q.push(node);
+
+  for (const auto& node : allNodes) {
+    if (inDegree[node] == 0) q.push(node);
   }
 
   while (!q.empty()) {
