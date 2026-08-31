@@ -77,18 +77,18 @@ BoundConstraint Binder::bindConstraint(
   }
 
   bool isDeterministic = false;
-  const FieldSymbol* target = nullptr;
+  std::string target = "";
 
   if (std::holds_alternative<BoundBinaryExpr>(expr->value)) {
     const auto& bin = std::get<BoundBinaryExpr>(expr->value);
     if (bin.op == ast::BinaryOp::Equal) {
       if (std::holds_alternative<BoundFieldAccessExpr>(bin.left->value)) {
         isDeterministic = true;
-        target = std::get<BoundFieldAccessExpr>(bin.left->value).field;
+        target = std::get<BoundFieldAccessExpr>(bin.left->value).flattenedPath;
       } else if (std::holds_alternative<BoundFieldAccessExpr>(
                      bin.right->value)) {
         isDeterministic = true;
-        target = std::get<BoundFieldAccessExpr>(bin.right->value).field;
+        target = std::get<BoundFieldAccessExpr>(bin.right->value).flattenedPath;
       }
     }
   }
@@ -118,7 +118,7 @@ BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
     }
 
     bool isDet = false;
-    const FieldSymbol* target = nullptr;
+    std::string target = "";
 
     if (std::holds_alternative<BoundBinaryExpr>(expr->value)) {
       const auto& binExpr = std::get<BoundBinaryExpr>(expr->value);
@@ -128,13 +128,15 @@ BoundInvariant Binder::bindInvariant(const ast::InvariantStmt& invariantAst) {
         // Is the left side `this.some_field`?
         if (std::holds_alternative<BoundFieldAccessExpr>(binExpr.left->value)) {
           isDet = true;
-          target = std::get<BoundFieldAccessExpr>(binExpr.left->value).field;
+          target =
+              std::get<BoundFieldAccessExpr>(binExpr.left->value).flattenedPath;
         }
         // Is the right side `this.some_field`?
         else if (std::holds_alternative<BoundFieldAccessExpr>(
                      binExpr.right->value)) {
           isDet = true;
-          target = std::get<BoundFieldAccessExpr>(binExpr.right->value).field;
+          target = std::get<BoundFieldAccessExpr>(binExpr.right->value)
+                       .flattenedPath;
         }
       }
     }
