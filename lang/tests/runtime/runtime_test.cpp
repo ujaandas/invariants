@@ -166,3 +166,88 @@ TEST(RuntimeSrcTest, KahnsAlgorithmForcesFieldReordering) {
 
   EXPECT_FALSE(runtime.hasMoreFields());
 }
+
+TEST(RuntimeSrcTest, DeterministicAssignmentCascade) {
+  // Forces the runtime to chain multiple deterministic solves sequentially
+  std::string source = R"(
+    spec Cascade {
+      field start: Integer {}
+      field step1: Integer { value == this.start + 1; }
+      field step2: Integer { value == this.step1 * 2; }
+      field step3: Integer { value == this.step2 - 3; }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Cascade");
+  Runtime runtime(bound, schedule);
+
+  EXPECT_EQ(runtime.getActiveFieldName(), "start");
+  runtime.submitValStr("start", "5");
+
+  EXPECT_EQ(runtime.getActiveFieldName(), "step1");
+  EXPECT_EQ(runtime.solveDeterministic(), "6.000000");
+
+  EXPECT_EQ(runtime.getActiveFieldName(), "step2");
+  EXPECT_EQ(runtime.solveDeterministic(), "12.000000");
+
+  EXPECT_EQ(runtime.getActiveFieldName(), "step3");
+  EXPECT_EQ(runtime.solveDeterministic(), "9.000000");
+
+  EXPECT_FALSE(runtime.hasMoreFields());
+}
+
+TEST(RuntimeSrcTest, ComplexTopoSortWithNestedCrossValidation) {
+  // Mixes nested fields, inverse declaration order, and cross-spec invariants
+  std::string source = R"(
+    spec Limits {
+      field max_val: Number {}
+    }
+    spec Node {
+      field result: Number { value == this.raw * 2.0; }
+      field limits: Limits {}
+      field raw: Number {}
+      
+      invariant enforce_limits {
+        // Result must be evaluated before this runs, meaning raw must be evaluated first.
+        this.result <= this.limits.max_val;
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Node");
+  Runtime runtime(bound, schedule);
+
+  // We don't strictly care if `limits.max_val` or `raw` comes first,
+  // but BOTH must precede `result`.
+
+  std::string firstField = runtime.getActiveFieldName();
+  EXPECT_FALSE(runtime.isActiveFieldDeterministic());
+  if (firstField == "limits.max_val") {
+    runtime.submitValStr("limits.max_val", "100.0");
+    EXPECT_EQ(runtime.getActiveFieldName(), "raw");
+    runtime.submitValStr("raw", "50.0");
+  } else {
+    EXPECT_EQ(firstField, "raw");
+    runtime.submitValStr("raw", "50.0");
+    EXPECT_EQ(runtime.getActiveFieldName(), "limits.max_val");
+    runtime.submitValStr("limits.max_val", "100.0");
+  }
+
+  // Result must be evaluated last because it depends on raw
+  EXPECT_EQ(runtime.getActiveFieldName(), "result");
+  EXPECT_TRUE(runtime.isActiveFieldDeterministic());
+
+  // 50.0 * 2.0 = 100.0, which satisfies <= 100.0 constraint
+  std::string resStr = runtime.solveDeterministic();
+  EXPECT_EQ(resStr, "100.000000");
+
+  EXPECT_FALSE(runtime.hasMoreFields());
+}
