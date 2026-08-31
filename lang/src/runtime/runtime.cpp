@@ -1,5 +1,6 @@
 #include "runtime.hpp"
 
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
 #include <variant>
@@ -92,16 +93,19 @@ const binder::FieldSymbol* Runtime::getActiveFieldSymbol() const {
     bool found = false;
     for (const auto& boundSpec : boundModule.specs) {
       if (boundSpec.symbol->name == currentSpec->name) {
-        for (const auto& field : boundSpec.fields) {
-          if (field.symbol->name == parts[i]) {
-            finalField = field.symbol;
-            found = true;
-            if (i < parts.size() - 1) {
-              currentSpec =
-                  std::get<const binder::SpecSymbol*>(finalField->resType.type);
-            }
-            break;
+        auto fieldIt = std::ranges::find_if(
+            boundSpec.fields, [&parts, i](const auto& field) {
+              return field.symbol->name == parts[i];
+            });
+
+        if (fieldIt != boundSpec.fields.end()) {
+          finalField = fieldIt->symbol;
+          found = true;
+          if (i < parts.size() - 1) {
+            currentSpec =
+                std::get<const binder::SpecSymbol*>(finalField->resType.type);
           }
+          break;
         }
         break;
       }
@@ -119,14 +123,11 @@ bool Runtime::isActiveFieldDeterministic() const {
 
   auto it = schedule.triggers.find(activePath);
   if (it != schedule.triggers.end()) {
-    for (const auto& trigger : it->second) {
-      // Check if target matches exactly OR is empty (representing 'value')
-      if (trigger.constraint->isDeterministicPossible &&
-          (trigger.constraint->target == activePath ||
-           trigger.constraint->target.empty())) {
-        return true;
-      }
-    }
+    return std::ranges::any_of(it->second, [&activePath](const auto& trigger) {
+      return trigger.constraint->isDeterministicPossible &&
+             (trigger.constraint->target == activePath ||
+              trigger.constraint->target.empty());
+    });
   }
   return false;
 }
@@ -139,13 +140,20 @@ std::string Runtime::solveDeterministic() {
   std::string activePath = getActiveFieldName();
   const binder::BoundConstraint* assignmentConstraint = nullptr;
 
-  for (const auto& trigger : schedule.triggers.at(activePath)) {
-    if (trigger.constraint->isDeterministicPossible &&
-        (trigger.constraint->target == activePath ||
-         trigger.constraint->target.empty())) {
-      assignmentConstraint = trigger.constraint;
-      break;
-    }
+  const auto& triggers = schedule.triggers.at(activePath);
+  auto it = std::ranges::find_if(triggers, [&activePath](const auto& trigger) {
+    return trigger.constraint->isDeterministicPossible &&
+           (trigger.constraint->target == activePath ||
+            trigger.constraint->target.empty());
+  });
+
+  if (it != triggers.end()) {
+    assignmentConstraint = it->constraint;
+  }
+
+  if (!assignmentConstraint) {
+    throw std::runtime_error(
+        "Fatal: Could not find assignment constraint for deterministic field.");
   }
 
   const auto& equalityExpr =
