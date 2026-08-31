@@ -85,36 +85,52 @@ const binder::FieldSymbol* Runtime::getActiveFieldSymbol() const {
   std::string activePath = getActiveFieldName();
   auto parts = splitPath(activePath);
 
-  // Traverse the bound module starting from the root spec (assumed index 0)
-  const binder::SpecSymbol* currentSpec = boundModule.specs[0].symbol;
-  const binder::FieldSymbol* finalField = nullptr;
+  // Try treating each spec as the root spec until one successfully resolves the
+  // full path
+  for (const auto& potentialRoot : boundModule.specs) {
+    const binder::SpecSymbol* currentSpec = potentialRoot.symbol;
+    const binder::FieldSymbol* finalField = nullptr;
+    bool pathResolved = true;
 
-  for (size_t i = 0; i < parts.size(); ++i) {
-    bool found = false;
-    for (const auto& boundSpec : boundModule.specs) {
-      if (boundSpec.symbol->name == currentSpec->name) {
-        auto fieldIt = std::ranges::find_if(
-            boundSpec.fields, [&parts, i](const auto& field) {
-              return field.symbol->name == parts[i];
-            });
+    for (size_t i = 0; i < parts.size(); ++i) {
+      bool found = false;
 
-        if (fieldIt != boundSpec.fields.end()) {
+      // Find the bound spec definition for our current level
+      auto specIt = std::ranges::find_if(boundModule.specs, [&](const auto& s) {
+        return s.symbol->name == currentSpec->name;
+      });
+
+      if (specIt != boundModule.specs.end()) {
+        auto fieldIt = std::ranges::find_if(specIt->fields, [&](const auto& f) {
+          return f.symbol->name == parts[i];
+        });
+
+        if (fieldIt != specIt->fields.end()) {
           finalField = fieldIt->symbol;
           found = true;
+
+          // If we have more parts to resolve, advance the current spec to the
+          // nested type
           if (i < parts.size() - 1) {
             currentSpec =
                 std::get<const binder::SpecSymbol*>(finalField->resType.type);
           }
-          break;
         }
-        break;
+      }
+
+      if (!found) {
+        pathResolved = false;
+        break;  // Path failed under this root candidate; break out to try the
+                // next spec
       }
     }
-    if (!found)
-      throw std::runtime_error("Could not resolve symbol for path: " +
-                               activePath);
+
+    if (pathResolved && finalField) {
+      return finalField;  // Path fully resolved!
+    }
   }
-  return finalField;
+
+  throw std::runtime_error("Could not resolve symbol for path: " + activePath);
 }
 
 bool Runtime::isActiveFieldDeterministic() const {
