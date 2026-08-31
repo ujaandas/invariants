@@ -3,135 +3,123 @@
 #include <gtest/gtest.h>
 
 #include <string>
-#include <vector>
 
-using namespace invariants::runtime::deprecated;
+#include "binder.hpp"
+#include "dependency_analyzer.hpp"
+#include "lexer.hpp"
+#include "parser.hpp"
 
-TEST(RuntimeTest, InitialStateIsCorrect) {
-  Runtime rt;
+using namespace invariants::lexer;
+using namespace invariants::parser;
+using namespace invariants::binder;
+using namespace invariants::analysis;
+using namespace invariants::runtime;
+using namespace invariants::ast;
 
-  EXPECT_TRUE(rt.hasMoreFields());
-  EXPECT_EQ(rt.getActiveFieldName(), "unit_price");
-  EXPECT_EQ(rt.getActiveFieldType(), FieldType::Number);
+namespace {
 
-  std::vector<std::string> expected_order = {"unit_price", "quantity",
-                                             "currency", "total_price"};
-  EXPECT_EQ(rt.getGenOrder(), expected_order);
+ModulePtr parseSource(const std::string& source) {
+  Lexer lexer(source);
+  auto tokens = lexer.scanTokens();
+
+  Parser parser(tokens);
+  auto module = parser.parseModule();
+
+  EXPECT_NE(module, nullptr);
+  return module;
 }
 
-TEST(RuntimeTest, ValidatesUnitPricePrefixesAndBoundaries) {
-  Runtime rt;
+}  // namespace
 
-  // Partial prefixes should not be rejected
-  EXPECT_EQ(rt.validate_active_field_partial(""),
-            ValidationStatus::PartialValid);
-  EXPECT_EQ(rt.validate_active_field_partial("1"), ValidationStatus::Valid);
-  EXPECT_EQ(rt.validate_active_field_partial("12."),
-            ValidationStatus::PartialValid);
-  EXPECT_EQ(rt.validate_active_field_partial("10.5"), ValidationStatus::Valid);
+TEST(RuntimeSrcTest, ExecutesDeterministicAssignmentsAndValidations) {
+  std::string source = R"(
+    spec Order {
+      field price: Number {}
+      field qty: Number {}
+      field total: Number {
+        value == this.price * this.qty;
+      }
+      invariant max_budget {
+        this.total <= 500.0;
+      }
+    }
+  )";
 
-  // Actively invalid inputs
-  EXPECT_EQ(rt.validate_active_field_partial("-5.0"),
-            ValidationStatus::Invalid);  // value > 0.0
-  EXPECT_EQ(rt.validate_active_field_partial("0.0"),
-            ValidationStatus::Invalid);  // value > 0.0
-  EXPECT_EQ(rt.validate_active_field_partial("abc"), ValidationStatus::Invalid);
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Order");
+
+  Runtime runtime(bound, schedule);
+
+  // Process 'price' (non-deterministic)
+  ASSERT_TRUE(runtime.hasMoreFields());
+  EXPECT_EQ(runtime.getActiveFieldName(), "price");
+  EXPECT_FALSE(runtime.isActiveFieldDeterministic());
+
+  // Test partial validation on price: negative price should fail field
+  // constraint if any, or pass if none
+  EXPECT_EQ(runtime.validatePartial("50.0"), ValidationStatus::Valid);
+  runtime.submitValStr("price", "50.0");
+
+  // Process 'qty' (non-deterministic)
+  ASSERT_TRUE(runtime.hasMoreFields());
+  EXPECT_EQ(runtime.getActiveFieldName(), "qty");
+  EXPECT_FALSE(runtime.isActiveFieldDeterministic());
+  runtime.submitValStr("qty", "10");
+
+  // Process 'total' (deterministic assignment via `value == price * qty`)
+  ASSERT_TRUE(runtime.hasMoreFields());
+  EXPECT_EQ(runtime.getActiveFieldName(), "total");
+  EXPECT_TRUE(runtime.isActiveFieldDeterministic());
+
+  // Automatically solves total = 50.0 * 10 = 500.0, commits it, and triggers
+  // `max_budget` (500 <= 500 -> Valid)
+  std::string computedTotal = runtime.solveDeterministic();
+  EXPECT_EQ(computedTotal, "500.000000");
+
+  // Verify completion
+  EXPECT_FALSE(runtime.hasMoreFields());
+
+  // Verify final environment state
+  const auto& env = runtime.getEnvironment();
+  EXPECT_DOUBLE_EQ(std::get<double>(env.at("price")), 50.0);
+  EXPECT_DOUBLE_EQ(std::get<double>(env.at("qty")), 10.0);
+  EXPECT_DOUBLE_EQ(std::get<double>(env.at("total")), 500.0);
 }
 
-TEST(RuntimeTest, ValidatesQuantityPrefixesAndBoundaries) {
-  Runtime rt;
-  rt.submitValStr("unit_price", "10.00");  // Advance to quantity
+TEST(RuntimeSrcTest, EnforcesPartialValidationRejections) {
+  std::string source = R"(
+    spec UserProfile {
+      field age: Integer {
+        value >= 18;
+      }
+    }
+  )";
 
-  ASSERT_EQ(rt.getActiveFieldName(), "quantity");
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
 
-  // Prefix checks
-  EXPECT_EQ(rt.validate_active_field_partial(""),
-            ValidationStatus::PartialValid);
-  EXPECT_EQ(rt.validate_active_field_partial("5"), ValidationStatus::Valid);
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "UserProfile");
 
-  // Numerical constraints (value >= 1 && value <= 1000)
-  EXPECT_EQ(rt.validate_active_field_partial("0"), ValidationStatus::Invalid);
-  EXPECT_EQ(rt.validate_active_field_partial("1000"), ValidationStatus::Valid);
-  EXPECT_EQ(rt.validate_active_field_partial("1001"),
-            ValidationStatus::Invalid);
-  EXPECT_EQ(rt.validate_active_field_partial("12.5"),
-            ValidationStatus::Invalid);  // Not an int
-}
+  Runtime runtime(bound, schedule);
 
-TEST(RuntimeTest, ValidatesCurrencyExactAndPrefixes) {
-  Runtime rt;
-  rt.submitValStr("unit_price", "10.00");
-  rt.submitValStr("quantity", "5");
+  ASSERT_TRUE(runtime.hasMoreFields());
+  EXPECT_EQ(runtime.getActiveFieldName(), "age");
 
-  ASSERT_EQ(rt.getActiveFieldName(), "currency");
+  // LLM attempts to generate an invalid underage token "16"
+  EXPECT_EQ(runtime.validatePartial("16"), ValidationStatus::Invalid);
 
-  // Prefixes of currencies
-  EXPECT_EQ(rt.validate_active_field_partial("U"),
-            ValidationStatus::PartialValid);
-  EXPECT_EQ(rt.validate_active_field_partial("EU"),
-            ValidationStatus::PartialValid);
+  // LLM attempts to generate a valid adult token "21"
+  EXPECT_EQ(runtime.validatePartial("21"), ValidationStatus::Valid);
 
-  // Exact matches
-  EXPECT_EQ(rt.validate_active_field_partial("USD"), ValidationStatus::Valid);
-  EXPECT_EQ(rt.validate_active_field_partial("GBP"), ValidationStatus::Valid);
+  // Commit valid generation
+  runtime.submitValStr("age", "21");
+  EXPECT_FALSE(runtime.hasMoreFields());
 
-  // Out of domain
-  EXPECT_EQ(rt.validate_active_field_partial("CAD"), ValidationStatus::Invalid);
-  EXPECT_EQ(rt.validate_active_field_partial("USDE"),
-            ValidationStatus::Invalid);
-}
-
-TEST(RuntimeTest, RejectsInvalidSubmissions) {
-  Runtime rt;
-
-  // Submitting invalid values should throw runtime_error
-  EXPECT_THROW(rt.submitValStr("unit_price", "-10.00"), std::runtime_error);
-  EXPECT_THROW(rt.submitValStr("unit_price", "abc"), std::runtime_error);
-}
-
-TEST(RuntimeTest, StepsThroughCompletePipelineAndSolvesDeterministically) {
-  Runtime rt;
-
-  // Submit unit_price
-  rt.submitValStr("unit_price", "15.50");
-  EXPECT_EQ(rt.getActiveFieldName(), "quantity");
-
-  // Submit quantity
-  rt.submitValStr("quantity", "100");
-  EXPECT_EQ(rt.getActiveFieldName(), "currency");
-
-  // Submit currency
-  rt.submitValStr("currency", "EUR");
-  EXPECT_EQ(rt.getActiveFieldName(), "total_price");
-
-  // Solve total_price mathematically
-  // total_price = 15.50 * 100 = 1550.0
-  ASSERT_TRUE(rt.isAciveFieldDeterministic());
-
-  std::string total_str = rt.solveDeterministic();
-  EXPECT_DOUBLE_EQ(std::stod(total_str), 1550.0);
-
-  // Ensure state machine is fully completed
-  EXPECT_FALSE(rt.hasMoreFields());
-
-  // Verify internal Environment Map State
-  const auto& env = rt.get_environment();
-  EXPECT_DOUBLE_EQ(std::get<double>(env.at("unit_price")), 15.50);
-  EXPECT_EQ(std::get<int>(env.at("quantity")), 100);
-  EXPECT_EQ(std::get<std::string>(env.at("currency")), "EUR");
-  EXPECT_DOUBLE_EQ(std::get<double>(env.at("total_price")), 1550.0);
-}
-
-TEST(RuntimeTest, ResetClearsEnvironmentAndSteps) {
-  Runtime rt;
-  rt.submitValStr("unit_price", "5.00");
-
-  EXPECT_EQ(rt.getActiveFieldName(), "quantity");
-  EXPECT_FALSE(rt.get_environment().empty());
-
-  rt.reset();
-
-  EXPECT_EQ(rt.getActiveFieldName(), "unit_price");
-  EXPECT_TRUE(rt.get_environment().empty());
-  EXPECT_TRUE(rt.hasMoreFields());
+  EXPECT_EQ(std::get<int>(runtime.getEnvironment().at("age")), 21);
 }
