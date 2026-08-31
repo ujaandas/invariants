@@ -7,10 +7,10 @@ namespace invariants::runtime {
 
 class Evaluator {
  private:
-  const Environment* currentEnv = nullptr;
+  mutable const Environment* currentEnv = nullptr;
 
  public:
-  Value evaluate(const binder::BoundExpr& expr, const Environment& env);
+  Value evaluate(const binder::BoundExpr& expr, const Environment& env) const;
 
   Value operator()(const binder::BoundLiteralExpr& expr) const;
   Value operator()(const binder::BoundFieldAccessExpr& expr) const;
