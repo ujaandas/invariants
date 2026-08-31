@@ -4,7 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 
-using namespace invariants::runtime::deprecated;
+using namespace invariants::runtime;
 
 namespace {
 
