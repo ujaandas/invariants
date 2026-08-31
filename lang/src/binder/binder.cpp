@@ -29,7 +29,20 @@ BoundSpec Binder::bindSpec(const ast::SpecStmt& specAst) {
 
   BoundSpec boundSpec{.symbol = activeSpec};
 
-  // Bind fields
+  // PASS 1: Register all fields in the symbol table to allow forward references
+  for (const auto& member : specAst.members) {
+    if (std::holds_alternative<ast::FieldStmt>(member)) {
+      const auto& fieldAst = std::get<ast::FieldStmt>(member);
+      ResolvedType type = bindType(*fieldAst.type);
+      if (!table.add_field(activeSpec->name, fieldAst.identifier, type,
+                           &fieldAst)) {
+        throw std::runtime_error("Duplicate field name: " +
+                                 fieldAst.identifier);
+      }
+    }
+  }
+
+  // PASS 2: Bind constraints now that all fields are globally visible
   for (const auto& member : specAst.members) {
     if (std::holds_alternative<ast::FieldStmt>(member)) {
       boundSpec.fields.push_back(bindField(std::get<ast::FieldStmt>(member)));
@@ -49,12 +62,14 @@ BoundSpec Binder::bindSpec(const ast::SpecStmt& specAst) {
 }
 
 BoundField Binder::bindField(const ast::FieldStmt& fieldAst) {
-  ResolvedType type = bindType(*fieldAst.type);
+  // Fetch the field we already registered in Pass 1 and cast away the const
+  activeField = const_cast<FieldSymbol*>(
+      table.lookup_field(activeSpec->name, fieldAst.identifier));
 
-  activeField =
-      table.add_field(activeSpec->name, fieldAst.identifier, type, &fieldAst);
   if (!activeField) {
-    throw std::runtime_error("Duplicate field name: " + fieldAst.identifier);
+    throw std::runtime_error(
+        "Fatal: Field not found in symbol table during pass 2: " +
+        fieldAst.identifier);
   }
 
   BoundField boundField{.symbol = activeField};
