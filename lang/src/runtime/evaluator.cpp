@@ -61,4 +61,26 @@ Value Evaluator::operator()(const binder::BoundListExpr& expr) const {
   return arrayVal;
 }
 
+Value Evaluator::operator()(const binder::BoundUnaryExpr& expr) const {
+  Value operand = std::visit(*this, expr.operand->value);
+
+  if (expr.op == ast::UnaryOp::Not) {
+    if (!std::holds_alternative<bool>(operand)) {
+      throw std::runtime_error("Logical NOT (!) requires a Boolean operand.");
+    }
+    return !std::get<bool>(operand);
+  }
+
+  if (expr.op == ast::UnaryOp::Negate) {
+    if (std::holds_alternative<double>(operand)) {
+      return -std::get<double>(operand);
+    } else if (std::holds_alternative<int>(operand)) {
+      return -std::get<int>(operand);
+    }
+    throw std::runtime_error("Unary Minus (-) requires a numeric operand.");
+  }
+
+  throw std::runtime_error("Unknown unary operator.");
+}
+
 }  // namespace invariants::runtime
