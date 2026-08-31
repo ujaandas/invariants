@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
-namespace invariants::runtime::deprecated {
+namespace invariants::runtime {
 
 // Keep these simple for now
 enum class FieldType : std::uint8_t { Integer, Number, String };
@@ -75,4 +75,4 @@ class Runtime {
   void reset();
 };
 
-}  // namespace invariants::runtime::deprecated
+}  // namespace invariants::runtime
