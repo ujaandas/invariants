@@ -325,3 +325,75 @@ TEST(BinderTest, ThrowsOnEmptyList) {
   // Should throw because we cannot infer the type of an empty list
   EXPECT_THROW(binder.bind(*ast), std::runtime_error);
 }
+
+TEST(BinderTest, ResolvesNestedSpecFieldAccessAndFlattensPath) {
+  std::string source = R"(
+    spec Address {
+      field zipcode: Integer { }
+    }
+    spec User {
+      field addr: Address { }
+    }
+    spec Invoice {
+      field client: User { }
+      invariant check_zip {
+        this.client.addr.zipcode == 90210;
+      }
+    }
+  )";
+
+  auto module = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*module);
+
+  // Extract `this.client.addr.zipcode` (left side of `==`)
+  const auto& constraint = bound.specs[2].invariants[0].constraints[0];
+  const auto& binExpr = std::get<BoundBinaryExpr>(constraint.expr->value);
+  const auto& accessExpr = std::get<BoundFieldAccessExpr>(binExpr.left->value);
+
+  // Verify the flattened string path matches the dot notation
+  EXPECT_EQ(accessExpr.flattenedPath, "client.addr.zipcode");
+
+  // Verify it resolved all the way down to the primitive Integer field
+  EXPECT_EQ(accessExpr.field->name, "zipcode");
+  EXPECT_TRUE(accessExpr.field->resType.isBuiltin());
+}
+
+TEST(BinderTest, RejectsInvalidNestedFieldAccess) {
+  std::string source = R"(
+    spec User {
+      field age: Integer { }
+    }
+    spec Invoice {
+      field client: User { }
+      invariant check_fake {
+        this.client.fake_field == 10;
+      }
+    }
+  )";
+
+  auto module = parseSource(source);
+  Binder binder;
+  // Should throw because fake_field does not exist in User
+  EXPECT_THROW(binder.bind(*module), std::runtime_error);
+}
+
+TEST(BinderTest, RejectsMemberAccessOnPrimitives) {
+  std::string source = R"(
+    spec User {
+      field age: Integer { }
+    }
+    spec Invoice {
+      field client: User { }
+      invariant check_bad_chain {
+        // age is an Integer, it has no members!
+        this.client.age.invalid == 10;
+      }
+    }
+  )";
+
+  auto module = parseSource(source);
+  Binder binder;
+  // Should throw because it attempts to dot-access an Integer
+  EXPECT_THROW(binder.bind(*module), std::runtime_error);
+}

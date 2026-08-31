@@ -155,3 +155,38 @@ TEST(EvaluatorTest, ListMembershipEvaluatesCorrectly) {
   res = eval.evaluate(*expr, env);
   EXPECT_FALSE(std::get<bool>(res));
 }
+
+TEST(EvaluatorTest, EvaluatesFlattenedNestedPaths) {
+  std::string source = R"(
+    spec User {
+      field age: Integer { }
+    }
+    spec Invoice {
+      field client: User { }
+      field is_adult: Boolean {
+        // Requires client.age to resolve from the environment map
+        value == (this.client.age >= 18);
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  // Extract `this.client.age >= 18`
+  const auto& constraintExpr = bound.specs[1].fields[1].constraints[0].expr;
+  const auto& equalityExpr = std::get<BoundBinaryExpr>(constraintExpr->value);
+  const auto& mathExpr = equalityExpr.right;
+
+  // Flattens nested JSON to strings automatically
+  Environment envAdult = {{"client.age", 25}};
+
+  Evaluator eval;
+  Value resAdult = eval.evaluate(*mathExpr, envAdult);
+  EXPECT_TRUE(std::get<bool>(resAdult));
+
+  Environment envMinor = {{"client.age", 16}};
+  Value resMinor = eval.evaluate(*mathExpr, envMinor);
+  EXPECT_FALSE(std::get<bool>(resMinor));
+}
