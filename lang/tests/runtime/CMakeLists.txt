@@ -1,6 +1,6 @@
-add_executable(runtime_test runtime_test.cpp)
+add_executable(runtime_test evaluator_test.cpp)
 
-target_link_libraries(runtime_test PRIVATE invariants_runtime GTest::gtest_main)
+target_link_libraries(runtime_test PRIVATE invariants_runtime invariants_lexer invariants_parser invariants_binder GTest::gtest_main)
 
 include(GoogleTest)
 gtest_discover_tests(runtime_test)

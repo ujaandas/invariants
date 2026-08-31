@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-using namespace invariants::runtime;
+using namespace invariants::runtime::deprecated;
 
 TEST(RuntimeTest, InitialStateIsCorrect) {
   Runtime rt;
