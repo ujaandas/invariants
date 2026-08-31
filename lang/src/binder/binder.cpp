@@ -284,26 +284,50 @@ BoundExprPtr Binder::bindIdentifier(const ast::IdentifierExpr& expr) {
 }
 
 BoundExprPtr Binder::bindPostfix(const ast::PostfixExpr& expr) {
-  // For now, only handling simple `this.fieldName`
-  if (std::holds_alternative<ast::ThisExpr>(expr.base->value)) {
-    if (expr.ops.size() != 1 ||
-        !std::holds_alternative<ast::MemberAccessOp>(expr.ops[0])) {
-      throw std::runtime_error(
-          "Only simple member access on 'this' is supported.");
-    }
-
-    const std::string& fieldName =
-        std::get<ast::MemberAccessOp>(expr.ops[0]).member;
-    const FieldSymbol* field = table.lookup_field(activeSpec->name, fieldName);
-
-    if (!field) {
-      throw std::runtime_error("Unknown field: " + fieldName);
-    }
-
-    return std::make_unique<BoundExpr>(BoundFieldAccessExpr{field},
-                                       field->resType);
+  // For now, only handling member access originating from `this`
+  if (!std::holds_alternative<ast::ThisExpr>(expr.base->value)) {
+    throw std::runtime_error(
+        "Only member access on 'this' is supported currently.");
   }
-  throw std::runtime_error("Complex postfix expressions not implemented yet.");
+
+  const SpecSymbol* currentSpec = activeSpec;
+  const FieldSymbol* finalField = nullptr;
+  std::string flattenedPath = "";
+
+  for (size_t i = 0; i < expr.ops.size(); ++i) {
+    if (!std::holds_alternative<ast::MemberAccessOp>(expr.ops[i])) {
+      throw std::runtime_error("Only dot member access is supported.");
+    }
+
+    const std::string& memberName =
+        std::get<ast::MemberAccessOp>(expr.ops[i]).member;
+
+    // Look up the member in the current scope
+    finalField = table.lookup_field(currentSpec->name, memberName);
+    if (!finalField) {
+      throw std::runtime_error("Unknown field '" + memberName + "' in spec '" +
+                               currentSpec->name + "'.");
+    }
+
+    // Append to our dot-flattened runtime string
+    flattenedPath += (i > 0 ? "." : "") + memberName;
+
+    // If this is NOT the final operation, the current field MUST be a custom
+    // nested Spec
+    if (i < expr.ops.size() - 1) {
+      if (finalField->resType.isBuiltin() || finalField->resType.isArray() ||
+          finalField->resType.isMap()) {
+        throw std::runtime_error(
+            "Cannot access member on primitive or collection field '" +
+            memberName + "'.");
+      }
+      // Jump into the nested spec for the next loop iteration
+      currentSpec = std::get<const SpecSymbol*>(finalField->resType.type);
+    }
+  }
+
+  return std::make_unique<BoundExpr>(
+      BoundFieldAccessExpr{finalField, flattenedPath}, finalField->resType);
 }
 
 BoundExprPtr Binder::bindUnary(const ast::UnaryExpr& expr) {

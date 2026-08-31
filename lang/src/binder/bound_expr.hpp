@@ -19,6 +19,7 @@ struct BoundLiteralExpr {
 // Field access
 struct BoundFieldAccessExpr {
   const FieldSymbol* field;
+  std::string flattenedPath;  // Flattens nested structures for runtime
 };
 
 // Value keyword

@@ -28,9 +28,9 @@ Value Evaluator::operator()(const binder::BoundLiteralExpr& expr) const {
 Value Evaluator::operator()(const binder::BoundFieldAccessExpr& expr) const {
   if (!currentEnv) throw std::runtime_error("Evaluator environment is null.");
 
-  auto it = currentEnv->find(expr.field->name);
+  auto it = currentEnv->find(expr.flattenedPath);
   if (it == currentEnv->end()) {
-    throw std::runtime_error("Field '" + expr.field->name +
+    throw std::runtime_error("Field '" + expr.flattenedPath +
                              "' not found in generation environment.");
   }
 
