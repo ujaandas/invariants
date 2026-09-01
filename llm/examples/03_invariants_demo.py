@@ -1,96 +1,52 @@
-import invariants_cpp
 from invariants.Engine import Engine
-from invariants.Buffer import FieldBuffer
-from invariants.Processor import ConstraintProcessor
+from invariants.Processor import ConstrainedGenerator
 
 
 def main():
-    # Load the LLM and the C++ state mach
+    source = """
+    spec LogisticsInvoice {
+        field cargo_name: String {}
+        field weight_kg: Number {}
+        field price_per_kg: Number {}
+        
+        field base_cost: Number {
+            value == this.weight_kg * this.price_per_kg;
+        }
+        field import_tariff: Number {
+            value == this.base_cost * 0.15;
+        }
+        field total_cost: Number {
+            value == this.base_cost + this.import_tariff;
+        }
+
+        invariant valid_weight {
+            this.weight_kg > 0.0;
+            this.weight_kg <= 5000.0;
+        }
+    }
+    """
+
+    print("Initializing LLM Engine...")
     engine = Engine()
-    rt = invariants_cpp.Runtime()
-    rt.reset()
+    generator = ConstrainedGenerator(engine)
 
-    # Build JSON string sequentially
-    final_json = "{\n"
-    print("Starting generation \n")
-    print("{")
+    system_prompt = (
+        "You are an automated logistics system generating a JSON invoice for a shipment of Industrial Titanium. "
+        "Output ONLY valid JSON."
+    )
 
-    # Orchestrator loop
-    while rt.has_more_fields():
-        field_name = rt.get_active_field_name()
+    print("\nRunning Generator...")
+    result = generator.generate(source, "LogisticsInvoice", system_prompt, verbose=True)
 
-        # Structurally write JSON key
-        final_json += f'  "{field_name}": '
-        print(f'  "{field_name}": ', end="", flush=True)
-
-        # Check for deterministic bypass
-        if rt.is_active_field_deterministic():
-            # Calculate the answer instantly
-            val_str = rt.solve_deterministic()
-            final_json += val_str
-            print(f"{val_str} (Bypassed)", flush=True)
-
-        else:
-            # Delegate to LLM
-            buffer = FieldBuffer(engine)
-            processor = ConstraintProcessor(rt, buffer)
-
-            # Feed the LLM the exact JSON built so far so it knows the context
-            state = engine.prefill(final_json, logits_processor=processor)
-
-            generated_val = ""
-            while True:
-                token = engine.step(state)
-                if token is None:
-                    break
-
-                char_chunk = engine.decode([token])
-
-                exit_chars = [",", "\n", "}"]
-                if any(c in char_chunk for c in exit_chars):
-                    # Salvage text before the exit character
-                    for c in exit_chars:
-                        if c in char_chunk:
-                            char_chunk = char_chunk.split(c)[0]
-                            break
-
-                    generated_val += char_chunk
-                    print(char_chunk, end="", flush=True)
-                    break  # Now we break safely
-
-                buffer.commit_token(token)
-                generated_val += char_chunk
-                print(char_chunk, end="", flush=True)
-
-            final_json += generated_val
-            # Submit value to C++ to update global state
-            clean_val = generated_val.strip()
-
-            # If string field, remove JSON quotes before submitting to C++
-            if rt.get_active_field_type() == invariants_cpp.FieldType.String:
-                if clean_val.startswith('"') or clean_val.startswith("'"):
-                    clean_val = clean_val[1:]
-                if clean_val.endswith('"') or clean_val.endswith("'"):
-                    clean_val = clean_val[:-1]
-
-            # Submit raw value back to C++ to update global state
-            rt.submit_val_str(field_name, clean_val)
-
-            print(" (LLM generated)", flush=True)
-
-        # Add structural commas and newlines
-        if rt.has_more_fields():
-            final_json += ",\n"
-            print(",")
-        else:
-            final_json += "\n"
-            print()
-
-    final_json += "}"
-    print("}")
-
-    print("Generation complete!")
-    print(final_json)
+    print("\033[1m--- Generation Benchmark Metrics ---\033[0m")
+    print(f"Total Fields Resolved:       {result.total_fields}")
+    print(f"Fields Bypassed (Zero GPU):  {result.fields_bypassed}")
+    print(f"LLM Tokens Sampled:          {result.tokens_sampled}")
+    print(f"Total Generation Wall Time:  {result.wall_time_seconds:.3f}s")
+    if result.wall_time_seconds > 0:
+        print(
+            f"Constrained Decode Speed:    {result.tokens_sampled / result.wall_time_seconds:.2f} tok/s"
+        )
 
 
 if __name__ == "__main__":

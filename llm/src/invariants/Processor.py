@@ -1,60 +1,152 @@
-import numpy as np
+import time
+from dataclasses import dataclass
+
 import invariants_cpp
+import numpy as np
+
 from invariants.Buffer import FieldBuffer
+from invariants.Engine import Engine
+
+
+@dataclass
+class GenerationResult:
+    json_output: str
+    tokens_sampled: int
+    fields_bypassed: int
+    total_fields: int
+    wall_time_seconds: float
 
 
 class ConstraintProcessor:
     def __init__(
-        self, runtime: invariants_cpp.Runtime, buffer: FieldBuffer, top_k: int = 1000
+        self,
+        runtime: invariants_cpp.Runtime,
+        buffer: FieldBuffer,
+        engine: Engine,
+        top_k: int = 1000,
     ):
         self.runtime = runtime
         self.buffer = buffer
+        self.engine = engine
         self.top_k = top_k
+        self.eos_token = engine.llm.token_eos()
 
     def __call__(self, input_ids: list[int], scores: np.ndarray) -> np.ndarray:
-        masked_scores = np.full_like(scores, -np.inf)
         top_k_indices = np.argpartition(scores, -self.top_k)[-self.top_k :]
+        top_k_strings = [self.engine.vocab_strings[idx] for idx in top_k_indices]
+        current_text = self.buffer.current_text()
 
-        valid_tokens_found = 0
-        field_type = self.runtime.get_active_field_type()
+        invariants_cpp.process_logits_batch(
+            self.runtime, scores, top_k_indices.tolist(), top_k_strings, current_text
+        )
 
-        for token_id in top_k_indices:
-            proposed_str = self.buffer.speculative_decode(token_id)
+        if not np.any(scores > -np.inf):
+            scores[self.eos_token] = 0.0
 
-            # Clean spaces and check if  LLM trying to exit field
-            clean_str = proposed_str.strip()
-            is_exit_token = any(clean_str.endswith(c) for c in [",", "\n", "}"])
+        return scores
 
-            # Strip JSON structural punctuation
-            clean_str = clean_str.rstrip(",\n} ")
 
-            # Strip outer JSON quote marks for str fields
-            if field_type == invariants_cpp.FieldType.String:
-                if clean_str.startswith('"') or clean_str.startswith("'"):
-                    clean_str = clean_str[1:]
-                if clean_str.endswith('"') or clean_str.endswith("'"):
-                    clean_str = clean_str[:-1]
+class ConstrainedGenerator:
+    def __init__(self, engine: Engine):
+        self.engine = engine
 
-            # Validation
-            if field_type == invariants_cpp.FieldType.String and clean_str == "":
-                status = invariants_cpp.ValidationStatus.PartialValid
-            else:
-                status = self.runtime.validate_active_field_partial(clean_str)
+    def generate(
+        self, dsl_source: str, root_spec: str, system_prompt: str, verbose: bool = True
+    ) -> GenerationResult:
+        session = invariants_cpp.EngineSession(dsl_source, root_spec)
+        rt = session.runtime
 
-            # Masking Decision
-            if status != invariants_cpp.ValidationStatus.Invalid:
-                if is_exit_token:
-                    # If exit token, val MUST be fully valid
-                    if status == invariants_cpp.ValidationStatus.Valid:
-                        masked_scores[token_id] = scores[token_id]
-                        valid_tokens_found += 1
+        final_json = "{\n"
+        if verbose:
+            print("\n\033[1m[Starting Constrained Execution Graph]\033[0m\n{")
+
+        tokens_sampled = 0
+        fields_bypassed = 0
+        total_fields = 0
+
+        start_time = time.perf_counter()
+
+        while rt.has_more_fields():
+            field_name = rt.get_active_field_name()
+            total_fields += 1
+
+            final_json += f'  "{field_name}": '
+            if verbose:
+                print(f'  "{field_name}": ', end="", flush=True)
+
+            if rt.is_active_field_deterministic():
+                fields_bypassed += 1
+                val_str = rt.solve_deterministic()
+
+                if (
+                    val_str in ("true", "false")
+                    or val_str.replace(".", "", 1).isdigit()
+                ):
+                    json_val = val_str
                 else:
-                    masked_scores[token_id] = scores[token_id]
-                    valid_tokens_found += 1
+                    json_val = f'"{val_str}"'
 
-        if valid_tokens_found == 0:
-            print(
-                f"\n[Warning] Dead end reached for field '{self.runtime.get_active_field_name()}'. Halting."
-            )
+                final_json += json_val
+                if verbose:
+                    print(f"{json_val}  \033[92m[C++ Bypassed]\033[0m", flush=True)
 
-        return masked_scores
+            else:
+                buffer = FieldBuffer(self.engine)
+                processor = ConstraintProcessor(rt, buffer, self.engine)
+                state = self.engine.prefill(
+                    f"{system_prompt}\n{final_json}", logits_processor=processor
+                )
+
+                generated_val = ""
+                while True:
+                    token = self.engine.step(state)
+                    if token is None or token < 0 or token >= self.engine.llm.n_vocab():
+                        break
+
+                    tokens_sampled += 1
+                    char_chunk = self.engine.decode([token])
+
+                    exit_chars = [",", "\n", "}"]
+                    if any(c in char_chunk for c in exit_chars):
+                        for c in exit_chars:
+                            if c in char_chunk:
+                                char_chunk = char_chunk.split(c)[0]
+                                break
+
+                        generated_val += char_chunk
+                        if verbose:
+                            print(char_chunk, end="", flush=True)
+                        break
+
+                    buffer.commit_token(token)
+                    generated_val += char_chunk
+                    if verbose:
+                        print(char_chunk, end="", flush=True)
+
+                final_json += generated_val
+                clean_val = generated_val.strip().rstrip(",\n} ")
+                rt.submit_val_str(field_name, clean_val)
+                if verbose:
+                    print("  \033[94m[LLM Sampled]\033[0m", flush=True)
+
+            if rt.has_more_fields():
+                final_json += ",\n"
+                if verbose:
+                    print(",")
+            else:
+                final_json += "\n"
+                if verbose:
+                    print()
+
+        final_json += "}"
+        if verbose:
+            print("}\n")
+
+        wall_time = time.perf_counter() - start_time
+        return GenerationResult(
+            json_output=final_json,
+            tokens_sampled=tokens_sampled,
+            fields_bypassed=fields_bypassed,
+            total_fields=total_fields,
+            wall_time_seconds=wall_time,
+        )
