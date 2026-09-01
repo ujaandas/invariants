@@ -2,17 +2,46 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "binder.hpp"
 #include "dependency_analyzer.hpp"
+#include "lexer.hpp"
+#include "parser.hpp"
 #include "runtime.hpp"
 #include "symbol_table.hpp"
 
-using invariants::analysis::ExecutionSchedule;
 using invariants::ast::BuiltinType;
-using invariants::binder::BoundModule;
 using invariants::binder::ResolvedType;
 
 namespace py = pybind11;
 using namespace invariants::runtime;
+
+class EngineSession {
+  std::unique_ptr<invariants::ast::ModuleStmt> ast;
+  invariants::binder::Binder binder;
+  invariants::binder::BoundModule boundModule;
+  invariants::analysis::ExecutionSchedule schedule;
+  std::unique_ptr<invariants::runtime::Runtime> runtime;
+
+ public:
+  EngineSession(const std::string& source, const std::string& rootSpec) {
+    invariants::lexer::Lexer lexer(source);
+    auto tokens = lexer.scanTokens();
+
+    invariants::parser::Parser parser(tokens);
+    ast = parser.parseModule();  // AST must be stored as a class member to
+                                 // prevent dangling pointers!
+
+    boundModule = binder.bind(*ast);
+
+    invariants::analysis::DependencyAnalyzer analyzer;
+    schedule = analyzer.analyze(boundModule, rootSpec);
+
+    runtime =
+        std::make_unique<invariants::runtime::Runtime>(boundModule, schedule);
+  }
+
+  invariants::runtime::Runtime& getRuntime() { return *runtime; }
+};
 
 PYBIND11_MODULE(invariants_cpp, m) {
   m.doc() = "Invariants LLM constrained execution runtime engine";
@@ -24,18 +53,13 @@ PYBIND11_MODULE(invariants_cpp, m) {
       .export_values();
 
   py::class_<Runtime>(m, "Runtime")
-      // Initialize with bound module and schedule
-      .def(py::init<const BoundModule&, const ExecutionSchedule&>())
-
       .def("has_more_fields", &Runtime::hasMoreFields)
       .def("get_active_field_name", &Runtime::getActiveFieldName)
       .def("is_active_field_deterministic",
            &Runtime::isActiveFieldDeterministic)
       .def("solve_deterministic", &Runtime::solveDeterministic)
-
-      // The single-string submission (used after a token completes)
-      .def("submit_val_str", &Runtime::submitValStr, py::arg("name"),
-           py::arg("raw_str"))
+      .def("submit_val_str", &Runtime::submitValStr)
+      .def("validate_partial", &Runtime::validatePartial)
 
       // Python passes the entire vocabulary of strings, C++ loops over them
       // internally and returns a list of boolean values (the mask)
@@ -45,13 +69,18 @@ PYBIND11_MODULE(invariants_cpp, m) {
             std::vector<bool> mask;
             mask.reserve(vocab.size());
             for (const auto& token : vocab) {
-              // Consider rewriting validate partial
               auto status = rt.validatePartial(token);
               mask.push_back(status != ValidationStatus::Invalid);
             }
             return mask;
           },
           "Filters a list of candidate tokens, returning a boolean mask.");
+
+  py::class_<EngineSession>(m, "EngineSession")
+      .def(py::init<const std::string&, const std::string&>(),
+           py::arg("source"), py::arg("root_spec"))
+      .def_property_readonly("runtime", &EngineSession::getRuntime,
+                             py::return_value_policy::reference_internal);
 
   m.def(
       "process_logits_batch",
