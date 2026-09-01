@@ -1,0 +1,226 @@
+{
+  "level_description": "Linear Semantic Dependencies (Flat schemas with multi-step arithmetic cascades, proportional tariffs/taxes, and linear forward references)",
+  "benchmarks": {
+    "L2_logistics_invoice": {
+      "id": "L2_logistics_invoice",
+      "name": "Freight Logistics Billing & Tariff Cascade",
+      "level": 2,
+      "domain": "Supply Chain & Logistics",
+      "root_spec": "LogisticsInvoice",
+      "description": "Calculates base shipping costs from weight and rate, applies tiered fuel surcharges and customs duties, and sums the total freight invoice.",
+      "prompts": {
+        "system": "You are an automated logistics orchestration agent generating billing records for international freight shipments. Output ONLY raw, valid JSON.",
+        "user": "Generate a freight billing invoice for a bulk cargo shipment. Select realistic dimensions and calculate all dependent costs exactly."
+      },
+      "invariants_dsl": "spec LogisticsInvoice {\n    field cargo_type: String {\n        value IN [\"Industrial Equipment\", \"Raw Materials\", \"Electronics\"];\n    }\n    field weight_kg: Number {}\n    field unit_rate_per_kg: Number {}\n    field base_cost: Number {\n        value == this.weight_kg * this.unit_rate_per_kg;\n    }\n    field fuel_surcharge: Number {\n        value == this.base_cost * 0.12;\n    }\n    field customs_duty: Number {\n        value == this.base_cost * 0.05;\n    }\n    field total_invoice_usd: Number {\n        value == this.base_cost + this.fuel_surcharge + this.customs_duty;\n    }\n    invariant cargo_constraints {\n        this.weight_kg >= 10.0;\n        this.weight_kg <= 10000.0;\n        this.unit_rate_per_kg >= 1.5;\n        this.unit_rate_per_kg <= 50.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "cargo_type": {
+            "type": "string",
+            "enum": ["Industrial Equipment", "Raw Materials", "Electronics"],
+            "description": "Manifest classification of goods"
+          },
+          "weight_kg": {
+            "type": "number",
+            "minimum": 10.0,
+            "maximum": 10000.0,
+            "description": "Gross shipment weight in kilograms"
+          },
+          "unit_rate_per_kg": {
+            "type": "number",
+            "minimum": 1.5,
+            "maximum": 50.0,
+            "description": "Standard shipping cost per kilogram in USD"
+          },
+          "base_cost": {
+            "type": "number",
+            "description": "Calculated: weight_kg * unit_rate_per_kg"
+          },
+          "fuel_surcharge": {
+            "type": "number",
+            "description": "Calculated: base_cost * 0.12"
+          },
+          "customs_duty": {
+            "type": "number",
+            "description": "Calculated: base_cost * 0.05"
+          },
+          "total_invoice_usd": {
+            "type": "number",
+            "description": "Calculated: base_cost + fuel_surcharge + customs_duty"
+          }
+        },
+        "required": [
+          "cargo_type",
+          "weight_kg",
+          "unit_rate_per_kg",
+          "base_cost",
+          "fuel_surcharge",
+          "customs_duty",
+          "total_invoice_usd"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "cargo_type", "choices": ["Industrial Equipment", "Raw Materials", "Electronics"] },
+        { "type": "range", "field": "weight_kg", "min": 10.0, "max": 10000.0 },
+        { "type": "range", "field": "unit_rate_per_kg", "min": 1.5, "max": 50.0 },
+        { "type": "math", "expr": "abs(base_cost - (weight_kg * unit_rate_per_kg)) < 0.01" },
+        { "type": "math", "expr": "abs(fuel_surcharge - (base_cost * 0.12)) < 0.01" },
+        { "type": "math", "expr": "abs(customs_duty - (base_cost * 0.05)) < 0.01" },
+        { "type": "math", "expr": "abs(total_invoice_usd - (base_cost + fuel_surcharge + customs_duty)) < 0.01" }
+      ]
+    },
+
+    "L2_payroll_stub": {
+      "id": "L2_payroll_stub",
+      "name": "Employee Payroll & Statutory Deductions",
+      "level": 2,
+      "domain": "Finance & Human Resources",
+      "root_spec": "PayrollStub",
+      "description": "Calculates gross compensation from hourly metrics, applies proportional tax withholdings and retirement deductions, and resolves exact net take-home pay.",
+      "prompts": {
+        "system": "You are an enterprise payroll processor generating bi-weekly employee pay stubs. Output ONLY raw, valid JSON.",
+        "user": "Generate an itemized payroll stub for an hourly contractor. Determine hours, calculate gross pay, withhold statutory deductions, and emit net pay."
+      },
+      "invariants_dsl": "spec PayrollStub {\n    field employee_id: String {}\n    field hours_worked: Number {}\n    field hourly_rate: Number {}\n    field gross_pay: Number {\n        value == this.hours_worked * this.hourly_rate;\n    }\n    field income_tax: Number {\n        value == this.gross_pay * 0.22;\n    }\n    field pension_deduction: Number {\n        value == this.gross_pay * 0.05;\n    }\n    field net_pay: Number {\n        value == this.gross_pay - (this.income_tax + this.pension_deduction);\n    }\n    invariant payroll_limits {\n        this.hours_worked >= 1.0;\n        this.hours_worked <= 80.0;\n        this.hourly_rate >= 15.0;\n        this.hourly_rate <= 250.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "employee_id": {
+            "type": "string",
+            "description": "Unique staff identifier"
+          },
+          "hours_worked": {
+            "type": "number",
+            "minimum": 1.0,
+            "maximum": 80.0,
+            "description": "Total billable hours worked in pay period"
+          },
+          "hourly_rate": {
+            "type": "number",
+            "minimum": 15.0,
+            "maximum": 250.0,
+            "description": "Contract hourly billing rate in USD"
+          },
+          "gross_pay": {
+            "type": "number",
+            "description": "Calculated: hours_worked * hourly_rate"
+          },
+          "income_tax": {
+            "type": "number",
+            "description": "Calculated: gross_pay * 0.22"
+          },
+          "pension_deduction": {
+            "type": "number",
+            "description": "Calculated: gross_pay * 0.05"
+          },
+          "net_pay": {
+            "type": "number",
+            "description": "Calculated: gross_pay - (income_tax + pension_deduction)"
+          }
+        },
+        "required": [
+          "employee_id",
+          "hours_worked",
+          "hourly_rate",
+          "gross_pay",
+          "income_tax",
+          "pension_deduction",
+          "net_pay"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "hours_worked", "min": 1.0, "max": 80.0 },
+        { "type": "range", "field": "hourly_rate", "min": 15.0, "max": 250.0 },
+        { "type": "math", "expr": "abs(gross_pay - (hours_worked * hourly_rate)) < 0.01" },
+        { "type": "math", "expr": "abs(income_tax - (gross_pay * 0.22)) < 0.01" },
+        { "type": "math", "expr": "abs(pension_deduction - (gross_pay * 0.05)) < 0.01" },
+        { "type": "math", "expr": "abs(net_pay - (gross_pay - (income_tax + pension_deduction))) < 0.01" }
+      ]
+    },
+
+    "L2_retail_order_billing": {
+      "id": "L2_retail_order_billing",
+      "name": "E-Commerce Checkout & Sales Tax Computation",
+      "level": 2,
+      "domain": "E-Commerce & Retail",
+      "root_spec": "OrderBilling",
+      "description": "Calculates subtotal from integer item quantities, deducts promotion allowances, computes regional sales tax, and determines the final charged balance.",
+      "prompts": {
+        "system": "You are an e-commerce checkout backend generating final customer transaction receipts. Output ONLY raw, valid JSON.",
+        "user": "Generate a purchase order receipt. Select item units and base pricing, apply promotional discounts, calculate regional sales tax, and provide final charge."
+      },
+      "invariants_dsl": "spec OrderBilling {\n    field sku_id: String {}\n    field quantity: Integer {}\n    field unit_price: Number {}\n    field subtotal: Number {\n        value == this.unit_price * this.quantity;\n    }\n    field discount_rate: Number {\n        value == 0.10;\n    }\n    field discount_amount: Number {\n        value == this.subtotal * this.discount_rate;\n    }\n    field taxable_amount: Number {\n        value == this.subtotal - this.discount_amount;\n    }\n    field tax_amount: Number {\n        value == this.taxable_amount * 0.08;\n    }\n    field final_total: Number {\n        value == this.taxable_amount + this.tax_amount;\n    }\n    invariant quantity_bounds {\n        this.quantity >= 1;\n        this.quantity <= 50;\n        this.unit_price >= 5.0;\n        this.unit_price <= 500.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "sku_id": {
+            "type": "string",
+            "description": "Stock keeping unit product identifier"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50,
+            "description": "Item purchase quantity"
+          },
+          "unit_price": {
+            "type": "number",
+            "minimum": 5.0,
+            "maximum": 500.0,
+            "description": "Unit catalog price in USD"
+          },
+          "subtotal": {
+            "type": "number",
+            "description": "Calculated: unit_price * quantity"
+          },
+          "discount_rate": {
+            "type": "number",
+            "const": 0.10,
+            "description": "Applied discount percentage multiplier (fixed at 0.10)"
+          },
+          "discount_amount": {
+            "type": "number",
+            "description": "Calculated: subtotal * discount_rate"
+          },
+          "taxable_amount": {
+            "type": "number",
+            "description": "Calculated: subtotal - discount_amount"
+          },
+          "tax_amount": {
+            "type": "number",
+            "description": "Calculated: taxable_amount * 0.08"
+          },
+          "final_total": {
+            "type": "number",
+            "description": "Calculated: taxable_amount + tax_amount"
+          }
+        },
+        "required": [
+          "sku_id",
+          "quantity",
+          "unit_price",
+          "subtotal",
+          "discount_rate",
+          "discount_amount",
+          "taxable_amount",
+          "tax_amount",
+          "final_total"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "quantity", "min": 1, "max": 50 },
+        { "type": "range", "field": "unit_price", "min": 5.0, "max": 500.0 },
+        { "type": "exact_value", "field": "discount_rate", "expected": 0.10 },
+        { "type": "math", "expr": "abs(subtotal - (unit_price * quantity)) < 0.01" },
+        { "type": "math", "expr": "abs(discount_amount - (subtotal * discount_rate)) < 0.01" },
+        { "type": "math", "expr": "abs(taxable_amount - (subtotal - discount_amount)) < 0.01" },
+        { "type": "math", "expr": "abs(tax_amount - (taxable_amount * 0.08)) < 0.01" },
+        { "type": "math", "expr": "abs(final_total - (taxable_amount + tax_amount)) < 0.01" }
+      ]
+    }
+  }
+}
