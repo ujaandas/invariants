@@ -14,6 +14,7 @@ class Engine:
             filename=filename,
             n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
             seed=seed,
+            local_files_only=True,
             verbose=False,
         )
 
@@ -23,7 +24,9 @@ class Engine:
         self.vocab_strings = []
         for i in range(vocab_size):
             # Decode each token safely, handling special/control tokens
-            self.vocab_strings.append(self.llm.detokenize([i]).decode("utf-8", errors="ignore"))
+            self.vocab_strings.append(
+                self.llm.detokenize([i]).decode("utf-8", errors="ignore")
+            )
 
     def tokenize(self, text: str) -> list[int]:
         """Convert a string into a list of token IDs"""
