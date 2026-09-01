@@ -1,0 +1,168 @@
+{
+  "version": "1.0",
+  "level": 1,
+  "level_description": "Local Refinements & Scalar Constraints (Single-field bounds, exact literals, set memberships, and primitive boolean flags with zero cross-field arithmetic)",
+  "benchmarks": {
+    "L1_user_onboarding": {
+      "id": "L1_user_onboarding",
+      "name": "User Account Onboarding & Compliance",
+      "domain": "Identity & Access Management",
+      "root_spec": "UserOnboarding",
+      "description": "Validates integer scalar boundaries, string enumeration membership, and mandatory boolean flags without cross-field dependencies.",
+      "prompts": {
+        "system": "You are a backend identity verification service configuring user account profiles. Output ONLY raw, valid JSON.",
+        "user": "Generate a compliant user onboarding record for an adult customer residing in a supported jurisdiction."
+      },
+      "invariants_dsl": "spec UserOnboarding {\n    field username: String {}\n    field age: Integer {\n        value >= 18;\n        value <= 120;\n    }\n    field country_code: String {\n        value IN [\"US\", \"GB\", \"DE\", \"FR\", \"JP\"];\n    }\n    field is_verified: Boolean {\n        value == true;\n    }\n    field terms_accepted: Boolean {\n        value == true;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "User account handle"
+          },
+          "age": {
+            "type": "integer",
+            "minimum": 18,
+            "maximum": 120,
+            "description": "User age in years (must be between 18 and 120)"
+          },
+          "country_code": {
+            "type": "string",
+            "enum": ["US", "GB", "DE", "FR", "JP"],
+            "description": "Supported alpha-2 ISO country code"
+          },
+          "is_verified": {
+            "type": "boolean",
+            "const": true,
+            "description": "Identity verification status (must be true)"
+          },
+          "terms_accepted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Terms of service acknowledgement (must be true)"
+          }
+        },
+        "required": ["username", "age", "country_code", "is_verified", "terms_accepted"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "age", "min": 18, "max": 120 },
+        { "type": "membership", "field": "country_code", "choices": ["US", "GB", "DE", "FR", "JP"] },
+        { "type": "exact_value", "field": "is_verified", "expected": true },
+        { "type": "exact_value", "field": "terms_accepted", "expected": true }
+      ]
+    },
+
+    "L1_iot_telemetry": {
+      "id": "L1_iot_telemetry",
+      "name": "Industrial IoT Sensor Telemetry",
+      "domain": "Embedded Systems & IoT",
+      "root_spec": "SensorTelemetry",
+      "description": "Enforces physical sensor reading boundaries on floating-point and integer metrics along with status categorization.",
+      "prompts": {
+        "system": "You are an edge device transmitting telemetry packets from an industrial environmental monitor. Output ONLY raw, valid JSON.",
+        "user": "Emit an active sensor packet reporting current environmental metrics within standard operational limits."
+      },
+      "invariants_dsl": "spec SensorTelemetry {\n    field device_id: String {}\n    field temperature_c: Number {\n        value >= -40.0;\n        value <= 85.0;\n    }\n    field humidity_pct: Number {\n        value >= 0.0;\n        value <= 100.0;\n    }\n    field battery_level: Integer {\n        value >= 0;\n        value <= 100;\n    }\n    field status: String {\n        value IN [\"OK\", \"WARNING\", \"CRITICAL\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "device_id": {
+            "type": "string",
+            "description": "Unique sensor hardware identifier"
+          },
+          "temperature_c": {
+            "type": "number",
+            "minimum": -40.0,
+            "maximum": 85.0,
+            "description": "Ambient temperature in Celsius (must be between -40.0 and 85.0)"
+          },
+          "humidity_pct": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 100.0,
+            "description": "Relative humidity percentage (must be between 0.0 and 100.0)"
+          },
+          "battery_level": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100,
+            "description": "Remaining battery percentage (must be between 0 and 100)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["OK", "WARNING", "CRITICAL"],
+            "description": "Device health status indicator"
+          }
+        },
+        "required": ["device_id", "temperature_c", "humidity_pct", "battery_level", "status"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "temperature_c", "min": -40.0, "max": 85.0 },
+        { "type": "range", "field": "humidity_pct", "min": 0.0, "max": 100.0 },
+        { "type": "range", "field": "battery_level", "min": 0, "max": 100 },
+        { "type": "membership", "field": "status", "choices": ["OK", "WARNING", "CRITICAL"] }
+      ]
+    },
+
+    "L1_network_security_rule": {
+      "id": "L1_network_security_rule",
+      "name": "Cloud VPC Security Group Rule",
+      "domain": "Cloud Infrastructure & Networking",
+      "root_spec": "SecurityRule",
+      "description": "Tests adherence to network protocol types, standard TCP/UDP port ranges, and priority ordering without cross-field arithmetic.",
+      "prompts": {
+        "system": "You are a cloud infrastructure controller provisioning firewall rules for an enterprise VPC. Output ONLY raw, valid JSON.",
+        "user": "Define an enabled security group rule permitting valid inbound traffic on a standard port range."
+      },
+      "invariants_dsl": "spec SecurityRule {\n    field rule_name: String {}\n    field protocol: String {\n        value IN [\"TCP\", \"UDP\", \"ICMP\"];\n    }\n    field port: Integer {\n        value >= 1;\n        value <= 65535;\n    }\n    field direction: String {\n        value IN [\"INGRESS\", \"EGRESS\"];\n    }\n    field priority: Integer {\n        value >= 10;\n        value <= 1000;\n    }\n    field is_enabled: Boolean {\n        value == true;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "rule_name": {
+            "type": "string",
+            "description": "Human-readable name for the firewall rule"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": ["TCP", "UDP", "ICMP"],
+            "description": "Transport protocol"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "description": "Target port number (must be between 1 and 65535)"
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["INGRESS", "EGRESS"],
+            "description": "Traffic flow direction"
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 1000,
+            "description": "Evaluation priority (must be between 10 and 1000)"
+          },
+          "is_enabled": {
+            "type": "boolean",
+            "const": true,
+            "description": "Rule enforcement status (must be true)"
+          }
+        },
+        "required": ["rule_name", "protocol", "port", "direction", "priority", "is_enabled"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "protocol", "choices": ["TCP", "UDP", "ICMP"] },
+        { "type": "range", "field": "port", "min": 1, "max": 65535 },
+        { "type": "membership", "field": "direction", "choices": ["INGRESS", "EGRESS"] },
+        { "type": "range", "field": "priority", "min": 10, "max": 1000 },
+        { "type": "exact_value", "field": "is_enabled", "expected": true }
+      ]
+    }
+  }
+}
