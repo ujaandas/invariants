@@ -1,6 +1,5 @@
 {
   "version": "1.0",
-  "level": 1,
   "level_description": "Local Refinements & Scalar Constraints (Single-field bounds, exact literals, set memberships, and primitive boolean flags with zero cross-field arithmetic)",
   "benchmarks": {
     "L1_user_onboarding": {
