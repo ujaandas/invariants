@@ -4,7 +4,6 @@
     "L2_logistics_invoice": {
       "id": "L2_logistics_invoice",
       "name": "Freight Logistics Billing & Tariff Cascade",
-      "level": 2,
       "domain": "Supply Chain & Logistics",
       "root_spec": "LogisticsInvoice",
       "description": "Calculates base shipping costs from weight and rate, applies tiered fuel surcharges and customs duties, and sums the total freight invoice.",
@@ -75,7 +74,6 @@
     "L2_payroll_stub": {
       "id": "L2_payroll_stub",
       "name": "Employee Payroll & Statutory Deductions",
-      "level": 2,
       "domain": "Finance & Human Resources",
       "root_spec": "PayrollStub",
       "description": "Calculates gross compensation from hourly metrics, applies proportional tax withholdings and retirement deductions, and resolves exact net take-home pay.",
@@ -144,7 +142,6 @@
     "L2_retail_order_billing": {
       "id": "L2_retail_order_billing",
       "name": "E-Commerce Checkout & Sales Tax Computation",
-      "level": 2,
       "domain": "E-Commerce & Retail",
       "root_spec": "OrderBilling",
       "description": "Calculates subtotal from integer item quantities, deducts promotion allowances, computes regional sales tax, and determines the final charged balance.",
