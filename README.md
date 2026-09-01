@@ -32,7 +32,6 @@ require knowledge of previously generated fields. These are **global semantic co
 2. **Deterministic Bypasses:** When a field's value becomes mathematically constrained by upstream fields, the runtime computes it instantly in C++ and **bypasses the LLM entirely**, reducing GPU token generation overhead.
 3. **In-Memory Logit Masking:** For unmasked fields, incoming logits are evaluated and filtered in-place to prevent invalid tokens or out-of-bounds hallucinations.
 
----
 
 **Module & Specification Structure**
 
@@ -72,7 +71,6 @@ require knowledge of previously generated fields. These are **global semantic co
 **Reserved Context Keywords**
 
 * **`this`:** References the current schema scope, primarily used to target cross-field paths within invariant blocks (e.g., `this.profile.vcpu_cores`).
----
 
 ## Example
 
@@ -127,7 +125,6 @@ The `invariants_cpp` module exposes the following core capabilities:
 * **State Machine Navigation:** Exposes the `Runtime` to Python, allowing the orchestrator to query the C++ engine for the next required field (`get_active_field_name`), verify if it can be skipped (`is_active_field_deterministic`), and commit generated values (`submit_val_str`).
 * **Automatic JSON Formatting:** The C++ bindings automatically detect structural exit characters (`,`, `\n`, `}`) and trim string quotes (`"`, `'`), abstracting JSON syntax management away from the Python layer.
 
----
 
 ## Using the Library in Practice
 
@@ -228,13 +225,11 @@ if __name__ == "__main__":
     main()
 ```
 
----
 
 ## Prerequisites
 
 [Nix](https://nixos.org/download/) with flakes enabled is highly recommended. All compilers, build tools, and test dependencies are provided automatically by the flake.
 
----
 
 ## Getting started
 
@@ -260,7 +255,6 @@ nix run .#configure
 nix run .#test
 
 ```
----
 
 ## Project layout
 
