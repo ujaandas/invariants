@@ -33,6 +33,8 @@ class Runtime {
   // step
   void submitValStr(std::string_view name, std::string_view raw_str);
 
+  const binder::FieldSymbol* getActiveFieldSymbol() const;
+
   const Environment& getEnvironment() const;
 
  private:
@@ -44,7 +46,6 @@ class Runtime {
   size_t currStepIdx = 0;
 
   // Internal helpers
-  const binder::FieldSymbol* getActiveFieldSymbol() const;
   void submitVal(const std::string& name, const Value& val);
 };
 
