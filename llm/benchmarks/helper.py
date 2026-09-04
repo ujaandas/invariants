@@ -26,23 +26,37 @@ class EvalAssertion:
         return cls(**data)
 
     def evaluate(self, generated_json: dict) -> bool:
+        return self.evaluate_detailed(generated_json)[0]
+
+    def evaluate_detailed(self, generated_json: dict) -> tuple[bool, str]:
+        """Same check as evaluate(), but also returns a human-readable
+        explanation of what was compared -- this is what gets persisted to
+        the benchmark results log/JSON so a failure is legible without
+        re-running the case."""
         if self.field not in generated_json:
-            return False  # Field missing
+            return False, f"field '{self.field}' missing from output"
 
         val = generated_json[self.field]
 
         try:
             if self.type == "range":
-                return self.min <= float(val) <= self.max
+                ok = self.min <= float(val) <= self.max
+                return ok, f"{val!r} in [{self.min}, {self.max}]"
             elif self.type == "membership":
-                return val in self.choices
+                ok = val in self.choices
+                return ok, f"{val!r} in {self.choices}"
             elif self.type == "exact_value":
-                return val == self.expected
+                ok = val == self.expected
+                return ok, f"{val!r} == {self.expected!r}"
             else:
-                raise ValueError(f"Unknown assertion type: {self.type}")
-        except (ValueError, TypeError):
+                # e.g. "math" assertions (used from L2 onward) aren't
+                # implemented yet -- surface that plainly instead of a
+                # silent/misleading "Failed", since a wave of these could
+                # otherwise look like real generation failures in the data.
+                return False, f"assertion type '{self.type}' not yet implemented"
+        except (ValueError, TypeError) as e:
             # E.g., trying to float() a string that the LLM hallucinated
-            return False
+            return False, f"error evaluating against {val!r}: {e}"
 
 
 @dataclass

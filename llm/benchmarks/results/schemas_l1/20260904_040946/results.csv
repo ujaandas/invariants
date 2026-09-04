@@ -1,0 +1,7 @@
+Benchmark_ID,System,Semantic_Success,Assertions_Passed,Assertions_Total,Tokens_Generated,Fields_Bypassed,Wall_Time_s,Tokens_Per_Sec
+L1_user_onboarding,Baseline_CFG,True,4,4,37,0,11.463,3.23
+L1_user_onboarding,Invariants,True,4,4,11,2,10.375,1.06
+L1_iot_telemetry,Baseline_CFG,True,4,4,46,0,13.764,3.34
+L1_iot_telemetry,Invariants,True,4,4,23,0,13.637,1.69
+L1_network_security_rule,Baseline_CFG,False,4,5,42,0,12.508,3.36
+L1_network_security_rule,Invariants,True,5,5,18,1,12.434,1.45
