@@ -37,6 +37,7 @@ class Engine:
                 n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
                 seed=seed,
                 verbose=False,
+                n_ctx=2048,
             )
         else:
             # Not cached yet: fall back to the network-aware loader, which
@@ -47,6 +48,7 @@ class Engine:
                 n_gpu_layers=-1,
                 seed=seed,
                 verbose=False,
+                n_ctx=2048,
             )
 
         # Pre-decode the entire vocabulary for instant access

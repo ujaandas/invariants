@@ -3,6 +3,12 @@ from dataclasses import dataclass
 from typing import Any
 
 
+def eval_math_expr(expr: str, scope: dict) -> bool:
+    # expr strings come from schema files we author ourselves, so a plain
+    # eval() is fine -- builtins stripped, only `abs` exposed.
+    return bool(eval(expr, {"__builtins__": {}, "abs": abs}, scope))  # noqa: S307
+
+
 @dataclass
 class Prompts:
     system: str
@@ -12,7 +18,8 @@ class Prompts:
 @dataclass
 class EvalAssertion:
     type: str
-    field: str
+    # None for "math" assertions, which reference fields via `expr` instead
+    field: str | None = None
     # Range specific
     min: float | None = None
     max: float | None = None
@@ -20,6 +27,8 @@ class EvalAssertion:
     choices: list[Any] | None = None
     # Exact value specific
     expected: Any | None = None
+    # Math specific: a Python expression, e.g. "abs(a - b) < 0.01"
+    expr: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> "EvalAssertion":
@@ -28,15 +37,29 @@ class EvalAssertion:
     def evaluate(self, generated_json: dict) -> bool:
         return self.evaluate_detailed(generated_json)[0]
 
-    def evaluate_detailed(self, generated_json: dict) -> tuple[bool, str]:
-        """Same check as evaluate(), but also returns a human-readable
-        explanation of what was compared -- this is what gets persisted to
-        the benchmark results log/JSON so a failure is legible without
-        re-running the case."""
-        if self.field not in generated_json:
-            return False, f"field '{self.field}' missing from output"
+    def _resolve_field(self, generated_json: dict) -> tuple[bool, Any]:
+        # Walks self.field (e.g. "profile.vcpu_cores") through nested dicts.
+        current: Any = generated_json
+        for part in (self.field or "").split("."):
+            if not isinstance(current, dict) or part not in current:
+                return False, None
+            current = current[part]
+        return True, current
 
-        val = generated_json[self.field]
+    def evaluate_detailed(self, generated_json: dict) -> tuple[bool, str]:
+        # Same as evaluate(), plus a human-readable explanation for logs.
+        if self.type == "math":
+            if not self.expr:
+                return False, "math assertion missing 'expr'"
+            try:
+                ok = eval_math_expr(self.expr, generated_json)
+            except Exception as e:
+                return False, f"error evaluating '{self.expr}': {e}"
+            return ok, f"{self.expr} -> {ok}"
+
+        found, val = self._resolve_field(generated_json)
+        if not found:
+            return False, f"field '{self.field}' missing from output"
 
         try:
             if self.type == "range":
@@ -49,11 +72,7 @@ class EvalAssertion:
                 ok = val == self.expected
                 return ok, f"{val!r} == {self.expected!r}"
             else:
-                # e.g. "math" assertions (used from L2 onward) aren't
-                # implemented yet -- surface that plainly instead of a
-                # silent/misleading "Failed", since a wave of these could
-                # otherwise look like real generation failures in the data.
-                return False, f"assertion type '{self.type}' not yet implemented"
+                return False, f"unknown assertion type '{self.type}'"
         except (ValueError, TypeError) as e:
             # E.g., trying to float() a string that the LLM hallucinated
             return False, f"error evaluating against {val!r}: {e}"

@@ -1,3 +1,4 @@
+import json
 import time
 from dataclasses import dataclass
 
@@ -61,7 +62,11 @@ class ConstrainedGenerator:
         session = invariants_cpp.EngineSession(dsl_source, root_spec)
         rt = session.runtime
 
+        # final_json is flat dotted-key text used only to prime the prompt.
+        # `values` tracks the same data as typed Python values, reassembled
+        # into real nested JSON for the returned result.
         final_json = "{\n"
+        values: dict[str, object] = {}
         if verbose:
             print("\n\033[1m[Starting Constrained Execution Graph]\033[0m\n{")
 
@@ -92,6 +97,7 @@ class ConstrainedGenerator:
                     json_val = f'"{val_str}"'
 
                 final_json += json_val
+                values[field_name] = json.loads(json_val)
                 if verbose:
                     print(f"{json_val}  \033[92m[C++ Bypassed]\033[0m", flush=True)
 
@@ -135,7 +141,19 @@ class ConstrainedGenerator:
                         f"LLM generated an empty value for field '{field_name}'. "
                         "Logit constraint mask prevented invalid tokens, but the model terminated generation early."
                     )
+                # submit_val_str() commits unconditionally without
+                # re-checking constraints, so if generation was cut short
+                # (e.g. forced EOS after the mask rejected everything), the
+                # accumulated text might not actually be valid -- check here
+                # rather than let it slip into the committed environment.
+                final_status = rt.validate_partial(clean_val, True)
+                if final_status == invariants_cpp.ValidationStatus.Invalid:
+                    raise RuntimeError(
+                        f"Generation for field '{field_name}' terminated with a "
+                        f"value that violates its constraints: {clean_val!r}."
+                    )
                 rt.submit_val_str(field_name, clean_val)
+                values[field_name] = json.loads(clean_val)
                 if verbose:
                     print("  \033[94m[LLM Sampled]\033[0m", flush=True)
 
@@ -152,9 +170,19 @@ class ConstrainedGenerator:
         if verbose:
             print("}\n")
 
+        # Reassemble the flat "profile.vcpu_cores" -> value pairs into genuinely
+        # nested JSON, e.g. {"profile": {"vcpu_cores": 2}}.
+        nested: dict[str, object] = {}
+        for path, value in values.items():
+            node = nested
+            parts = path.split(".")
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            node[parts[-1]] = value
+
         wall_time = time.perf_counter() - start_time
         return GenerationResult(
-            json_output=final_json,
+            json_output=json.dumps(nested, indent=2),
             tokens_sampled=tokens_sampled,
             fields_bypassed=fields_bypassed,
             total_fields=total_fields,
