@@ -16,6 +16,8 @@ class GenerationResult:
     fields_bypassed: int
     total_fields: int
     wall_time_seconds: float
+    mask_time_seconds: float = 0.0
+    mask_calls: int = 0
 
 
 class ConstraintProcessor:
@@ -24,6 +26,8 @@ class ConstraintProcessor:
         self.buffer = buffer
         self.engine = engine
         self.eos_token = engine.llm.token_eos()
+        self.mask_time_seconds = 0.0
+        self.mask_calls = 0
 
     def __call__(self, input_ids: list[int], scores: np.ndarray) -> np.ndarray:
         current_text = self.buffer.current_text()
@@ -31,7 +35,9 @@ class ConstraintProcessor:
         # C contig mem
         scores_contiguous = np.ascontiguousarray(scores, dtype=np.float32)
 
-        # Mutate the contiguous array in C++
+        # Isolates the mask computation itself (pure C++, O(vocab_size) per
+        # call) from LLM inference time, which happens outside __call__.
+        mask_start = time.perf_counter()
         invariants_cpp.mask_logits_full_vocab(
             self.runtime,
             scores_contiguous,
@@ -39,6 +45,8 @@ class ConstraintProcessor:
             current_text,
             False,
         )
+        self.mask_time_seconds += time.perf_counter() - mask_start
+        self.mask_calls += 1
 
         # If the mask successfully rejected EVERYTHING
         if not np.any(np.isfinite(scores_contiguous)):
@@ -73,6 +81,8 @@ class ConstrainedGenerator:
         tokens_sampled = 0
         fields_bypassed = 0
         total_fields = 0
+        mask_time_seconds = 0.0
+        mask_calls = 0
 
         start_time = time.perf_counter()
 
@@ -154,6 +164,8 @@ class ConstrainedGenerator:
                     )
                 rt.submit_val_str(field_name, clean_val)
                 values[field_name] = json.loads(clean_val)
+                mask_time_seconds += processor.mask_time_seconds
+                mask_calls += processor.mask_calls
                 if verbose:
                     print("  \033[94m[LLM Sampled]\033[0m", flush=True)
 
@@ -187,4 +199,6 @@ class ConstrainedGenerator:
             fields_bypassed=fields_bypassed,
             total_fields=total_fields,
             wall_time_seconds=wall_time,
+            mask_time_seconds=mask_time_seconds,
+            mask_calls=mask_calls,
         )

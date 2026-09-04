@@ -55,6 +55,16 @@ def parse_args() -> argparse.Namespace:
         help="Stream each generated token live instead of just the final "
         "JSON per case. Useful for diagnosing a stuck field.",
     )
+    parser.add_argument(
+        "--invariants-only",
+        action="store_true",
+        help="Skip the Baseline_CFG and Plain_Prompt systems entirely (no "
+        "baseline model load, no extra generation calls) and only run "
+        "Invariants. For isolating mask-computation timing without paying "
+        "for the other two systems. Writes to results/mask_timing/ instead "
+        "of the normal per-level location -- does not touch latest/ or the "
+        "by_system rollups, which need all three systems present.",
+    )
     return parser.parse_args()
 
 
@@ -225,6 +235,8 @@ def run_invariants_case(
         "fields_bypassed": result.fields_bypassed,
         "wall_time_s": wall_time,
         "tokens_per_sec": tps,
+        "mask_time_s": result.mask_time_seconds,
+        "mask_calls": result.mask_calls,
     }
 
 
@@ -287,7 +299,13 @@ def main():
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
     level_dir = RESULTS_ROOT / suite_path.stem
-    out_dir = level_dir / timestamp
+    if args.invariants_only:
+        # Separate tree: this run is missing Baseline_CFG/Plain_Prompt rows
+        # entirely, so it must never become a level's latest/ or feed the
+        # by_system rollups, which assume all three systems are present.
+        out_dir = RESULTS_ROOT / "mask_timing" / suite_path.stem / timestamp
+    else:
+        out_dir = level_dir / timestamp
     out_dir.mkdir(parents=True, exist_ok=True)
 
     log_path = out_dir / "run.log"
@@ -311,8 +329,10 @@ def main():
             json.dump(run_payload, f, indent=2)
 
     try:
-        print("Initializing baseline (SOTA CFG / JSON Schema) model...")
-        llm = load_baseline_llm()
+        llm = None
+        if not args.invariants_only:
+            print("Initializing baseline (SOTA CFG / JSON Schema) model...")
+            llm = load_baseline_llm()
 
         print("Initializing invariants engine...")
         engine = Engine()
@@ -331,6 +351,8 @@ def main():
                     "Fields_Bypassed",
                     "Wall_Time_s",
                     "Tokens_Per_Sec",
+                    "Mask_Time_s",
+                    "Mask_Calls",
                 ]
             )
 
@@ -346,39 +368,42 @@ def main():
                     "domain": case.domain,
                 }
 
-                print("\n>>> Running Baseline (SOTA CFG / JSON Schema)")
-                try:
-                    baseline = run_baseline_case(llm, case)
-                except Exception as e:  # noqa: BLE001
-                    print(f"    Baseline generation crashed: {e}")
-                    traceback.print_exc()
-                    baseline = {
-                        "raw_output": None,
-                        "success": False,
-                        "assertions": [],
-                        "tokens": 0,
-                        "wall_time_s": 0.0,
-                        "tokens_per_sec": 0.0,
-                        "error": str(e),
-                    }
-                case_payload["baseline"] = baseline
+                baseline = None
+                plain_prompt = None
+                if not args.invariants_only:
+                    print("\n>>> Running Baseline (SOTA CFG / JSON Schema)")
+                    try:
+                        baseline = run_baseline_case(llm, case)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"    Baseline generation crashed: {e}")
+                        traceback.print_exc()
+                        baseline = {
+                            "raw_output": None,
+                            "success": False,
+                            "assertions": [],
+                            "tokens": 0,
+                            "wall_time_s": 0.0,
+                            "tokens_per_sec": 0.0,
+                            "error": str(e),
+                        }
+                    case_payload["baseline"] = baseline
 
-                print("\n>>> Running Plain Prompt (no grammar)")
-                try:
-                    plain_prompt = run_plain_prompt_case(llm, case)
-                except Exception as e:  # noqa: BLE001
-                    print(f"    Plain prompt generation crashed: {e}")
-                    traceback.print_exc()
-                    plain_prompt = {
-                        "raw_output": None,
-                        "success": False,
-                        "assertions": [],
-                        "tokens": 0,
-                        "wall_time_s": 0.0,
-                        "tokens_per_sec": 0.0,
-                        "error": str(e),
-                    }
-                case_payload["plain_prompt"] = plain_prompt
+                    print("\n>>> Running Plain Prompt (no grammar)")
+                    try:
+                        plain_prompt = run_plain_prompt_case(llm, case)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"    Plain prompt generation crashed: {e}")
+                        traceback.print_exc()
+                        plain_prompt = {
+                            "raw_output": None,
+                            "success": False,
+                            "assertions": [],
+                            "tokens": 0,
+                            "wall_time_s": 0.0,
+                            "tokens_per_sec": 0.0,
+                            "error": str(e),
+                        }
+                    case_payload["plain_prompt"] = plain_prompt
 
                 print("\n>>> Running Invariants Architecture")
                 try:
@@ -396,6 +421,8 @@ def main():
                         "fields_bypassed": 0,
                         "wall_time_s": 0.0,
                         "tokens_per_sec": 0.0,
+                        "mask_time_s": 0.0,
+                        "mask_calls": 0,
                         "error": str(e),
                     }
                 case_payload["invariants"] = invariants
@@ -405,37 +432,55 @@ def main():
                 # never loses data already gathered.
                 flush_json()
 
-                base_passed = sum(1 for a in baseline["assertions"] if a["passed"])
-                base_total = len(baseline["assertions"])
-                csv_writer.writerow(
-                    [
-                        case_id,
-                        "Baseline_CFG",
-                        baseline["success"],
-                        base_passed,
-                        base_total,
-                        baseline["tokens"],
-                        0,
-                        f"{baseline['wall_time_s']:.3f}",
-                        f"{baseline['tokens_per_sec']:.2f}",
-                    ]
-                )
+                print(f"\n--- Summary for {case_id} ---")
 
-                plain_passed = sum(1 for a in plain_prompt["assertions"] if a["passed"])
-                plain_total = len(plain_prompt["assertions"])
-                csv_writer.writerow(
-                    [
-                        case_id,
-                        "Plain_Prompt",
-                        plain_prompt["success"],
-                        plain_passed,
-                        plain_total,
-                        plain_prompt["tokens"],
-                        0,
-                        f"{plain_prompt['wall_time_s']:.3f}",
-                        f"{plain_prompt['tokens_per_sec']:.2f}",
-                    ]
-                )
+                if baseline is not None:
+                    base_passed = sum(1 for a in baseline["assertions"] if a["passed"])
+                    base_total = len(baseline["assertions"])
+                    csv_writer.writerow(
+                        [
+                            case_id,
+                            "Baseline_CFG",
+                            baseline["success"],
+                            base_passed,
+                            base_total,
+                            baseline["tokens"],
+                            0,
+                            f"{baseline['wall_time_s']:.3f}",
+                            f"{baseline['tokens_per_sec']:.2f}",
+                            "0.000",
+                            0,
+                        ]
+                    )
+                    print(
+                        f"Baseline   | Success: {baseline['success']} | "
+                        f"Speed: {baseline['tokens_per_sec']:.2f} t/s | "
+                        f"Tokens: {baseline['tokens']}"
+                    )
+
+                if plain_prompt is not None:
+                    plain_passed = sum(1 for a in plain_prompt["assertions"] if a["passed"])
+                    plain_total = len(plain_prompt["assertions"])
+                    csv_writer.writerow(
+                        [
+                            case_id,
+                            "Plain_Prompt",
+                            plain_prompt["success"],
+                            plain_passed,
+                            plain_total,
+                            plain_prompt["tokens"],
+                            0,
+                            f"{plain_prompt['wall_time_s']:.3f}",
+                            f"{plain_prompt['tokens_per_sec']:.2f}",
+                            "0.000",
+                            0,
+                        ]
+                    )
+                    print(
+                        f"Plain      | Success: {plain_prompt['success']} | "
+                        f"Speed: {plain_prompt['tokens_per_sec']:.2f} t/s | "
+                        f"Tokens: {plain_prompt['tokens']}"
+                    )
 
                 inv_passed = sum(1 for a in invariants["assertions"] if a["passed"])
                 inv_total = len(invariants["assertions"])
@@ -450,37 +495,32 @@ def main():
                         invariants.get("fields_bypassed", 0),
                         f"{invariants['wall_time_s']:.3f}",
                         f"{invariants['tokens_per_sec']:.2f}",
+                        f"{invariants.get('mask_time_s', 0.0):.4f}",
+                        invariants.get("mask_calls", 0),
                     ]
                 )
                 csv_file.flush()
 
-                print(f"\n--- Summary for {case_id} ---")
-                print(
-                    f"Baseline   | Success: {baseline['success']} | "
-                    f"Speed: {baseline['tokens_per_sec']:.2f} t/s | "
-                    f"Tokens: {baseline['tokens']}"
-                )
-                print(
-                    f"Plain      | Success: {plain_prompt['success']} | "
-                    f"Speed: {plain_prompt['tokens_per_sec']:.2f} t/s | "
-                    f"Tokens: {plain_prompt['tokens']}"
-                )
                 print(
                     f"Invariants | Success: {invariants['success']} | "
                     f"Speed: {invariants['tokens_per_sec']:.2f} t/s | "
                     f"Tokens: {invariants['tokens']} "
-                    f"({invariants.get('fields_bypassed', 0)} fields bypassed)"
+                    f"({invariants.get('fields_bypassed', 0)} fields bypassed) | "
+                    f"Mask time: {invariants.get('mask_time_s', 0.0):.4f}s over "
+                    f"{invariants.get('mask_calls', 0)} calls"
                 )
-
-        update_latest_pointer(out_dir, level_dir)
-        rebuild_rollups()
 
         print(f"\nBenchmarks complete for suite '{suite_path.stem}'.")
         print(f"  Transcript: {log_path}")
         print(f"  CSV:        {csv_path}")
         print(f"  JSON:       {json_path}")
-        print(f"  Latest:     {level_dir / 'latest'}")
-        print(f"  Rollups:    {RESULTS_ROOT / 'by_system'} , {RESULTS_ROOT / 'all_results.csv'}")
+        if not args.invariants_only:
+            update_latest_pointer(out_dir, level_dir)
+            rebuild_rollups()
+            print(f"  Latest:     {level_dir / 'latest'}")
+            print(f"  Rollups:    {RESULTS_ROOT / 'by_system'} , {RESULTS_ROOT / 'all_results.csv'}")
+        else:
+            print("  (--invariants-only: latest/ pointer and rollups untouched)")
     finally:
         sys.stdout = real_stdout
         log_file.close()
