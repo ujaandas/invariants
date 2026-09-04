@@ -207,8 +207,8 @@ std::string Runtime::solveDeterministic() {
   return valueToString(computedValue);
 }
 
-ValidationStatus Runtime::validatePartial(
-    std::string_view proposedChars) const {
+ValidationStatus Runtime::validatePartial(std::string_view proposedChars,
+                                          bool isComplete) const {
   if (!hasMoreFields()) return ValidationStatus::Invalid;
 
   std::string activePath = getActiveFieldName();
@@ -231,7 +231,8 @@ ValidationStatus Runtime::validatePartial(
       if (trigger.constraint->isDeterministicPossible) continue;
 
       try {
-        Value res = evaluator.evaluate(*trigger.constraint->expr, tempEnv);
+        Value res = evaluator.evaluate(*trigger.constraint->expr, tempEnv,
+                                       /*partial=*/!isComplete);
         if (std::holds_alternative<bool>(res) && !std::get<bool>(res)) {
           return ValidationStatus::Invalid;
         }
@@ -241,7 +242,7 @@ ValidationStatus Runtime::validatePartial(
     }
   }
 
-  return ValidationStatus::Valid;
+  return isComplete ? ValidationStatus::Valid : ValidationStatus::PartialValid;
 }
 
 void Runtime::submitValStr(std::string_view name, std::string_view raw_str) {

@@ -3,9 +3,10 @@
 namespace invariants::runtime {
 
 Value Evaluator::evaluate(const binder::BoundExpr& expr,
-                          const Environment& env) const {
+                          const Environment& env, bool partial) const {
   // Store env for this pass
   currentEnv = &env;
+  partialMode = partial;
   return std::visit(*this, expr.value);
 }
 
@@ -151,6 +152,23 @@ Value Evaluator::operator()(const binder::BoundBinaryExpr& expr) const {
     case ast::BinaryOp::Equal: {
       if (is_numeric(leftVal) && is_numeric(rightVal))
         return get_double(leftVal) == get_double(rightVal);
+      if (partialMode && std::holds_alternative<std::string>(leftVal) &&
+          std::holds_alternative<std::string>(rightVal)) {
+        // Partial mode: one side is the in-progress LLM string and the other
+        // a fixed literal (order unknown here). Treat the shorter as a
+        // not-yet-finished prefix of the longer, rather than requiring them
+        // to already be equal -- otherwise `value == "US"` would reject "U"
+        // outright, the same way IN used to.
+        const auto& shorter = std::get<std::string>(leftVal).size() <=
+                                       std::get<std::string>(rightVal).size()
+                                   ? std::get<std::string>(leftVal)
+                                   : std::get<std::string>(rightVal);
+        const auto& longer = std::get<std::string>(leftVal).size() <=
+                                      std::get<std::string>(rightVal).size()
+                                  ? std::get<std::string>(rightVal)
+                                  : std::get<std::string>(leftVal);
+        return longer.compare(0, shorter.size(), shorter) == 0;
+      }
       return leftVal ==
              rightVal;  // Fallback to std::variant equality for strings/bools
     }
@@ -173,9 +191,23 @@ Value Evaluator::operator()(const binder::BoundBinaryExpr& expr) const {
     case ast::BinaryOp::NotIn: {
       auto arrayPtr = std::get<std::shared_ptr<ArrayValue>>(rightVal);
       bool found = false;
+      bool leftIsPartialString = partialMode && expr.op == ast::BinaryOp::In &&
+                                 std::holds_alternative<std::string>(leftVal);
       for (const auto& el : arrayPtr->elements) {
         if (is_numeric(leftVal) && is_numeric(el)) {
           if (get_double(leftVal) == get_double(el)) {
+            found = true;
+            break;
+          }
+        } else if (leftIsPartialString &&
+                   std::holds_alternative<std::string>(el)) {
+          // Partial mode: the LLM hasn't finished typing this string yet, so
+          // treat membership as "still a viable prefix of some allowed
+          // value" instead of requiring an exact match.
+          const auto& prefix = std::get<std::string>(leftVal);
+          const auto& candidate = std::get<std::string>(el);
+          if (candidate.size() >= prefix.size() &&
+              candidate.compare(0, prefix.size(), prefix) == 0) {
             found = true;
             break;
           }

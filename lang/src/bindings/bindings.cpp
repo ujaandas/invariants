@@ -2,6 +2,11 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include <cctype>
+#include <iostream>
+#include <limits>
+#include <string_view>
+
 #include "binder.hpp"
 #include "dependency_analyzer.hpp"
 #include "lexer.hpp"
@@ -14,6 +19,112 @@ using invariants::binder::ResolvedType;
 
 namespace py = pybind11;
 using namespace invariants::runtime;
+
+// Strict JSON Integer: -?(0|[1-9][0-9]*)
+inline bool isValidPartialJsonInteger(std::string_view s, bool& canExit) {
+  canExit = false;
+  if (s.empty()) return false;
+
+  size_t idx = 0;
+  if (s[idx] == '-') {
+    idx++;
+    if (idx == s.size()) {
+      return true;  // "-" is a valid partial prefix, but CANNOT exit
+    }
+  }
+
+  if (idx >= s.size() || !std::isdigit(static_cast<unsigned char>(s[idx]))) {
+    return false;
+  }
+
+  if (s[idx] == '0') {
+    idx++;
+    if (idx < s.size()) {
+      return false;  // Trailing digits after '0' are invalid in integers
+    }
+  } else {
+    while (idx < s.size() && std::isdigit(static_cast<unsigned char>(s[idx]))) {
+      idx++;
+    }
+  }
+
+  if (idx != s.size()) return false;
+  canExit = true;
+  return true;
+}
+
+// Strict JSON Number: -?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?
+inline bool isValidPartialJsonNumber(std::string_view s, bool& canExit) {
+  canExit = false;
+  if (s.empty()) return false;
+
+  size_t idx = 0;
+  if (s[idx] == '-') {
+    idx++;
+    if (idx == s.size()) {
+      return true;
+    }
+  }
+
+  if (idx >= s.size() || !std::isdigit(static_cast<unsigned char>(s[idx]))) {
+    return false;
+  }
+
+  if (s[idx] == '0') {
+    idx++;
+    if (idx < s.size() && std::isdigit(static_cast<unsigned char>(s[idx]))) {
+      return false;
+    }
+  } else {
+    while (idx < s.size() && std::isdigit(static_cast<unsigned char>(s[idx]))) {
+      idx++;
+    }
+  }
+
+  canExit = true;
+
+  if (idx < s.size() && s[idx] == '.') {
+    idx++;
+    canExit = false;
+    if (idx == s.size()) return true;
+    if (!std::isdigit(static_cast<unsigned char>(s[idx]))) return false;
+    while (idx < s.size() && std::isdigit(static_cast<unsigned char>(s[idx]))) {
+      idx++;
+    }
+    canExit = true;
+  }
+
+  if (idx < s.size() && (s[idx] == 'e' || s[idx] == 'E')) {
+    idx++;
+    canExit = false;
+    if (idx == s.size()) return true;
+
+    if (s[idx] == '+' || s[idx] == '-') {
+      idx++;
+      if (idx == s.size()) return true;
+    }
+    if (!std::isdigit(static_cast<unsigned char>(s[idx]))) return false;
+    while (idx < s.size() && std::isdigit(static_cast<unsigned char>(s[idx]))) {
+      idx++;
+    }
+    canExit = true;
+  }
+
+  return idx == s.size();
+}
+
+// Strict JSON Boolean: "true" | "false"
+inline bool isValidPartialJsonBoolean(std::string_view s, bool& canExit) {
+  canExit = (s == "true" || s == "false");
+  if (canExit) return true;
+
+  constexpr std::string_view t = "true";
+  constexpr std::string_view f = "false";
+  if (s.size() < t.size() && t.substr(0, s.size()) == s) return true;
+  if (s.size() < f.size() && f.substr(0, s.size()) == s) return true;
+
+  return false;
+}
 
 class EngineSession {
   std::unique_ptr<invariants::ast::ModuleStmt> ast;
@@ -28,8 +139,7 @@ class EngineSession {
     auto tokens = lexer.scanTokens();
 
     invariants::parser::Parser parser(tokens);
-    ast = parser.parseModule();  // AST must be stored as a class member to
-                                 // prevent dangling pointers!
+    ast = parser.parseModule();
 
     boundModule = binder.bind(*ast);
 
@@ -59,22 +169,8 @@ PYBIND11_MODULE(invariants_cpp, m) {
            &Runtime::isActiveFieldDeterministic)
       .def("solve_deterministic", &Runtime::solveDeterministic)
       .def("submit_val_str", &Runtime::submitValStr)
-      .def("validate_partial", &Runtime::validatePartial)
-
-      // Python passes the entire vocabulary of strings, C++ loops over them
-      // internally and returns a list of boolean values (the mask)
-      .def(
-          "validate_vocabulary_batch",
-          [](const Runtime& rt, const std::vector<std::string>& vocab) {
-            std::vector<bool> mask;
-            mask.reserve(vocab.size());
-            for (const auto& token : vocab) {
-              auto status = rt.validatePartial(token);
-              mask.push_back(status != ValidationStatus::Invalid);
-            }
-            return mask;
-          },
-          "Filters a list of candidate tokens, returning a boolean mask.");
+      .def("validate_partial", &Runtime::validatePartial,
+           py::arg("proposed_chars"), py::arg("is_complete") = true);
 
   py::class_<EngineSession>(m, "EngineSession")
       .def(py::init<const std::string&, const std::string&>(),
@@ -83,67 +179,282 @@ PYBIND11_MODULE(invariants_cpp, m) {
                              py::return_value_policy::reference_internal);
 
   m.def(
-      "process_logits_batch",
-      [](const Runtime& rt, py::array_t<float> logits,
-         const std::vector<int>& top_k_indices,
-         const std::vector<std::string>& top_k_strings,
-         const std::string& current_buffer) {
+      "mask_logits_full_vocab",
+      [](const Runtime& rt, py::array_t<float>& logits,
+         const std::vector<std::string>& vocab,
+         const std::string& current_buffer, bool verbose = false) {
         py::buffer_info buf = logits.request();
         float* ptr = static_cast<float*>(buf.ptr);
+        size_t vocab_size = vocab.size();
 
-        ResolvedType field_type = rt.getActiveFieldSymbol()->resType;
-        bool isString =
-            field_type.isBuiltin() &&
-            std::get<BuiltinType>(field_type.type) == BuiltinType::String;
+        auto active_sym = rt.getActiveFieldSymbol();
+        ResolvedType field_type = active_sym->resType;
 
-        for (size_t i = 0; i < top_k_indices.size(); ++i) {
-          std::string proposed = current_buffer + top_k_strings[i];
+        if (verbose) {
+          std::cout
+              << "\n\n==================================================\n";
+          std::cout << "[C++ Mask] STARTING MASK FOR FIELD: '"
+                    << active_sym->name << "'\n";
+          std::cout << "[C++ Mask] Current Buffer: '" << current_buffer
+                    << "'\n";
+        }
 
-          // Check for exit tokens BEFORE trimming whitespace!
-          bool isExit = false;
-          if (!proposed.empty() &&
-              (proposed.back() == ',' || proposed.back() == '\n' ||
-               proposed.back() == '}')) {
-            isExit = true;
-            proposed.pop_back();  // Remove the structural char for validation
+        bool isString = false, isInteger = false, isNumber = false,
+             isBool = false;
+
+        // Based on binder.hpp, ResolvedType is strictly the base type!
+        // Constraints are external, so isBuiltin() is 100% accurate.
+        if (field_type.isBuiltin()) {
+          auto bt = std::get<BuiltinType>(field_type.type);
+          isString = (bt == BuiltinType::String);
+          isInteger = (bt == BuiltinType::Integer);
+          isNumber = (bt == BuiltinType::Number);
+          isBool = (bt == BuiltinType::Boolean);
+          if (verbose)
+            std::cout << "[C++ Mask] Base Type: Builtin (Integer=" << isInteger
+                      << ")\n";
+        } else {
+          if (verbose)
+            std::cout << "[C++ Mask] Base Type: Complex (Spec/Array/Map)\n";
+        }
+
+        int surviving_tokens = 0;
+
+        for (size_t i = 0; i < vocab_size; ++i) {
+          const std::string& token_str = vocab[i];
+          if (token_str.empty()) {
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
           }
 
-          // Trim remaining whitespace
-          if (!proposed.empty()) {
-            size_t first = proposed.find_first_not_of(" \t\r");  // Excluded \n
-            if (first == std::string::npos) {
-              proposed.clear();
-            } else {
-              proposed.erase(0, first);
-              proposed.erase(proposed.find_last_not_of(" \t\r") + 1);
+          // Trace problematic tokens when verbose is True
+          bool trace_token = false;
+          if (verbose && (token_str.find("18") != std::string::npos ||
+                          token_str.find("\xE6\x88\x90") !=
+                              std::string::npos)) {  // \xE6\x88\x90 is "成"
+            trace_token = true;
+            std::cout << "\n[C++ Mask TRACE] Evaluating Token ID " << i << ": '"
+                      << token_str << "'\n";
+          }
+
+          std::string proposed = current_buffer + token_str;
+          std::string_view sv(proposed);
+
+          // 1. STRICT BAN ON LEADING ASCII WHITESPACE
+          if (current_buffer.empty()) {
+            char first_c = sv.front();
+            if (first_c == ' ' || first_c == '\t' || first_c == '\r' ||
+                first_c == '\n') {
+              if (trace_token)
+                std::cout << "   -> REJECTED: Leading ASCII whitespace.\n";
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
             }
           }
 
-          // Handle JSON string quotes
+          // 2. STRING VALIDATION
           if (isString) {
-            if (!proposed.empty() &&
-                (proposed.front() == '"' || proposed.front() == '\''))
-              proposed.erase(0, 1);
-            if (!proposed.empty() &&
-                (proposed.back() == '"' || proposed.back() == '\''))
-              proposed.pop_back();
+            // 2a. STRIP TOKENIZER SPACES
+            size_t start_idx = 0;
+            while (start_idx < sv.size()) {
+              unsigned char c = sv[start_idx];
+              if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+                start_idx++;
+              } else if (start_idx + 2 < sv.size() &&
+                         sv.substr(start_idx, 3) == "\xE2\x96\x81") {
+                start_idx += 3;  // Strip SentencePiece ' '
+              } else if (c == 0xC4 && start_idx + 1 < sv.size() &&
+                         static_cast<unsigned char>(sv[start_idx + 1]) ==
+                             0xA0) {
+                start_idx += 2;  // Strip BPE 'Ġ'
+              } else {
+                break;
+              }
+            }
+            std::string_view clean_sv = sv.substr(start_idx);
+
+            if (clean_sv.empty()) {
+              // Only tolerate whitespace/tokenizer-space padding as the very
+              // first token of the field. If the buffer already has content
+              // (even if it's whitespace we previously accepted here), a
+              // further whitespace-only token must be rejected -- otherwise
+              // the model can stall forever emitting space tokens, since
+              // each one individually looks like a "valid prefix".
+              if (current_buffer.empty()) continue;
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
+            }
+
+            if (clean_sv.front() != '"') {
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
+            }
+
+            bool in_escape = false;
+            bool is_closed = false;
+            size_t close_pos = std::string_view::npos;
+            for (size_t j = 1; j < clean_sv.size(); ++j) {
+              if (in_escape)
+                in_escape = false;
+              else if (clean_sv[j] == '\\')
+                in_escape = true;
+              else if (clean_sv[j] == '"') {
+                is_closed = true;
+                close_pos = j;
+                break;
+              }
+            }
+
+            // 2b. ORIGINAL PARTIAL VALIDATION (Strips opening quote, checks raw
+            // payload)
+            if (!is_closed) {
+              std::string payload(clean_sv.substr(1));
+              // isComplete=false: this string is still open, so constraints
+              // like IN are checked as a prefix match rather than requiring
+              // the payload to already equal one of the allowed values.
+              if (rt.validatePartial(payload, /*isComplete=*/false) ==
+                  ValidationStatus::Invalid) {
+                ptr[i] = -std::numeric_limits<float>::infinity();
+              }
+              continue;
+            }
+
+            // 2c. ORIGINAL CLOSED VALIDATION (Strips both quotes, checks raw
+            // payload)
+            std::string payload(clean_sv.substr(1, close_pos - 1));
+            ValidationStatus status = rt.validatePartial(payload);
+
+            if (status != ValidationStatus::Valid) {
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
+            }
+
+            std::string_view trailing = clean_sv.substr(close_pos + 1);
+            size_t t_first = trailing.find_first_not_of(" \t\r\n");
+            if (t_first != std::string_view::npos) {
+              char exit_c = trailing[t_first];
+              if (exit_c != ',' && exit_c != '}' && exit_c != '\n') {
+                ptr[i] = -std::numeric_limits<float>::infinity();
+              }
+            }
+            continue;
           }
 
-          // Validate
-          ValidationStatus status;
-          if (isString && proposed.empty()) {
-            status = ValidationStatus::PartialValid;
+          // 3. NON-STRING VALIDATION (Integer, Number, Boolean)
+          if (sv.find('"') != std::string_view::npos) {
+            if (trace_token)
+              std::cout
+                  << "   -> REJECTED: Contains quote in non-string field.\n";
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
+          }
+
+          size_t exit_pos = sv.find_first_of(",}\n");
+          bool isExit = (exit_pos != std::string_view::npos);
+          std::string_view val = isExit ? sv.substr(0, exit_pos) : sv;
+
+          // =========================================================
+          // STRIP TOKENIZER SPACES (With Clang warning fixed)
+          // =========================================================
+          size_t start_idx = 0;
+          while (start_idx < val.size()) {
+            unsigned char c = val[start_idx];
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+              start_idx++;
+            } else if (start_idx + 2 < val.size() &&
+                       val.substr(start_idx, 3) == "\xE2\x96\x81") {
+              start_idx += 3;  // Strip SentencePiece ' '
+            } else if (c == 0xC4 && start_idx + 1 < val.size() &&
+                       static_cast<unsigned char>(val[start_idx + 1]) == 0xA0) {
+              start_idx += 2;  // Strip BPE 'Ġ'
+            } else {
+              break;
+            }
+          }
+          val = val.substr(start_idx);
+
+          // Strip trailing ASCII whitespace
+          size_t val_end = val.find_last_not_of(" \t\r\n");
+          if (val_end != std::string_view::npos) {
+            val = val.substr(0, val_end + 1);
+          }
+
+          if (trace_token) {
+            std::cout << "   -> Value extracted for structural check: '" << val
+                      << "' (Length: " << val.size() << ")\n";
+          }
+
+          bool structurallyValid = false;
+          bool canExit = false;
+
+          if (val.empty()) {
+            // Pure whitespace/tokenizer block. Only tolerated as the very
+            // first token for this field -- see the identical guard in the
+            // string branch above for why an unbounded allowance here lets
+            // the model stall forever emitting whitespace tokens.
+            structurallyValid = current_buffer.empty();
+            canExit = false;
+            if (trace_token)
+              std::cout << "   -> structural check: "
+                        << (structurallyValid ? "Passed" : "REJECTED")
+                        << " (Pure Tokenizer Whitespace/Prefix)\n";
+          } else if (isInteger) {
+            structurallyValid = isValidPartialJsonInteger(val, canExit);
+            if (trace_token)
+              std::cout << "   -> isInteger check: structurallyValid="
+                        << structurallyValid << ", canExit=" << canExit << "\n";
+          } else if (isNumber) {
+            structurallyValid = isValidPartialJsonNumber(val, canExit);
+          } else if (isBool) {
+            structurallyValid = isValidPartialJsonBoolean(val, canExit);
           } else {
-            status = rt.validatePartial(proposed);
+            structurallyValid = true;
+            canExit = true;
           }
 
-          // Mask logits in-memory
+          if (!structurallyValid || (isExit && !canExit)) {
+            if (trace_token)
+              std::cout << "   -> REJECTED: Structural validation failed or "
+                           "premature exit.\n";
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
+          }
+
+          // Semantic Validation of Incomplete Numbers
+          ValidationStatus status;
+          if (!val.empty() && !isExit && (isInteger || isNumber)) {
+            status = ValidationStatus::PartialValid;
+            if (trace_token)
+              std::cout << "   -> semantic check: Deferring number evaluation "
+                           "(PartialValid)\n";
+          } else {
+            status = rt.validatePartial(std::string(val));
+            if (trace_token)
+              std::cout << "   -> semantic check: rt.validatePartial() "
+                           "returned enum code "
+                        << static_cast<int>(status) << "\n";
+          }
+
           if (status == ValidationStatus::Invalid ||
               (isExit && status != ValidationStatus::Valid)) {
-            int tokenId = top_k_indices[i];
-            ptr[tokenId] = -std::numeric_limits<float>::infinity();
+            if (trace_token)
+              std::cout << "   -> REJECTED: Semantic check failed.\n";
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
           }
+
+          if (trace_token)
+            std::cout << "   -> ACCEPTED: Token survived the mask.\n";
+          surviving_tokens++;
+        }
+
+        if (verbose) {
+          std::cout << "[C++ Mask] FINISHED. " << surviving_tokens
+                    << " tokens survived.\n";
+          std::cout << "==================================================\n";
         }
       },
-      "Mutates logits in-place based on C++ constraint validation.");
+      "Masks logits across the entire vocabulary using strict C++ invariants.",
+      py::arg("rt"), py::arg("logits"), py::arg("vocab"),
+      py::arg("current_buffer"), py::arg("verbose") = false);
 }
