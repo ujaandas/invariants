@@ -1,0 +1,91 @@
+{
+  "version": "1.0",
+  "level_description": "Deep Dependency Chains, Zero Bypass (Every field in this set is genuinely LLM-sampled -- there are no deterministic assignments anywhere, no field the LLM doesn't have to actually choose. What makes these hard is that later fields' valid ranges are computed from several earlier fields at once, across nested spec instances, forming a long chain of context-sensitive validation. This isolates the core claim -- constrained decoding beyond what a context-free grammar can express -- from any contribution by the deterministic solver.)",
+  "benchmarks": {
+    "DEP_project_task_schedule": {
+      "id": "DEP_project_task_schedule",
+      "name": "Sequential Project Task Schedule",
+      "domain": "Project Management",
+      "root_spec": "ProjectSchedule",
+      "description": "Models the standard project-scheduling rule used by every real Gantt-chart tool (MS Project, Jira, Asana): a task cannot start before its predecessor finishes. Each of 5 tasks' start day is bounded below by the previous task's own (independently LLM-sampled) start day plus duration -- a relation a context-free grammar cannot express, since it constrains one free choice against the combination of two other free choices made earlier in the same document.",
+      "prompts": {
+        "system": "You are a project management tool generating a validated sequential task schedule. Output ONLY raw, valid JSON.",
+        "user": "Generate a 5-task project schedule where each task starts only after its predecessor finishes, all within the project deadline."
+      },
+      "invariants_dsl": "spec Task {\n    field duration_days: Integer {\n        value >= 1;\n        value <= 21;\n    }\n    field task_type: String {\n        value IN [\"design\", \"development\", \"testing\", \"review\", \"deployment\"];\n    }\n}\n\nspec ProjectSchedule {\n    field project_deadline_day: Integer {\n        value >= 30;\n        value <= 180;\n    }\n    field task1_start_day: Integer {\n        value >= 0;\n        value <= 5;\n    }\n    field task1: Task {}\n    field task2_start_day: Integer {}\n    field task2: Task {}\n    field task3_start_day: Integer {}\n    field task3: Task {}\n    field task4_start_day: Integer {}\n    field task4: Task {}\n    field task5_start_day: Integer {}\n    field task5: Task {}\n    invariant sequencing {\n        this.task2_start_day >= this.task1_start_day + this.task1.duration_days;\n        this.task3_start_day >= this.task2_start_day + this.task2.duration_days;\n        this.task4_start_day >= this.task3_start_day + this.task3.duration_days;\n        this.task5_start_day >= this.task4_start_day + this.task4.duration_days;\n    }\n    invariant deadline {\n        this.task5_start_day + this.task5.duration_days <= this.project_deadline_day;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "project_deadline_day": { "type": "integer", "minimum": 30, "maximum": 180, "description": "Total project deadline in days" },
+          "task1_start_day": { "type": "integer", "minimum": 0, "maximum": 5, "description": "Day task 1 starts" },
+          "task1": { "type": "object", "properties": { "duration_days": { "type": "integer", "minimum": 1, "maximum": 21 }, "task_type": { "type": "string", "enum": ["design", "development", "testing", "review", "deployment"] } }, "required": ["duration_days", "task_type"], "additionalProperties": false },
+          "task2_start_day": { "type": "integer", "description": "Must be >= task1_start_day + task1.duration_days" },
+          "task2": { "type": "object", "properties": { "duration_days": { "type": "integer", "minimum": 1, "maximum": 21 }, "task_type": { "type": "string", "enum": ["design", "development", "testing", "review", "deployment"] } }, "required": ["duration_days", "task_type"], "additionalProperties": false },
+          "task3_start_day": { "type": "integer", "description": "Must be >= task2_start_day + task2.duration_days" },
+          "task3": { "type": "object", "properties": { "duration_days": { "type": "integer", "minimum": 1, "maximum": 21 }, "task_type": { "type": "string", "enum": ["design", "development", "testing", "review", "deployment"] } }, "required": ["duration_days", "task_type"], "additionalProperties": false },
+          "task4_start_day": { "type": "integer", "description": "Must be >= task3_start_day + task3.duration_days" },
+          "task4": { "type": "object", "properties": { "duration_days": { "type": "integer", "minimum": 1, "maximum": 21 }, "task_type": { "type": "string", "enum": ["design", "development", "testing", "review", "deployment"] } }, "required": ["duration_days", "task_type"], "additionalProperties": false },
+          "task5_start_day": { "type": "integer", "description": "Must be >= task4_start_day + task4.duration_days" },
+          "task5": { "type": "object", "properties": { "duration_days": { "type": "integer", "minimum": 1, "maximum": 21 }, "task_type": { "type": "string", "enum": ["design", "development", "testing", "review", "deployment"] } }, "required": ["duration_days", "task_type"], "additionalProperties": false }
+        },
+        "required": ["project_deadline_day", "task1_start_day", "task1", "task2_start_day", "task2", "task3_start_day", "task3", "task4_start_day", "task4", "task5_start_day", "task5"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "project_deadline_day", "min": 30, "max": 180 },
+        { "type": "range", "field": "task1_start_day", "min": 0, "max": 5 },
+        { "type": "range", "field": "task1.duration_days", "min": 1, "max": 21 },
+        { "type": "membership", "field": "task1.task_type", "choices": ["design", "development", "testing", "review", "deployment"] },
+        { "type": "range", "field": "task2.duration_days", "min": 1, "max": 21 },
+        { "type": "membership", "field": "task2.task_type", "choices": ["design", "development", "testing", "review", "deployment"] },
+        { "type": "range", "field": "task3.duration_days", "min": 1, "max": 21 },
+        { "type": "membership", "field": "task3.task_type", "choices": ["design", "development", "testing", "review", "deployment"] },
+        { "type": "range", "field": "task4.duration_days", "min": 1, "max": 21 },
+        { "type": "membership", "field": "task4.task_type", "choices": ["design", "development", "testing", "review", "deployment"] },
+        { "type": "range", "field": "task5.duration_days", "min": 1, "max": 21 },
+        { "type": "membership", "field": "task5.task_type", "choices": ["design", "development", "testing", "review", "deployment"] },
+        { "type": "math", "expr": "task2_start_day >= task1_start_day + task1['duration_days']" },
+        { "type": "math", "expr": "task3_start_day >= task2_start_day + task2['duration_days']" },
+        { "type": "math", "expr": "task4_start_day >= task3_start_day + task3['duration_days']" },
+        { "type": "math", "expr": "task5_start_day >= task4_start_day + task4['duration_days']" },
+        { "type": "math", "expr": "(task5_start_day + task5['duration_days']) <= project_deadline_day" }
+      ]
+    },
+
+    "DEP_flight_multi_leg_itinerary": {
+      "id": "DEP_flight_multi_leg_itinerary",
+      "name": "Multi-Leg Flight Connection Itinerary",
+      "domain": "Travel & Logistics",
+      "root_spec": "Itinerary",
+      "description": "Models the real airline scheduling rule that a connecting flight cannot depart before the previous leg lands plus a minimum connection time. Three legs, each independently LLM-sampled, chained by validation constraints only -- no field's value is ever computed for the LLM, only bounded by the combination of several already-generated ones.",
+      "prompts": {
+        "system": "You are an airline scheduling system generating a validated 3-leg connecting itinerary. Output ONLY raw, valid JSON.",
+        "user": "Generate a 3-leg flight itinerary where each connection respects the minimum layover time."
+      },
+      "invariants_dsl": "spec FlightLeg {\n    field departure_offset_hours: Integer {\n        value >= 0;\n        value <= 96;\n    }\n    field flight_duration_hours: Integer {\n        value >= 1;\n        value <= 14;\n    }\n    field destination_code: String {\n        value IN [\"JFK\", \"LHR\", \"NRT\", \"SIN\", \"DXB\", \"SYD\"];\n    }\n}\n\nspec Itinerary {\n    field min_layover_hours: Integer {\n        value >= 1;\n        value <= 6;\n    }\n    field leg1: FlightLeg {}\n    field leg2: FlightLeg {}\n    field leg3: FlightLeg {}\n    invariant connections {\n        this.leg2.departure_offset_hours >= this.leg1.departure_offset_hours + this.leg1.flight_duration_hours + this.min_layover_hours;\n        this.leg3.departure_offset_hours >= this.leg2.departure_offset_hours + this.leg2.flight_duration_hours + this.min_layover_hours;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "min_layover_hours": { "type": "integer", "minimum": 1, "maximum": 6, "description": "Minimum connection time" },
+          "leg1": { "type": "object", "properties": { "departure_offset_hours": { "type": "integer", "minimum": 0, "maximum": 96 }, "flight_duration_hours": { "type": "integer", "minimum": 1, "maximum": 14 }, "destination_code": { "type": "string", "enum": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] } }, "required": ["departure_offset_hours", "flight_duration_hours", "destination_code"], "additionalProperties": false },
+          "leg2": { "type": "object", "description": "departure_offset_hours must be >= leg1.departure_offset_hours + leg1.flight_duration_hours + min_layover_hours", "properties": { "departure_offset_hours": { "type": "integer" }, "flight_duration_hours": { "type": "integer", "minimum": 1, "maximum": 14 }, "destination_code": { "type": "string", "enum": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] } }, "required": ["departure_offset_hours", "flight_duration_hours", "destination_code"], "additionalProperties": false },
+          "leg3": { "type": "object", "description": "departure_offset_hours must be >= leg2.departure_offset_hours + leg2.flight_duration_hours + min_layover_hours", "properties": { "departure_offset_hours": { "type": "integer" }, "flight_duration_hours": { "type": "integer", "minimum": 1, "maximum": 14 }, "destination_code": { "type": "string", "enum": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] } }, "required": ["departure_offset_hours", "flight_duration_hours", "destination_code"], "additionalProperties": false }
+        },
+        "required": ["min_layover_hours", "leg1", "leg2", "leg3"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "min_layover_hours", "min": 1, "max": 6 },
+        { "type": "range", "field": "leg1.departure_offset_hours", "min": 0, "max": 96 },
+        { "type": "range", "field": "leg1.flight_duration_hours", "min": 1, "max": 14 },
+        { "type": "membership", "field": "leg1.destination_code", "choices": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] },
+        { "type": "range", "field": "leg2.flight_duration_hours", "min": 1, "max": 14 },
+        { "type": "membership", "field": "leg2.destination_code", "choices": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] },
+        { "type": "range", "field": "leg3.flight_duration_hours", "min": 1, "max": 14 },
+        { "type": "membership", "field": "leg3.destination_code", "choices": ["JFK", "LHR", "NRT", "SIN", "DXB", "SYD"] },
+        { "type": "math", "expr": "leg2['departure_offset_hours'] >= leg1['departure_offset_hours'] + leg1['flight_duration_hours'] + min_layover_hours" },
+        { "type": "math", "expr": "leg3['departure_offset_hours'] >= leg2['departure_offset_hours'] + leg2['flight_duration_hours'] + min_layover_hours" }
+      ]
+    }
+  }
+}

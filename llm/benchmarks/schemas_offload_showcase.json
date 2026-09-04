@@ -1,0 +1,113 @@
+{
+  "version": "1.0",
+  "level_description": "Deterministic-Offload Showcase (Deliberately NOT a test of constrained-generation accuracy -- it is a test of a different, separate claim: that the AOT compiler can safely detect when a field is fully derivable from already-generated fields and compute it exactly, removing it from the LLM's generation path entirely rather than trusting next-token arithmetic. Each schema here is realistic but intentionally weighted toward derived fields, the mirror image of the realworld2/dependency_chains sets. Read this set's results alongside, not instead of, the low-bypass sets -- the headline 'does constrained generation work' claim should rest on those, not on this one.)",
+  "benchmarks": {
+    "OFF_sales_commission_payroll": {
+      "id": "OFF_sales_commission_payroll",
+      "name": "Sales Commission Payroll Calculation",
+      "domain": "Finance & Human Resources",
+      "root_spec": "CommissionPayroll",
+      "description": "A commission-based payroll slip: base salary, sales figures, and rates are the only genuine inputs; commission, gross pay, tax withheld, and net pay are all exact linear functions of them. A real payroll system would compute these in code, not ask an LLM to -- this schema demonstrates that invariants can make the same call automatically from one DSL spec, without a hand-written post-processing step.",
+      "prompts": {
+        "system": "You are a payroll system generating a validated commission-based pay stub. Output ONLY raw, valid JSON.",
+        "user": "Generate a commission-based payroll record for a sales employee. Compute commission, gross pay, tax withheld, and net pay exactly."
+      },
+      "invariants_dsl": "spec CommissionPayroll {\n    field base_salary: Number {\n        value >= 2000.0;\n        value <= 20000.0;\n    }\n    field sales_amount: Number {\n        value >= 0.0;\n        value <= 500000.0;\n    }\n    field commission_rate_pct: Number {\n        value >= 1.0;\n        value <= 15.0;\n    }\n    field commission_earned: Number {\n        value == this.sales_amount * (this.commission_rate_pct / 100.0);\n    }\n    field gross_pay: Number {\n        value == this.base_salary + this.commission_earned;\n    }\n    field tax_rate_pct: Number {\n        value >= 10.0;\n        value <= 35.0;\n    }\n    field tax_withheld: Number {\n        value == this.gross_pay * (this.tax_rate_pct / 100.0);\n    }\n    field net_pay: Number {\n        value == this.gross_pay - this.tax_withheld;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "base_salary": { "type": "number", "minimum": 2000.0, "maximum": 20000.0, "description": "Base monthly salary" },
+          "sales_amount": { "type": "number", "minimum": 0.0, "maximum": 500000.0, "description": "Sales generated this period" },
+          "commission_rate_pct": { "type": "number", "minimum": 1.0, "maximum": 15.0, "description": "Commission rate percentage" },
+          "commission_earned": { "type": "number", "description": "Calculated: sales_amount * (commission_rate_pct / 100.0)" },
+          "gross_pay": { "type": "number", "description": "Calculated: base_salary + commission_earned" },
+          "tax_rate_pct": { "type": "number", "minimum": 10.0, "maximum": 35.0, "description": "Effective tax rate percentage" },
+          "tax_withheld": { "type": "number", "description": "Calculated: gross_pay * (tax_rate_pct / 100.0)" },
+          "net_pay": { "type": "number", "description": "Calculated: gross_pay - tax_withheld" }
+        },
+        "required": ["base_salary", "sales_amount", "commission_rate_pct", "commission_earned", "gross_pay", "tax_rate_pct", "tax_withheld", "net_pay"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "base_salary", "min": 2000.0, "max": 20000.0 },
+        { "type": "range", "field": "sales_amount", "min": 0.0, "max": 500000.0 },
+        { "type": "range", "field": "commission_rate_pct", "min": 1.0, "max": 15.0 },
+        { "type": "range", "field": "tax_rate_pct", "min": 10.0, "max": 35.0 },
+        { "type": "math", "expr": "abs(commission_earned - (sales_amount * (commission_rate_pct / 100.0))) < 0.01" },
+        { "type": "math", "expr": "abs(gross_pay - (base_salary + commission_earned)) < 0.01" },
+        { "type": "math", "expr": "abs(tax_withheld - (gross_pay * (tax_rate_pct / 100.0))) < 0.01" },
+        { "type": "math", "expr": "abs(net_pay - (gross_pay - tax_withheld)) < 0.01" }
+      ]
+    },
+
+    "OFF_forex_conversion_fee": {
+      "id": "OFF_forex_conversion_fee",
+      "name": "Foreign Exchange Conversion & Fee",
+      "domain": "Payments & Fintech",
+      "root_spec": "ForexTransaction",
+      "description": "A currency conversion transaction: source amount, exchange rate, and fee percentage are the genuine inputs; converted amount, fee amount, and net amount are exact derived values. Same offload story as the payroll case, different domain.",
+      "prompts": {
+        "system": "You are a foreign exchange platform generating a validated currency conversion transaction. Output ONLY raw, valid JSON.",
+        "user": "Generate a currency conversion transaction. Compute the converted amount, fee, and net amount exactly."
+      },
+      "invariants_dsl": "spec ForexTransaction {\n    field source_amount: Number {\n        value >= 10.0;\n        value <= 1000000.0;\n    }\n    field exchange_rate: Number {\n        value >= 0.5;\n        value <= 200.0;\n    }\n    field converted_amount: Number {\n        value == this.source_amount * this.exchange_rate;\n    }\n    field fee_pct: Number {\n        value >= 0.1;\n        value <= 5.0;\n    }\n    field fee_amount: Number {\n        value == this.converted_amount * (this.fee_pct / 100.0);\n    }\n    field net_amount: Number {\n        value == this.converted_amount - this.fee_amount;\n    }\n    field currency_pair: String {\n        value IN [\"USD/EUR\", \"USD/GBP\", \"USD/JPY\", \"EUR/GBP\", \"USD/CAD\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "source_amount": { "type": "number", "minimum": 10.0, "maximum": 1000000.0, "description": "Source currency amount" },
+          "exchange_rate": { "type": "number", "minimum": 0.5, "maximum": 200.0, "description": "Applied exchange rate" },
+          "converted_amount": { "type": "number", "description": "Calculated: source_amount * exchange_rate" },
+          "fee_pct": { "type": "number", "minimum": 0.1, "maximum": 5.0, "description": "Conversion fee percentage" },
+          "fee_amount": { "type": "number", "description": "Calculated: converted_amount * (fee_pct / 100.0)" },
+          "net_amount": { "type": "number", "description": "Calculated: converted_amount - fee_amount" },
+          "currency_pair": { "type": "string", "enum": ["USD/EUR", "USD/GBP", "USD/JPY", "EUR/GBP", "USD/CAD"], "description": "Traded currency pair" }
+        },
+        "required": ["source_amount", "exchange_rate", "converted_amount", "fee_pct", "fee_amount", "net_amount", "currency_pair"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "source_amount", "min": 10.0, "max": 1000000.0 },
+        { "type": "range", "field": "exchange_rate", "min": 0.5, "max": 200.0 },
+        { "type": "range", "field": "fee_pct", "min": 0.1, "max": 5.0 },
+        { "type": "membership", "field": "currency_pair", "choices": ["USD/EUR", "USD/GBP", "USD/JPY", "EUR/GBP", "USD/CAD"] },
+        { "type": "math", "expr": "abs(converted_amount - (source_amount * exchange_rate)) < 0.01" },
+        { "type": "math", "expr": "abs(fee_amount - (converted_amount * (fee_pct / 100.0))) < 0.01" },
+        { "type": "math", "expr": "abs(net_amount - (converted_amount - fee_amount)) < 0.01" }
+      ]
+    },
+
+    "OFF_utility_bill_calculation": {
+      "id": "OFF_utility_bill_calculation",
+      "name": "Utility Bill Calculation",
+      "domain": "Utilities & Billing",
+      "root_spec": "UtilityBill",
+      "description": "A utility bill: usage, rate, and fixed service charge are genuine inputs; energy cost and total bill are exact derived values. Third domain for the same offload claim, kept simple deliberately.",
+      "prompts": {
+        "system": "You are a utility billing system generating a validated bill. Output ONLY raw, valid JSON.",
+        "user": "Generate a utility bill for a metered customer. Compute the energy cost and total bill exactly."
+      },
+      "invariants_dsl": "spec UtilityBill {\n    field kwh_used: Number {\n        value >= 0.0;\n        value <= 20000.0;\n    }\n    field rate_per_kwh: Number {\n        value >= 0.05;\n        value <= 0.50;\n    }\n    field energy_cost: Number {\n        value == this.kwh_used * this.rate_per_kwh;\n    }\n    field fixed_service_charge: Number {\n        value >= 5.0;\n        value <= 50.0;\n    }\n    field total_bill: Number {\n        value == this.energy_cost + this.fixed_service_charge;\n    }\n    field billing_tier: String {\n        value IN [\"residential\", \"commercial\", \"industrial\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "kwh_used": { "type": "number", "minimum": 0.0, "maximum": 20000.0, "description": "Metered energy usage in kWh" },
+          "rate_per_kwh": { "type": "number", "minimum": 0.05, "maximum": 0.50, "description": "Rate per kWh" },
+          "energy_cost": { "type": "number", "description": "Calculated: kwh_used * rate_per_kwh" },
+          "fixed_service_charge": { "type": "number", "minimum": 5.0, "maximum": 50.0, "description": "Fixed monthly service charge" },
+          "total_bill": { "type": "number", "description": "Calculated: energy_cost + fixed_service_charge" },
+          "billing_tier": { "type": "string", "enum": ["residential", "commercial", "industrial"], "description": "Customer billing tier" }
+        },
+        "required": ["kwh_used", "rate_per_kwh", "energy_cost", "fixed_service_charge", "total_bill", "billing_tier"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "kwh_used", "min": 0.0, "max": 20000.0 },
+        { "type": "range", "field": "rate_per_kwh", "min": 0.05, "max": 0.50 },
+        { "type": "range", "field": "fixed_service_charge", "min": 5.0, "max": 50.0 },
+        { "type": "membership", "field": "billing_tier", "choices": ["residential", "commercial", "industrial"] },
+        { "type": "math", "expr": "abs(energy_cost - (kwh_used * rate_per_kwh)) < 0.01" },
+        { "type": "math", "expr": "abs(total_bill - (energy_cost + fixed_service_charge)) < 0.01" }
+      ]
+    }
+  }
+}
