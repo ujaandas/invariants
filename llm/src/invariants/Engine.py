@@ -1,5 +1,25 @@
-from llama_cpp import Llama, LogitsProcessorList, LogitsProcessor
+import glob
+import os
+
+from huggingface_hub import snapshot_download
+from huggingface_hub.utils import LocalEntryNotFoundError
+from llama_cpp import Llama, LogitsProcessor, LogitsProcessorList
+
 from invariants.State import DecodeState
+
+
+def resolve_cached_model_path(repo_id: str, filename: str) -> str | None:
+    try:
+        snapshot_dir = snapshot_download(
+            repo_id=repo_id,
+            allow_patterns=[filename],
+            local_files_only=True,
+        )
+    except LocalEntryNotFoundError:
+        return None
+
+    matches = glob.glob(os.path.join(snapshot_dir, filename))
+    return matches[0] if matches else None
 
 
 class Engine:
@@ -9,14 +29,25 @@ class Engine:
         filename: str = "*q4_k_m.gguf",
         seed: int = -1,
     ):
-        self.llm = Llama.from_pretrained(
-            repo_id=repo_id,
-            filename=filename,
-            n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
-            seed=seed,
-            local_files_only=True,
-            verbose=False,
-        )
+        model_path = resolve_cached_model_path(repo_id, filename)
+
+        if model_path is not None:
+            self.llm = Llama(
+                model_path=model_path,
+                n_gpu_layers=-1,  # Auto-detects Metal, CUDA, or CPU
+                seed=seed,
+                verbose=False,
+            )
+        else:
+            # Not cached yet: fall back to the network-aware loader, which
+            # downloads and populates the cache for next time.
+            self.llm = Llama.from_pretrained(
+                repo_id=repo_id,
+                filename=filename,
+                n_gpu_layers=-1,
+                seed=seed,
+                verbose=False,
+            )
 
         # Pre-decode the entire vocabulary for instant access
         print("Caching vocabulary...")
@@ -27,6 +58,11 @@ class Engine:
             self.vocab_strings.append(
                 self.llm.detokenize([i]).decode("utf-8", errors="ignore")
             )
+        for i in range(self.llm.n_vocab()):
+            decoded = self.llm.detokenize([i]).decode("utf-8", errors="ignore")
+
+            if i < 20:
+                print(i, repr(decoded))
 
     def tokenize(self, text: str) -> list[int]:
         """Convert a string into a list of token IDs"""
@@ -40,7 +76,7 @@ class Engine:
         self,
         prompt_text: str,
         logits_processor: LogitsProcessor | None = None,
-        temperature: float = 0.7,
+        temperature: float = 0.0,
     ) -> DecodeState:
         """
         Tokenizes the prompt, primes the KV cache, and returns a state tracker

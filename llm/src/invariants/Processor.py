@@ -18,32 +18,37 @@ class GenerationResult:
 
 
 class ConstraintProcessor:
-    def __init__(
-        self,
-        runtime: invariants_cpp.Runtime,
-        buffer: FieldBuffer,
-        engine: Engine,
-        top_k: int = 1000,
-    ):
+    def __init__(self, runtime, buffer, engine):
         self.runtime = runtime
         self.buffer = buffer
         self.engine = engine
-        self.top_k = top_k
         self.eos_token = engine.llm.token_eos()
 
     def __call__(self, input_ids: list[int], scores: np.ndarray) -> np.ndarray:
-        top_k_indices = np.argpartition(scores, -self.top_k)[-self.top_k :]
-        top_k_strings = [self.engine.vocab_strings[idx] for idx in top_k_indices]
         current_text = self.buffer.current_text()
 
-        invariants_cpp.process_logits_batch(
-            self.runtime, scores, top_k_indices.tolist(), top_k_strings, current_text
+        # C contig mem
+        scores_contiguous = np.ascontiguousarray(scores, dtype=np.float32)
+
+        # Mutate the contiguous array in C++
+        invariants_cpp.mask_logits_full_vocab(
+            self.runtime,
+            scores_contiguous,
+            self.engine.vocab_strings,
+            current_text,
+            False,
         )
 
-        if not np.any(scores > -np.inf):
-            scores[self.eos_token] = 0.0
+        # If the mask successfully rejected EVERYTHING
+        if not np.any(np.isfinite(scores_contiguous)):
+            print(
+                f"\n[!] FATAL: Mask rejected the entire vocabulary! Buffer: {current_text!r}"
+            )
+            # We force EOS here to stop generation rather than crashing llama.cpp with NaNs
+            scores_contiguous[self.eos_token] = 0.0
 
-        return scores
+        # Return the mutated contiguous array
+        return scores_contiguous
 
 
 class ConstrainedGenerator:
@@ -106,7 +111,7 @@ class ConstrainedGenerator:
                     tokens_sampled += 1
                     char_chunk = self.engine.decode([token])
 
-                    exit_chars = [",", "\n", "}"]
+                    exit_chars = [",", "}"]
                     if any(c in char_chunk for c in exit_chars):
                         for c in exit_chars:
                             if c in char_chunk:
@@ -125,6 +130,11 @@ class ConstrainedGenerator:
 
                 final_json += generated_val
                 clean_val = generated_val.strip().rstrip(",\n} ")
+                if not clean_val:
+                    raise RuntimeError(
+                        f"LLM generated an empty value for field '{field_name}'. "
+                        "Logit constraint mask prevented invalid tokens, but the model terminated generation early."
+                    )
                 rt.submit_val_str(field_name, clean_val)
                 if verbose:
                     print("  \033[94m[LLM Sampled]\033[0m", flush=True)
