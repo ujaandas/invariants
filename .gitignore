@@ -53,3 +53,6 @@ __pycache__/
 
 # Generated compile database for editor tooling
 lang/compile_commands.json
+
+# Benchmark run outputs
+llm/benchmarks/results/

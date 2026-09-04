@@ -126,6 +126,43 @@ inline bool isValidPartialJsonBoolean(std::string_view s, bool& canExit) {
   return false;
 }
 
+// True if `s` ends in an ASCII whitespace char or a tokenizer-space marker
+// (SentencePiece '\xE2\x96\x81' or BPE 'Ġ' = 0xC4 0xA0).
+inline bool endsWithTokenizerSpace(std::string_view s) {
+  if (s.empty()) return false;
+  char last = s.back();
+  if (last == ' ' || last == '\t' || last == '\r' || last == '\n') return true;
+  if (s.size() >= 3 && s.substr(s.size() - 3) == "\xE2\x96\x81") return true;
+  if (s.size() >= 2 && static_cast<unsigned char>(s[s.size() - 2]) == 0xC4 &&
+      static_cast<unsigned char>(s[s.size() - 1]) == 0xA0) {
+    return true;
+  }
+  return false;
+}
+
+// True if `s` is made up ENTIRELY of ASCII whitespace / tokenizer-space
+// markers (i.e. stripping the same leading-whitespace sequence used
+// elsewhere in this file consumes the whole string).
+inline bool isPureTokenizerSpace(std::string_view s) {
+  if (s.empty()) return false;
+  size_t start_idx = 0;
+  while (start_idx < s.size()) {
+    unsigned char c = s[start_idx];
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      start_idx++;
+    } else if (start_idx + 2 < s.size() &&
+               s.substr(start_idx, 3) == "\xE2\x96\x81") {
+      start_idx += 3;
+    } else if (c == 0xC4 && start_idx + 1 < s.size() &&
+               static_cast<unsigned char>(s[start_idx + 1]) == 0xA0) {
+      start_idx += 2;
+    } else {
+      break;
+    }
+  }
+  return start_idx == s.size();
+}
+
 class EngineSession {
   std::unique_ptr<invariants::ast::ModuleStmt> ast;
   invariants::binder::Binder binder;
@@ -240,6 +277,22 @@ PYBIND11_MODULE(invariants_cpp, m) {
           std::string proposed = current_buffer + token_str;
           std::string_view sv(proposed);
 
+          // 0. MAX LENGTH SAFETY VALVE: no legitimate value here needs more
+          // than a few dozen characters. Caps unbounded-padding patterns
+          // (whitespace, redundant decimal/exponent digits, etc) that would
+          // otherwise run until n_ctx. Tokens that close out the value are
+          // still allowed through to normal validation.
+          constexpr size_t kMaxOpenFieldValueLength = 40;
+          if (current_buffer.size() >= kMaxOpenFieldValueLength &&
+              sv.find_first_of(",}\n") == std::string_view::npos) {
+            if (trace_token)
+              std::cout << "   -> REJECTED: exceeded max open field-value "
+                           "length ("
+                        << kMaxOpenFieldValueLength << ").\n";
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
+          }
+
           // 1. STRICT BAN ON LEADING ASCII WHITESPACE
           if (current_buffer.empty()) {
             char first_c = sv.front();
@@ -250,6 +303,18 @@ PYBIND11_MODULE(invariants_cpp, m) {
               ptr[i] = -std::numeric_limits<float>::infinity();
               continue;
             }
+          }
+
+          // 1b. AT MOST ONE WHITESPACE-ONLY CONTINUATION PER FIELD. Once the
+          // buffer already ends in whitespace, a further pure-whitespace
+          // token is never productive and would let the model pad forever.
+          if (!current_buffer.empty() && endsWithTokenizerSpace(current_buffer) &&
+              isPureTokenizerSpace(token_str)) {
+            if (trace_token)
+              std::cout << "   -> REJECTED: whitespace padding onto "
+                           "already-whitespace-terminated buffer.\n";
+            ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
           }
 
           // 2. STRING VALIDATION
@@ -274,12 +339,8 @@ PYBIND11_MODULE(invariants_cpp, m) {
             std::string_view clean_sv = sv.substr(start_idx);
 
             if (clean_sv.empty()) {
-              // Only tolerate whitespace/tokenizer-space padding as the very
-              // first token of the field. If the buffer already has content
-              // (even if it's whitespace we previously accepted here), a
-              // further whitespace-only token must be rejected -- otherwise
-              // the model can stall forever emitting space tokens, since
-              // each one individually looks like a "valid prefix".
+              // Whitespace/tokenizer-space padding is only valid as the
+              // very first token of the field.
               if (current_buffer.empty()) continue;
               ptr[i] = -std::numeric_limits<float>::infinity();
               continue;
@@ -373,9 +434,14 @@ PYBIND11_MODULE(invariants_cpp, m) {
           }
           val = val.substr(start_idx);
 
-          // Strip trailing ASCII whitespace
+          // Strip trailing ASCII whitespace. hadTrailingWhitespace is only
+          // safe to allow once the content before it is already complete
+          // (canExit=true) -- e.g. "160" then a space before the comma --
+          // checked below once canExit is known.
           size_t val_end = val.find_last_not_of(" \t\r\n");
+          bool hadTrailingWhitespace = false;
           if (val_end != std::string_view::npos) {
+            hadTrailingWhitespace = (val_end + 1 < val.size());
             val = val.substr(0, val_end + 1);
           }
 
@@ -389,9 +455,7 @@ PYBIND11_MODULE(invariants_cpp, m) {
 
           if (val.empty()) {
             // Pure whitespace/tokenizer block. Only tolerated as the very
-            // first token for this field -- see the identical guard in the
-            // string branch above for why an unbounded allowance here lets
-            // the model stall forever emitting whitespace tokens.
+            // first token for this field.
             structurallyValid = current_buffer.empty();
             canExit = false;
             if (trace_token)
@@ -412,6 +476,13 @@ PYBIND11_MODULE(invariants_cpp, m) {
             canExit = true;
           }
 
+          if (hadTrailingWhitespace && !canExit) {
+            if (trace_token)
+              std::cout << "   -> REJECTED: trailing whitespace padding an "
+                           "incomplete value.\n";
+            structurallyValid = false;
+          }
+
           if (!structurallyValid || (isExit && !canExit)) {
             if (trace_token)
               std::cout << "   -> REJECTED: Structural validation failed or "
@@ -420,13 +491,23 @@ PYBIND11_MODULE(invariants_cpp, m) {
             continue;
           }
 
-          // Semantic Validation of Incomplete Numbers
+          // Semantic validation. Even mid-number, route through
+          // validatePartial(isComplete=false) so an already-out-of-range
+          // prefix (e.g. "160" against `<= 80.0`) gets pruned early instead
+          // of waiting for exit, by which point it's irrevocably committed.
+          //
+          // isComplete isn't just isExit: once hadTrailingWhitespace is
+          // true, canExit was already guaranteed true above, so no more
+          // digits can legally follow -- the value is locked in even
+          // without a delimiter yet, and must be checked at full strictness.
           ValidationStatus status;
-          if (!val.empty() && !isExit && (isInteger || isNumber)) {
-            status = ValidationStatus::PartialValid;
+          bool isComplete = isExit || hadTrailingWhitespace;
+          if (!val.empty() && (isInteger || isNumber)) {
+            status = rt.validatePartial(val, /*isComplete=*/isComplete);
             if (trace_token)
-              std::cout << "   -> semantic check: Deferring number evaluation "
-                           "(PartialValid)\n";
+              std::cout << "   -> semantic check: rt.validatePartial(isComplete="
+                        << isComplete << ") returned enum code "
+                        << static_cast<int>(status) << "\n";
           } else {
             status = rt.validatePartial(std::string(val));
             if (trace_token)

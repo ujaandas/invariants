@@ -89,6 +89,21 @@ ExecutionSchedule DependencyAnalyzer::analyze(const binder::BoundModule& module,
           inDegree[target]++;
         }
       }
+    } else if (!trigger.ownerFieldPath.empty()) {
+      // A field's own inline validation constraint (e.g. `field b: Integer {
+      // value >= this.a; }`) must also schedule after whatever other fields
+      // it references -- otherwise, if one of those fields ends up later in
+      // generation order anyway, trigger attachment below binds the
+      // constraint to that later field instead of to its owner, and it
+      // never actually gets checked against b.
+      auto deps =
+          extractDeps(*trigger.constraint->expr, trigger.instancePrefix);
+      for (const auto& dep : deps) {
+        if (dep != trigger.ownerFieldPath) {
+          adj[dep].push_back(trigger.ownerFieldPath);
+          inDegree[trigger.ownerFieldPath]++;
+        }
+      }
     }
   }
 

@@ -78,7 +78,7 @@ TEST(RuntimeSrcTest, ExecutesDeterministicAssignmentsAndValidations) {
   // Automatically solves total = 50.0 * 10 = 500.0, commits it, and triggers
   // `max_budget` (500 <= 500 -> Valid)
   std::string computedTotal = runtime.solveDeterministic();
-  EXPECT_EQ(computedTotal, "500.000000");
+  EXPECT_EQ(computedTotal, "500.0");
 
   // Verify completion
   EXPECT_FALSE(runtime.hasMoreFields());
@@ -152,17 +152,17 @@ TEST(RuntimeSrcTest, KahnsAlgorithmForcesFieldReordering) {
   // 2. 'b' solves next (5.0 * 2.0 = 10.0)
   EXPECT_EQ(runtime.getActiveFieldName(), "b");
   EXPECT_TRUE(runtime.isActiveFieldDeterministic());
-  EXPECT_EQ(runtime.solveDeterministic(), "10.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "10.0");
 
   // 3. 'a' solves next (10.0 + 5.0 = 15.0)
   EXPECT_EQ(runtime.getActiveFieldName(), "a");
   EXPECT_TRUE(runtime.isActiveFieldDeterministic());
-  EXPECT_EQ(runtime.solveDeterministic(), "15.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "15.0");
 
   // 4. 'd' solves last (15.0 + 10.0 = 25.0)
   EXPECT_EQ(runtime.getActiveFieldName(), "d");
   EXPECT_TRUE(runtime.isActiveFieldDeterministic());
-  EXPECT_EQ(runtime.solveDeterministic(), "25.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "25.0");
 
   EXPECT_FALSE(runtime.hasMoreFields());
 }
@@ -189,13 +189,13 @@ TEST(RuntimeSrcTest, DeterministicAssignmentCascade) {
   runtime.submitValStr("start", "5");
 
   EXPECT_EQ(runtime.getActiveFieldName(), "step1");
-  EXPECT_EQ(runtime.solveDeterministic(), "6.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "6.0");
 
   EXPECT_EQ(runtime.getActiveFieldName(), "step2");
-  EXPECT_EQ(runtime.solveDeterministic(), "12.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "12.0");
 
   EXPECT_EQ(runtime.getActiveFieldName(), "step3");
-  EXPECT_EQ(runtime.solveDeterministic(), "9.000000");
+  EXPECT_EQ(runtime.solveDeterministic(), "9.0");
 
   EXPECT_FALSE(runtime.hasMoreFields());
 }
@@ -247,7 +247,7 @@ TEST(RuntimeSrcTest, ComplexTopoSortWithNestedCrossValidation) {
 
   // 50.0 * 2.0 = 100.0, which satisfies <= 100.0 constraint
   std::string resStr = runtime.solveDeterministic();
-  EXPECT_EQ(resStr, "100.000000");
+  EXPECT_EQ(resStr, "100.0");
 
   EXPECT_FALSE(runtime.hasMoreFields());
 }

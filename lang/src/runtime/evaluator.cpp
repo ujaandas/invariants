@@ -2,11 +2,12 @@
 
 namespace invariants::runtime {
 
-Value Evaluator::evaluate(const binder::BoundExpr& expr,
-                          const Environment& env, bool partial) const {
+Value Evaluator::evaluate(const binder::BoundExpr& expr, const Environment& env,
+                          bool partial, const std::string& prefix) const {
   // Store env for this pass
   currentEnv = &env;
   partialMode = partial;
+  instancePrefix = prefix;
   return std::visit(*this, expr.value);
 }
 
@@ -29,9 +30,10 @@ Value Evaluator::operator()(const binder::BoundLiteralExpr& expr) const {
 Value Evaluator::operator()(const binder::BoundFieldAccessExpr& expr) const {
   if (!currentEnv) throw std::runtime_error("Evaluator environment is null.");
 
-  auto it = currentEnv->find(expr.flattenedPath);
+  std::string qualifiedPath = instancePrefix + expr.flattenedPath;
+  auto it = currentEnv->find(qualifiedPath);
   if (it == currentEnv->end()) {
-    throw std::runtime_error("Field '" + expr.flattenedPath +
+    throw std::runtime_error("Field '" + qualifiedPath +
                              "' not found in generation environment.");
   }
 
@@ -154,11 +156,8 @@ Value Evaluator::operator()(const binder::BoundBinaryExpr& expr) const {
         return get_double(leftVal) == get_double(rightVal);
       if (partialMode && std::holds_alternative<std::string>(leftVal) &&
           std::holds_alternative<std::string>(rightVal)) {
-        // Partial mode: one side is the in-progress LLM string and the other
-        // a fixed literal (order unknown here). Treat the shorter as a
-        // not-yet-finished prefix of the longer, rather than requiring them
-        // to already be equal -- otherwise `value == "US"` would reject "U"
-        // outright, the same way IN used to.
+        // Treat the shorter side as a not-yet-finished prefix of the
+        // longer, rather than requiring exact equality already.
         const auto& shorter = std::get<std::string>(leftVal).size() <=
                                        std::get<std::string>(rightVal).size()
                                    ? std::get<std::string>(leftVal)
@@ -201,9 +200,7 @@ Value Evaluator::operator()(const binder::BoundBinaryExpr& expr) const {
           }
         } else if (leftIsPartialString &&
                    std::holds_alternative<std::string>(el)) {
-          // Partial mode: the LLM hasn't finished typing this string yet, so
-          // treat membership as "still a viable prefix of some allowed
-          // value" instead of requiring an exact match.
+          // Still a viable prefix of an allowed value?
           const auto& prefix = std::get<std::string>(leftVal);
           const auto& candidate = std::get<std::string>(el);
           if (candidate.size() >= prefix.size() &&
