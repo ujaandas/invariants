@@ -56,3 +56,4 @@ lang/compile_commands.json
 
 # Benchmark run outputs
 llm/benchmarks/results/
+llm/benchmarks/plots

@@ -1,0 +1,434 @@
+"""
+Generates comparison charts (Plain Prompt vs Baseline CFG vs Invariants) from
+benchmark results and writes them as PNGs to benchmarks/plots/.
+
+Reads two kinds of data:
+  - benchmarks/results/all_results.csv               (case-level metrics, all 3 systems)
+  - benchmarks/results/schemas_*/latest/results.json  (per-assertion detail, all 3 systems)
+  - benchmarks/results/mask_timing/schemas_*/*/       (mask-computation timing + total_fields,
+                                                        Invariants only, from --invariants-only runs)
+"""
+
+import json
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+RESULTS_ROOT = Path("benchmarks/results")
+PLOTS_DIR = Path("benchmarks/plots")
+
+# Categorical palette, fixed order (dataviz skill reference palette, slots 1-3 --
+# these three validate together for both adjacent and all-pairs CVD checks).
+COLOR_PLAIN = "#2a78d6"
+COLOR_BASELINE = "#eb6834"
+COLOR_INVARIANTS = "#1baf7a"
+# Diverging pair, for the one polarity chart (faster/slower than baseline).
+COLOR_DIV_FASTER = "#2a78d6"
+COLOR_DIV_SLOWER = "#e34948"
+
+TEXT_PRIMARY = "#0b0b0b"
+TEXT_SECONDARY = "#52514e"
+GRID_COLOR = "#e3e2dd"
+
+SYSTEM_ORDER = ["Plain_Prompt", "Baseline_CFG", "Invariants"]
+SYSTEM_COLORS = {
+    "Plain_Prompt": COLOR_PLAIN,
+    "Baseline_CFG": COLOR_BASELINE,
+    "Invariants": COLOR_INVARIANTS,
+}
+SYSTEM_LABELS = {
+    "Plain_Prompt": "Plain Prompt",
+    "Baseline_CFG": "Baseline (GBNF)",
+    "Invariants": "Invariants",
+}
+JSON_KEY_FOR_SYSTEM = {
+    "Plain_Prompt": "plain_prompt",
+    "Baseline_CFG": "baseline",
+    "Invariants": "invariants",
+}
+
+SUITES = [
+    "schemas_l1",
+    "schemas_l2",
+    "schemas_l3",
+    "schemas_l4",
+    "schemas_schemastore",
+    "schemas_realworld2",
+    "schemas_offload_showcase",
+    "schemas_dependency_chains",
+]
+SUITE_LABELS = {
+    "schemas_l1": "L1",
+    "schemas_l2": "L2",
+    "schemas_l3": "L3",
+    "schemas_l4": "L4",
+    "schemas_schemastore": "SchemaStore",
+    "schemas_realworld2": "RealWorld2",
+    "schemas_offload_showcase": "Offload",
+    "schemas_dependency_chains": "DepChains",
+}
+
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.size"] = 10
+plt.rcParams["text.color"] = TEXT_PRIMARY
+
+
+def style_axes(ax, y_grid=True):
+    for side in ("top", "right", "left"):
+        ax.spines[side].set_visible(False)
+    ax.spines["bottom"].set_color(GRID_COLOR)
+    if y_grid:
+        ax.grid(axis="y", color=GRID_COLOR, linewidth=1, zorder=0)
+    ax.set_axisbelow(True)
+    ax.tick_params(colors=TEXT_SECONDARY, length=0)
+    for lbl in ax.get_xticklabels() + ax.get_yticklabels():
+        lbl.set_color(TEXT_SECONDARY)
+
+
+def save(fig, name):
+    PLOTS_DIR.mkdir(parents=True, exist_ok=True)
+    path = PLOTS_DIR / name
+    fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"  wrote {path}")
+
+
+def grouped_bars(ax, categories, series: dict, colors: dict, labels: dict,
+                  value_fmt=None, min_visible_frac=0.006):
+    """series: {system: [value per category]}. A value of exactly 0 renders
+    as a thin stub (min_visible_frac of the axis range) rather than nothing
+    at all -- a true zero and a missing bar must not look identical."""
+    n = len(series)
+    width = 0.8 / n
+    x = range(len(categories))
+    all_vals = [v for vals in series.values() for v in vals]
+    axis_span = max(all_vals) if all_vals else 1
+    stub = axis_span * min_visible_frac
+    for i, (name, values) in enumerate(series.items()):
+        offset = (i - (n - 1) / 2) * width
+        xs = [xi + offset for xi in x]
+        heights = [v if v > 0 else stub for v in values]
+        bars = ax.bar(xs, heights, width, label=labels.get(name, name),
+                      color=colors.get(name, "#888"), zorder=3)
+        if value_fmt:
+            for bx, v, h in zip(xs, values, heights):
+                ax.text(bx, h, value_fmt(v), ha="center", va="bottom",
+                        fontsize=7.5, color=TEXT_SECONDARY)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(categories)
+
+
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
+def load_all_results() -> pd.DataFrame:
+    df = pd.read_csv(RESULTS_ROOT / "all_results.csv")
+    df["Semantic_Success"] = df["Semantic_Success"].astype(bool)
+    return df
+
+
+def load_suite_json() -> dict:
+    data = {}
+    for suite in SUITES:
+        p = RESULTS_ROOT / suite / "latest" / "results.json"
+        if p.exists():
+            with open(p, encoding="utf-8") as f:
+                data[suite] = json.load(f)
+    return data
+
+
+def load_mask_timing_json() -> dict:
+    data = {}
+    for suite in SUITES:
+        base = RESULTS_ROOT / "mask_timing" / suite
+        if not base.exists():
+            continue
+        runs = sorted(p for p in base.iterdir() if p.is_dir())
+        if not runs:
+            continue
+        p = runs[-1] / "results.json"
+        if p.exists():
+            with open(p, encoding="utf-8") as f:
+                data[suite] = json.load(f)
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Chart 1: case-level success rate, by suite + aggregate
+# ---------------------------------------------------------------------------
+
+def plot_success_rate_by_suite(df: pd.DataFrame):
+    labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
+    series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    for suite in SUITES:
+        sub = df[df["Suite"] == suite]
+        if sub.empty:
+            continue
+        for sys_ in SYSTEM_ORDER:
+            rows = sub[sub["System"] == sys_]
+            rate = 100 * rows["Semantic_Success"].mean() if len(rows) else 0
+            series[sys_].append(rate)
+    labels.append("All")
+    for sys_ in SYSTEM_ORDER:
+        rows = df[df["System"] == sys_]
+        series[sys_].append(100 * rows["Semantic_Success"].mean() if len(rows) else 0)
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+    grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
+    ax.set_ylabel("Cases passed (%)")
+    ax.set_ylim(0, 108)
+    ax.set_title("Case-level success rate, by suite", fontsize=13, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    ax.axvline(len(labels) - 1.5, color=GRID_COLOR, linewidth=1)
+    style_axes(ax)
+    save(fig, "01_success_rate_by_suite.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 2: assertion-level (field-level) pass rate, aggregated
+# ---------------------------------------------------------------------------
+
+def plot_assertion_pass_rate_overall(suite_json: dict):
+    totals = {sys_: [0, 0] for sys_ in SYSTEM_ORDER}  # [passed, total]
+    for suite, payload in suite_json.items():
+        for case in payload["cases"]:
+            for sys_ in SYSTEM_ORDER:
+                key = JSON_KEY_FOR_SYSTEM[sys_]
+                if key not in case:
+                    continue
+                assertions = case[key].get("assertions") or []
+                totals[sys_][0] += sum(1 for a in assertions if a["passed"])
+                totals[sys_][1] += len(assertions)
+
+    labels = [SYSTEM_LABELS[s] for s in SYSTEM_ORDER]
+    rates = [100 * totals[s][0] / totals[s][1] if totals[s][1] else 0 for s in SYSTEM_ORDER]
+    colors = [SYSTEM_COLORS[s] for s in SYSTEM_ORDER]
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+    bars = ax.bar(labels, rates, width=0.55, color=colors, zorder=3)
+    for b, s in zip(bars, SYSTEM_ORDER):
+        p, t = totals[s]
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{b.get_height():.0f}%\n({p}/{t})",
+                ha="center", va="bottom", fontsize=9, color=TEXT_SECONDARY)
+    ax.set_ylabel("Individual assertions passed (%)")
+    ax.set_ylim(0, 112)
+    ax.set_title("Field-level correctness, aggregated across\nall suites and cases",
+                 fontsize=13, fontweight="bold")
+    style_axes(ax)
+    save(fig, "02_assertion_pass_rate_overall.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 3: assertion pass rate, by assertion type -- the key chart
+# ---------------------------------------------------------------------------
+
+def plot_assertion_pass_rate_by_type(suite_json: dict):
+    # "json_parse" is special: run_evaluations only ever records ONE when
+    # parsing FAILS (a successful parse just proceeds to check the schema's
+    # real assertions and never emits a "json_parse passed" entry). Pulling
+    # it from the assertions list the same way as the others would make it
+    # tautologically 0% for every system. Compute it per-case instead: did
+    # this case's output parse as JSON at all?
+    types_order = ["json_parse", "range", "membership", "exact_value", "math"]
+    type_labels = {
+        "range": "Range", "membership": "Membership (enum)",
+        "exact_value": "Exact value", "math": "Cross-field / math",
+        "json_parse": "Produced valid JSON",
+    }
+    counts = {sys_: {t: [0, 0] for t in types_order} for sys_ in SYSTEM_ORDER}
+    for suite, payload in suite_json.items():
+        for case in payload["cases"]:
+            for sys_ in SYSTEM_ORDER:
+                key = JSON_KEY_FOR_SYSTEM[sys_]
+                if key not in case:
+                    continue
+                assertions = case[key].get("assertions") or []
+                counts[sys_]["json_parse"][1] += 1
+                if not any(a["type"] == "json_parse" for a in assertions):
+                    counts[sys_]["json_parse"][0] += 1
+                for a in assertions:
+                    t = a["type"]
+                    if t not in counts[sys_] or t == "json_parse":
+                        continue
+                    counts[sys_][t][1] += 1
+                    if a["passed"]:
+                        counts[sys_][t][0] += 1
+
+    present_types = [t for t in types_order if any(counts[s][t][1] for s in SYSTEM_ORDER)]
+    labels = [type_labels[t] for t in present_types]
+    series = {
+        sys_: [100 * counts[sys_][t][0] / counts[sys_][t][1] if counts[sys_][t][1] else 0
+               for t in present_types]
+        for sys_ in SYSTEM_ORDER
+    }
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
+    ax.set_ylabel("Passed (%)")
+    ax.set_ylim(0, 108)
+    ax.set_title("Where each system succeeds and fails, by constraint type",
+                 fontsize=13, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    style_axes(ax)
+    save(fig, "03_assertion_pass_rate_by_type.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 4: deterministic-bypass rate by suite (Invariants only) -- transparency
+# ---------------------------------------------------------------------------
+
+def plot_bypass_rate_by_suite(mask_json: dict):
+    labels, rates = [], []
+    for suite in SUITES:
+        if suite not in mask_json:
+            continue
+        bypassed = total = 0
+        for case in mask_json[suite]["cases"]:
+            inv = case.get("invariants") or {}
+            bypassed += inv.get("fields_bypassed", 0) or 0
+            total += inv.get("total_fields", 0) or 0
+        if total == 0:
+            continue
+        labels.append(SUITE_LABELS[suite])
+        rates.append(100 * bypassed / total)
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    bars = ax.bar(labels, rates, width=0.55, color=COLOR_INVARIANTS, zorder=3)
+    for b in bars:
+        ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{b.get_height():.0f}%",
+                ha="center", va="bottom", fontsize=9, color=TEXT_SECONDARY)
+    ax.set_ylabel("Fields deterministically bypassed (%)")
+    ax.set_ylim(0, 100)
+    ax.set_title("How much of each suite's win comes from skipping the LLM\nentirely, vs. constraining it",
+                 fontsize=13, fontweight="bold")
+    style_axes(ax)
+    save(fig, "04_bypass_rate_by_suite.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 5 & 6: tokens generated / wall time, by system
+# ---------------------------------------------------------------------------
+
+def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title: str, filename: str):
+    labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
+    series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    for suite in SUITES:
+        sub = df[df["Suite"] == suite]
+        if sub.empty:
+            continue
+        for sys_ in SYSTEM_ORDER:
+            rows = sub[sub["System"] == sys_]
+            series[sys_].append(rows[column].mean() if len(rows) else 0)
+    labels.append("All")
+    for sys_ in SYSTEM_ORDER:
+        rows = df[df["System"] == sys_]
+        series[sys_].append(rows[column].mean() if len(rows) else 0)
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+    grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
+    ax.set_ylabel(ylabel)
+    ax.set_title(title, fontsize=13, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    ax.axvline(len(labels) - 1.5, color=GRID_COLOR, linewidth=1)
+    style_axes(ax)
+    save(fig, filename)
+
+
+# ---------------------------------------------------------------------------
+# Chart 7: per-case wall-time ratio, Invariants / Baseline -- the overhead question
+# ---------------------------------------------------------------------------
+
+def plot_wall_time_ratio(df: pd.DataFrame):
+    inv = df[df["System"] == "Invariants"][["Suite", "Benchmark_ID", "Wall_Time_s"]]
+    base = df[df["System"] == "Baseline_CFG"][["Suite", "Benchmark_ID", "Wall_Time_s"]]
+    merged = inv.merge(base, on=["Suite", "Benchmark_ID"], suffixes=("_inv", "_base"))
+    merged = merged[(merged["Wall_Time_s_base"] > 0) & (merged["Wall_Time_s_inv"] > 0)]
+    merged["ratio"] = merged["Wall_Time_s_inv"] / merged["Wall_Time_s_base"]
+    merged = merged.sort_values("ratio")
+
+    labels = [f"{SUITE_LABELS.get(s, s)}: {b}" for s, b in zip(merged["Suite"], merged["Benchmark_ID"])]
+    ratios = merged["ratio"].tolist()
+    colors = [COLOR_DIV_FASTER if r < 1 else COLOR_DIV_SLOWER for r in ratios]
+
+    fig, ax = plt.subplots(figsize=(9, max(4, 0.32 * len(labels))))
+    y = range(len(labels))
+    ax.barh(y, [r - 1 for r in ratios], left=1, color=colors, zorder=3, height=0.6)
+    ax.axvline(1.0, color=TEXT_SECONDARY, linewidth=1.2)
+    ax.set_yticks(list(y))
+    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_xlabel("Invariants wall time / Baseline wall time  (< 1 = Invariants faster)")
+    ax.set_title("Net wall-clock overhead vs. baseline, per case", fontsize=13, fontweight="bold")
+    style_axes(ax, y_grid=False)
+    ax.grid(axis="x", color=GRID_COLOR, linewidth=1, zorder=0)
+    save(fig, "07_wall_time_ratio_per_case.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 8: mask-computation time as a share of total Invariants wall time
+# ---------------------------------------------------------------------------
+
+def plot_mask_overhead_share(mask_json: dict):
+    labels, mask_frac, other_frac, mask_abs = [], [], [], []
+    for suite in SUITES:
+        if suite not in mask_json:
+            continue
+        mt = wt = 0.0
+        for case in mask_json[suite]["cases"]:
+            inv = case.get("invariants") or {}
+            mt += inv.get("mask_time_s", 0.0) or 0.0
+            wt += inv.get("wall_time_s", 0.0) or 0.0
+        if wt <= 0:
+            continue
+        labels.append(SUITE_LABELS[suite])
+        mask_abs.append(mt)
+        mask_frac.append(100 * mt / wt)
+        other_frac.append(100 * (1 - mt / wt))
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    x = range(len(labels))
+    ax.bar(x, other_frac, width=0.55, bottom=mask_frac, color="#d9d8d2",
+           label="LLM inference & other", zorder=3)
+    ax.bar(x, mask_frac, width=0.55, color=COLOR_INVARIANTS,
+           label="Mask computation", zorder=3)
+    for xi, mf, ma in zip(x, mask_frac, mask_abs):
+        ax.text(xi, mf, f"{mf:.1f}%\n({ma:.2f}s)", ha="center", va="bottom",
+                fontsize=8, color=TEXT_SECONDARY)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Share of Invariants wall time (%)")
+    ax.set_ylim(0, 115)
+    ax.set_title("Mask computation as a share of total generation time",
+                 fontsize=13, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    style_axes(ax)
+    save(fig, "08_mask_overhead_share.png")
+
+
+def main():
+    print("Loading data...")
+    df = load_all_results()
+    suite_json = load_suite_json()
+    mask_json = load_mask_timing_json()
+    print(f"  all_results.csv: {len(df)} rows across {df['Suite'].nunique()} suites")
+    print(f"  detailed suite JSON: {len(suite_json)} suites")
+    print(f"  mask-timing JSON: {len(mask_json)} suites")
+
+    print("\nGenerating charts...")
+    plot_success_rate_by_suite(df)
+    plot_assertion_pass_rate_overall(suite_json)
+    plot_assertion_pass_rate_by_type(suite_json)
+    plot_bypass_rate_by_suite(mask_json)
+    plot_mean_metric_by_suite(df, "Tokens_Generated", "Mean tokens generated per case",
+                              "Tokens generated per case, by suite", "05_tokens_generated.png")
+    plot_mean_metric_by_suite(df, "Wall_Time_s", "Mean wall time per case (s)",
+                              "Wall-clock time per case, by suite", "06_wall_time_comparison.png")
+    plot_wall_time_ratio(df)
+    plot_mask_overhead_share(mask_json)
+
+    print(f"\nDone. Charts written to {PLOTS_DIR}/")
+
+
+if __name__ == "__main__":
+    main()
