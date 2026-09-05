@@ -95,7 +95,10 @@ class Engine:
         gen = self.llm.generate(
             prompt_tokens,
             logits_processor=processors,
-            temp=temperature,  # Greedy decoding is mandatory for strict validation
+            # Masking sets invalid tokens to -inf before any temperature
+            # scaling, so the constraint guarantee holds at any temperature
+            # -- greedy (0.0) is just the default, not a requirement.
+            temp=temperature,
         )
 
         return DecodeState(step_generator=gen)

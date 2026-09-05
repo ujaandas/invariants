@@ -57,6 +57,9 @@ SUITES = [
     "schemas_realworld2",
     "schemas_offload_showcase",
     "schemas_dependency_chains",
+    "schemas_scheduling_stress",
+    "schemas_deadend_stress",
+    "schemas_long_freetext",
 ]
 SUITE_LABELS = {
     "schemas_l1": "L1",
@@ -67,7 +70,17 @@ SUITE_LABELS = {
     "schemas_realworld2": "RealWorld2",
     "schemas_offload_showcase": "Offload",
     "schemas_dependency_chains": "DepChains",
+    "schemas_scheduling_stress": "SchedFix",
+    "schemas_deadend_stress": "DeadEnd*",
+    "schemas_long_freetext": "FreeText*",
 }
+# Suites marked with * are deliberately adversarial stress tests, not
+# representative-usage suites -- included in every per-suite chart so
+# failures show up in context rather than being cropped out, but worth
+# calling out in captions rather than silently averaged away.
+ADVERSARIAL_SUITES = {"schemas_deadend_stress", "schemas_long_freetext"}
+
+TEMP_SWEEP_ROOT = RESULTS_ROOT / "temperature_sweep"
 
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.size"] = 10
@@ -92,6 +105,18 @@ def save(fig, name):
     fig.savefig(path, dpi=200, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"  wrote {path}")
+
+
+def print_values(title: str, data):
+    # Dumps the exact numbers a chart is about to render, so a wrong-looking
+    # bar can be checked against the underlying aggregate directly instead of
+    # reverse-engineered from the rendered PNG.
+    print(f"  [values] {title}:")
+    if isinstance(data, dict):
+        for k, v in data.items():
+            print(f"    {k}: {v}")
+    else:
+        print(f"    {data}")
 
 
 def grouped_bars(ax, categories, series: dict, colors: dict, labels: dict,
@@ -155,35 +180,104 @@ def load_mask_timing_json() -> dict:
     return data
 
 
+def load_temperature_sweep() -> pd.DataFrame | None:
+    if not TEMP_SWEEP_ROOT.exists():
+        return None
+    runs = sorted(p for p in TEMP_SWEEP_ROOT.iterdir() if p.is_dir())
+    if not runs:
+        return None
+    csv_path = runs[-1] / "results.csv"
+    if not csv_path.exists():
+        return None
+    df = pd.read_csv(csv_path)
+    df["Semantic_Success"] = df["Semantic_Success"].astype(bool)
+    return df
+
+
 # ---------------------------------------------------------------------------
-# Chart 1: case-level success rate, by suite + aggregate
+# Chart 1: field-level (assertion) pass rate, by suite -- the primary
+# correctness figure. Case-level "all or nothing" success is relegated to a
+# secondary chart (01b) since it makes systems that get most fields right
+# but miss one (e.g. Plain_Prompt) look like they failed "literally
+# everything," which overstates the gap.
+# ---------------------------------------------------------------------------
+
+def plot_field_level_pass_rate_by_suite(suite_json: dict):
+    labels = []
+    series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    raw = {}
+    for suite in SUITES:
+        if suite not in suite_json:
+            continue
+        totals = {sys_: [0, 0] for sys_ in SYSTEM_ORDER}
+        for case in suite_json[suite]["cases"]:
+            for sys_ in SYSTEM_ORDER:
+                key = JSON_KEY_FOR_SYSTEM[sys_]
+                if key not in case:
+                    continue
+                assertions = case[key].get("assertions") or []
+                totals[sys_][0] += sum(1 for a in assertions if a["passed"])
+                totals[sys_][1] += len(assertions)
+        labels.append(SUITE_LABELS[suite])
+        raw[SUITE_LABELS[suite]] = {}
+        for sys_ in SYSTEM_ORDER:
+            p, t = totals[sys_]
+            rate = 100 * p / t if t else 0
+            series[sys_].append(rate)
+            raw[SUITE_LABELS[suite]][sys_] = f"{p}/{t} ({rate:.1f}%)"
+
+    print_values("Field-level pass rate by suite (passed/total, rate)", raw)
+
+    fig, ax = plt.subplots(figsize=(13, 5))
+    grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
+    ax.set_ylabel("Individual assertions passed (%)")
+    ax.set_ylim(0, 108)
+    ax.set_title("Field-level correctness, by suite\n(counts a crashed case as every field failed, not excluded)",
+                 fontsize=13, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    style_axes(ax)
+    save(fig, "01_field_level_pass_rate_by_suite.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 1b: case-level ("all assertions in the case passed") success rate,
+# by suite -- secondary/supplementary view of the same underlying data.
 # ---------------------------------------------------------------------------
 
 def plot_success_rate_by_suite(df: pd.DataFrame):
     labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
     series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    raw = {}
     for suite in SUITES:
         sub = df[df["Suite"] == suite]
         if sub.empty:
             continue
+        raw[SUITE_LABELS[suite]] = {}
         for sys_ in SYSTEM_ORDER:
             rows = sub[sub["System"] == sys_]
             rate = 100 * rows["Semantic_Success"].mean() if len(rows) else 0
             series[sys_].append(rate)
+            raw[SUITE_LABELS[suite]][sys_] = f"{rate:.1f}% (n={len(rows)})"
     labels.append("All")
+    raw["All"] = {}
     for sys_ in SYSTEM_ORDER:
         rows = df[df["System"] == sys_]
-        series[sys_].append(100 * rows["Semantic_Success"].mean() if len(rows) else 0)
+        rate = 100 * rows["Semantic_Success"].mean() if len(rows) else 0
+        series[sys_].append(rate)
+        raw["All"][sys_] = f"{rate:.1f}% (n={len(rows)})"
+
+    print_values("Case-level (all-assertions-pass) success rate by suite", raw)
 
     fig, ax = plt.subplots(figsize=(13, 5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel("Cases passed (%)")
     ax.set_ylim(0, 108)
-    ax.set_title("Case-level success rate, by suite", fontsize=13, fontweight="bold")
+    ax.set_title("Case-level success rate, by suite (secondary view -- one\nmissed field fails the whole case)",
+                 fontsize=13, fontweight="bold")
     ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
     ax.axvline(len(labels) - 1.5, color=GRID_COLOR, linewidth=1)
     style_axes(ax)
-    save(fig, "01_success_rate_by_suite.png")
+    save(fig, "01b_case_level_success_by_suite.png")
 
 
 # ---------------------------------------------------------------------------
@@ -205,6 +299,10 @@ def plot_assertion_pass_rate_overall(suite_json: dict):
     labels = [SYSTEM_LABELS[s] for s in SYSTEM_ORDER]
     rates = [100 * totals[s][0] / totals[s][1] if totals[s][1] else 0 for s in SYSTEM_ORDER]
     colors = [SYSTEM_COLORS[s] for s in SYSTEM_ORDER]
+
+    print_values("Assertion pass rate, aggregated overall (passed/total)",
+                 {SYSTEM_LABELS[s]: f"{totals[s][0]}/{totals[s][1]} ({rates[i]:.1f}%)"
+                  for i, s in enumerate(SYSTEM_ORDER)})
 
     fig, ax = plt.subplots(figsize=(6, 5))
     bars = ax.bar(labels, rates, width=0.55, color=colors, zorder=3)
@@ -264,6 +362,13 @@ def plot_assertion_pass_rate_by_type(suite_json: dict):
         for sys_ in SYSTEM_ORDER
     }
 
+    print_values("Assertion pass rate by type (passed/total per system)", {
+        type_labels[t]: {
+            SYSTEM_LABELS[s]: f"{counts[s][t][0]}/{counts[s][t][1]}" for s in SYSTEM_ORDER
+        }
+        for t in present_types
+    })
+
     fig, ax = plt.subplots(figsize=(11, 5.5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel("Passed (%)")
@@ -281,6 +386,7 @@ def plot_assertion_pass_rate_by_type(suite_json: dict):
 
 def plot_bypass_rate_by_suite(mask_json: dict):
     labels, rates = [], []
+    raw = {}
     for suite in SUITES:
         if suite not in mask_json:
             continue
@@ -293,15 +399,18 @@ def plot_bypass_rate_by_suite(mask_json: dict):
             continue
         labels.append(SUITE_LABELS[suite])
         rates.append(100 * bypassed / total)
+        raw[SUITE_LABELS[suite]] = f"{bypassed}/{total} fields ({rates[-1]:.1f}%)"
+
+    print_values("Deterministic-bypass rate by suite (fields bypassed / total fields -- a field COUNT ratio, not a time share)", raw)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     bars = ax.bar(labels, rates, width=0.55, color=COLOR_INVARIANTS, zorder=3)
     for b in bars:
         ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{b.get_height():.0f}%",
                 ha="center", va="bottom", fontsize=9, color=TEXT_SECONDARY)
-    ax.set_ylabel("Fields deterministically bypassed (%)")
+    ax.set_ylabel("Fields deterministically bypassed (% of field COUNT, not time)")
     ax.set_ylim(0, 100)
-    ax.set_title("How much of each suite's win comes from skipping the LLM\nentirely, vs. constraining it",
+    ax.set_title("Share of fields skipped entirely by AOT solving, by suite\n(a fraction of how many fields never touch the LLM -- see chart 08 for the time-based view)",
                  fontsize=13, fontweight="bold")
     style_axes(ax)
     save(fig, "04_bypass_rate_by_suite.png")
@@ -314,17 +423,26 @@ def plot_bypass_rate_by_suite(mask_json: dict):
 def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title: str, filename: str):
     labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
     series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    raw = {}
     for suite in SUITES:
         sub = df[df["Suite"] == suite]
         if sub.empty:
             continue
+        raw[SUITE_LABELS[suite]] = {}
         for sys_ in SYSTEM_ORDER:
             rows = sub[sub["System"] == sys_]
-            series[sys_].append(rows[column].mean() if len(rows) else 0)
+            val = rows[column].mean() if len(rows) else 0
+            series[sys_].append(val)
+            raw[SUITE_LABELS[suite]][sys_] = round(val, 3)
     labels.append("All")
+    raw["All"] = {}
     for sys_ in SYSTEM_ORDER:
         rows = df[df["System"] == sys_]
-        series[sys_].append(rows[column].mean() if len(rows) else 0)
+        val = rows[column].mean() if len(rows) else 0
+        series[sys_].append(val)
+        raw["All"][sys_] = round(val, 3)
+
+    print_values(f"Mean {column} by suite", raw)
 
     fig, ax = plt.subplots(figsize=(13, 5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
@@ -337,7 +455,10 @@ def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title:
 
 
 # ---------------------------------------------------------------------------
-# Chart 7: per-case wall-time ratio, Invariants / Baseline -- the overhead question
+# Chart 7: per-case wall-time speedup/slowdown vs. Baseline, as a percentage
+# -- a ratio bar chart anchored at 1.0 reads as "how far above the line," a
+# percentage reads directly as "how much faster/slower," so this is framed
+# as %% change rather than a raw ratio.
 # ---------------------------------------------------------------------------
 
 def plot_wall_time_ratio(df: pd.DataFrame):
@@ -345,24 +466,31 @@ def plot_wall_time_ratio(df: pd.DataFrame):
     base = df[df["System"] == "Baseline_CFG"][["Suite", "Benchmark_ID", "Wall_Time_s"]]
     merged = inv.merge(base, on=["Suite", "Benchmark_ID"], suffixes=("_inv", "_base"))
     merged = merged[(merged["Wall_Time_s_base"] > 0) & (merged["Wall_Time_s_inv"] > 0)]
-    merged["ratio"] = merged["Wall_Time_s_inv"] / merged["Wall_Time_s_base"]
-    merged = merged.sort_values("ratio")
+    # pct_change > 0 means Invariants took longer (slower); < 0 means faster.
+    merged["pct_change"] = 100 * (merged["Wall_Time_s_inv"] / merged["Wall_Time_s_base"] - 1)
+    merged = merged.sort_values("pct_change")
 
     labels = [f"{SUITE_LABELS.get(s, s)}: {b}" for s, b in zip(merged["Suite"], merged["Benchmark_ID"])]
-    ratios = merged["ratio"].tolist()
-    colors = [COLOR_DIV_FASTER if r < 1 else COLOR_DIV_SLOWER for r in ratios]
+    pct = merged["pct_change"].tolist()
+    colors = [COLOR_DIV_FASTER if p < 0 else COLOR_DIV_SLOWER for p in pct]
+
+    print_values("Wall-time %% change, Invariants vs. Baseline, per case (negative = Invariants faster)",
+                 dict(zip(labels, [f"{p:+.1f}%" for p in pct])))
+    median_pct = merged["pct_change"].median() if len(merged) else 0.0
+    print(f"    median: {median_pct:+.1f}%")
 
     fig, ax = plt.subplots(figsize=(9, max(4, 0.32 * len(labels))))
     y = range(len(labels))
-    ax.barh(y, [r - 1 for r in ratios], left=1, color=colors, zorder=3, height=0.6)
-    ax.axvline(1.0, color=TEXT_SECONDARY, linewidth=1.2)
+    ax.barh(y, pct, color=colors, zorder=3, height=0.6)
+    ax.axvline(0.0, color=TEXT_SECONDARY, linewidth=1.2)
     ax.set_yticks(list(y))
     ax.set_yticklabels(labels, fontsize=8)
-    ax.set_xlabel("Invariants wall time / Baseline wall time  (< 1 = Invariants faster)")
-    ax.set_title("Net wall-clock overhead vs. baseline, per case", fontsize=13, fontweight="bold")
+    ax.set_xlabel("Wall-time change vs. Baseline (%) -- negative = Invariants faster")
+    ax.set_title(f"Wall-clock speedup/slowdown vs. baseline, per case\n(median: {median_pct:+.1f}%)",
+                 fontsize=13, fontweight="bold")
     style_axes(ax, y_grid=False)
     ax.grid(axis="x", color=GRID_COLOR, linewidth=1, zorder=0)
-    save(fig, "07_wall_time_ratio_per_case.png")
+    save(fig, "07_wall_time_pct_change_per_case.png")
 
 
 # ---------------------------------------------------------------------------
@@ -371,6 +499,7 @@ def plot_wall_time_ratio(df: pd.DataFrame):
 
 def plot_mask_overhead_share(mask_json: dict):
     labels, mask_frac, other_frac, mask_abs = [], [], [], []
+    raw = {}
     for suite in SUITES:
         if suite not in mask_json:
             continue
@@ -385,6 +514,9 @@ def plot_mask_overhead_share(mask_json: dict):
         mask_abs.append(mt)
         mask_frac.append(100 * mt / wt)
         other_frac.append(100 * (1 - mt / wt))
+        raw[SUITE_LABELS[suite]] = f"mask={mt:.3f}s / wall={wt:.3f}s ({mask_frac[-1]:.1f}%)"
+
+    print_values("Mask time as share of total Invariants wall time, by suite", raw)
 
     fig, ax = plt.subplots(figsize=(10, 5))
     x = range(len(labels))
@@ -406,16 +538,193 @@ def plot_mask_overhead_share(mask_json: dict):
     save(fig, "08_mask_overhead_share.png")
 
 
+# ---------------------------------------------------------------------------
+# Chart 9: temperature-sweep success rate per system, with error bars from
+# the N=5 repeats -- answers "does matching temperature change the picture"
+# and "is Invariants-at-temp=0 actually deterministic."
+# ---------------------------------------------------------------------------
+
+def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
+    if sweep_df is None or sweep_df.empty:
+        print("  [values] Temperature sweep: no data found, skipping chart 09")
+        return
+
+    temps = sorted(sweep_df["Temperature"].unique())
+    labels = [SYSTEM_LABELS[s] for s in SYSTEM_ORDER]
+    series = {f"temp={t}": [] for t in temps}
+    errs = {f"temp={t}": [] for t in temps}
+    raw = {}
+    for sys_ in SYSTEM_ORDER:
+        raw[SYSTEM_LABELS[sys_]] = {}
+        for t in temps:
+            rows = sweep_df[(sweep_df["System"] == sys_) & (sweep_df["Temperature"] == t)]
+            rate = 100 * rows["Semantic_Success"].mean() if len(rows) else 0
+            std = 100 * rows["Semantic_Success"].std() if len(rows) > 1 else 0
+            series[f"temp={t}"].append(rate)
+            errs[f"temp={t}"].append(std)
+            raw[SYSTEM_LABELS[sys_]][f"temp={t}"] = f"{rate:.1f}% +/- {std:.1f} (n={len(rows)})"
+
+    print_values("Temperature sweep: success rate per system (mean +/- std across N trials)", raw)
+
+    # Determinism check: for Invariants at temp=0.0, are all trials of a
+    # given case bit-identical (same Output_Hash)?
+    if "Output_Hash" in sweep_df.columns:
+        det_rows = sweep_df[(sweep_df["System"] == "Invariants") & (sweep_df["Temperature"] == 0.0)]
+        print("  [values] Determinism check (Invariants, temp=0.0): distinct output hashes per case")
+        for case_id, grp in det_rows.groupby("Benchmark_ID"):
+            distinct = grp["Output_Hash"].nunique()
+            print(f"    {case_id}: {distinct} distinct hash(es) across {len(grp)} trials"
+                  f"{' -- NOT bit-identical' if distinct > 1 else ' -- deterministic'}")
+
+    n = len(temps)
+    width = 0.8 / n
+    x = range(len(labels))
+    fig, ax = plt.subplots(figsize=(8, 5.5))
+    for i, t in enumerate(temps):
+        offset = (i - (n - 1) / 2) * width
+        xs = [xi + offset for xi in x]
+        ax.bar(xs, series[f"temp={t}"], width, yerr=errs[f"temp={t}"],
+               label=f"temp={t}", capsize=3,
+               color=COLOR_PLAIN if i == 0 else COLOR_BASELINE, zorder=3)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("Cases passed (%)")
+    ax.set_ylim(0, 115)
+    ax.set_title(f"Temperature sweep: success rate per system\n(N={sweep_df.groupby(['System', 'Temperature']).size().max()} repeats, 6 cases, error bars = std across trials)",
+                 fontsize=12, fontweight="bold")
+    ax.text(0.5, -0.16,
+            "Invariants' 100% here is not a general claim: none of these 6 cases happen to be a\n"
+            "known dead-end case (see chart 10) -- it reflects this specific sample, not immunity.",
+            transform=ax.transAxes, ha="center", va="top", fontsize=8.5,
+            color=TEXT_SECONDARY, style="italic")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    style_axes(ax)
+    save(fig, "09_temperature_sweep_success_rate.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 10: dead-end failure vs. constraint tightness -- characterizes the
+# no-backtrack failure mode across schemas_deadend_stress instead of leaving
+# it as a one-off anecdote.
+# ---------------------------------------------------------------------------
+
+# window_start / upper_bound for each fixed-threshold case; the
+# sibling-dependent case has no fixed ratio (the threshold depends on
+# whatever the model samples for the prior field), so it's plotted apart.
+DEADEND_TIGHTNESS = {
+    "DED_tightness_10pct": 10 / 96,
+    "DED_tightness_30pct": 30 / 96,
+    "DED_tightness_50pct": 50 / 96,
+    "DED_tightness_70pct": 70 / 96,
+    "DED_tightness_85pct": 85 / 96,
+    "DED_tightness_92pct": 92 / 96,
+}
+
+def plot_deadend_tightness(suite_json: dict):
+    payload = suite_json.get("schemas_deadend_stress")
+    if not payload:
+        print("  [values] Dead-end stress suite: no data found, skipping chart 10")
+        return
+
+    ordered = sorted(DEADEND_TIGHTNESS.items(), key=lambda kv: kv[1])
+    labels, ratios, outcomes = [], [], []
+    sibling_outcome = None
+    raw = {}
+    for case in payload["cases"]:
+        cid = case["id"]
+        inv = case.get("invariants") or {}
+        crashed = inv.get("raw_output") is None
+        if cid in DEADEND_TIGHTNESS:
+            raw[cid] = f"ratio={DEADEND_TIGHTNESS[cid]:.2f} crashed={crashed}"
+        elif cid == "DED_sibling_dependent":
+            sibling_outcome = crashed
+            raw[cid] = f"ratio=N/A (sibling-dependent) crashed={crashed}"
+
+    for cid, ratio in ordered:
+        case = next((c for c in payload["cases"] if c["id"] == cid), None)
+        if case is None:
+            continue
+        inv = case.get("invariants") or {}
+        crashed = inv.get("raw_output") is None
+        labels.append(f"{ratio:.2f}")
+        ratios.append(ratio)
+        outcomes.append(0 if crashed else 1)
+
+    print_values("Dead-end stress: outcome per case (1 = Invariants completed, 0 = crashed / mask dead-end)", raw)
+
+    # This is a categorical (crashed / completed) outcome, not a magnitude --
+    # encoding it as bar HEIGHT (0 vs 1) makes the crashed cases invisible
+    # (a zero-height bar reads as "no data"). Every bar is drawn at the same
+    # height instead, with color + an explicit text label carrying the
+    # outcome, so a crash is exactly as visible as a pass.
+    if sibling_outcome is not None:
+        labels = [*labels, "sibling-\ndependent"]
+        outcomes = [*outcomes, 0 if sibling_outcome else 1]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    colors = [COLOR_INVARIANTS if o == 1 else COLOR_DIV_SLOWER for o in outcomes]
+    ax.bar(labels, [1] * len(labels), width=0.5, color=colors, zorder=3)
+    for i, o in enumerate(outcomes):
+        ax.text(i, 0.5, "Completed" if o == 1 else "Crashed", ha="center", va="center",
+                fontsize=10, fontweight="bold", color="white", rotation=90)
+    ax.set_xlabel("Window-start / upper-bound ratio (higher = tighter, single-run each)")
+    ax.set_yticks([])
+    ax.set_title("No-backtrack dead-end vs. constraint tightness\n(N=1 per case -- a fixed threshold only fails once it excludes the\nmodel's own greedy default; sibling-dependent fails regardless of ratio)",
+                 fontsize=12, fontweight="bold")
+    style_axes(ax, y_grid=False)
+    save(fig, "10_deadend_tightness.png")
+
+
+# ---------------------------------------------------------------------------
+# Chart 11: throughput on the long-free-text suite specifically -- the
+# deliberate worst case for this architecture (mask overhead paid on every
+# token with no bypass or rejection to compensate). Shown honestly even if
+# baseline wins here.
+# ---------------------------------------------------------------------------
+
+def plot_long_freetext_throughput(df: pd.DataFrame):
+    sub = df[df["Suite"] == "schemas_long_freetext"]
+    if sub.empty:
+        print("  [values] Long free-text suite: no data found, skipping chart 11")
+        return
+
+    case_ids = sorted(sub["Benchmark_ID"].unique())
+    series = {sys_: [] for sys_ in SYSTEM_ORDER}
+    raw = {}
+    for cid in case_ids:
+        raw[cid] = {}
+        for sys_ in SYSTEM_ORDER:
+            rows = sub[(sub["Benchmark_ID"] == cid) & (sub["System"] == sys_)]
+            val = rows["Tokens_Per_Sec"].mean() if len(rows) else 0
+            series[sys_].append(val)
+            raw[cid][sys_] = round(val, 2)
+
+    print_values("Long free-text suite: mean tokens/sec by case (worst case for mask overhead)", raw)
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    grouped_bars(ax, case_ids, series, SYSTEM_COLORS, SYSTEM_LABELS,
+                 value_fmt=lambda v: f"{v:.1f}")
+    ax.set_ylabel("Tokens / sec")
+    ax.set_title("Raw throughput on long, unconstrained free-text fields\n(no bypass possible here -- mask overhead has nothing to compensate it)",
+                 fontsize=12, fontweight="bold")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1.01, 1.0))
+    style_axes(ax)
+    save(fig, "11_long_freetext_throughput.png")
+
+
 def main():
     print("Loading data...")
     df = load_all_results()
     suite_json = load_suite_json()
     mask_json = load_mask_timing_json()
+    sweep_df = load_temperature_sweep()
     print(f"  all_results.csv: {len(df)} rows across {df['Suite'].nunique()} suites")
     print(f"  detailed suite JSON: {len(suite_json)} suites")
     print(f"  mask-timing JSON: {len(mask_json)} suites")
+    print(f"  temperature sweep: {'none found' if sweep_df is None else f'{len(sweep_df)} rows'}")
 
     print("\nGenerating charts...")
+    plot_field_level_pass_rate_by_suite(suite_json)
     plot_success_rate_by_suite(df)
     plot_assertion_pass_rate_overall(suite_json)
     plot_assertion_pass_rate_by_type(suite_json)
@@ -426,6 +735,9 @@ def main():
                               "Wall-clock time per case, by suite", "06_wall_time_comparison.png")
     plot_wall_time_ratio(df)
     plot_mask_overhead_share(mask_json)
+    plot_temperature_sweep(sweep_df)
+    plot_deadend_tightness(suite_json)
+    plot_long_freetext_throughput(df)
 
     print(f"\nDone. Charts written to {PLOTS_DIR}/")
 

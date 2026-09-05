@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "level_description": "Long Free-Text Stress Test (Deliberately the worst case for this engine's own architecture. Grammar masking pays a per-token cost on every field, including fields with no constraint to enforce at all. A field declared as `String {}` -- no IN/range/length body -- gets no benefit from bypass (nothing is deterministic) and no benefit from rejection (nothing is being rejected beyond basic JSON string syntax), so all Invariants pays here is mask overhead with no compensating win. These cases each pair one or two structurally-constrained fields (enum, numeric range) with a dominant long free-text field, matching how real API schemas actually look -- a title/category/price alongside a genuinely free-form body -- so the token/wall-time comparison against baseline and plain-prompt is measured honestly rather than on an artificially all-unconstrained toy schema.",
+  "benchmarks": {
+    "FT_product_listing": {
+      "id": "FT_product_listing",
+      "name": "E-Commerce Product Listing",
+      "domain": "E-Commerce",
+      "root_spec": "ProductListing",
+      "description": "One enum field and one numeric range field for structure; the description field is fully unconstrained free text and dominates total output length.",
+      "prompts": {
+        "system": "You are an e-commerce catalog assistant generating a validated product listing. Output ONLY raw, valid JSON.",
+        "user": "Generate a listing for a wireless mechanical keyboard. Write a detailed, thorough product description (at least 4-5 sentences) covering build quality, switches, connectivity, and battery life."
+      },
+      "invariants_dsl": "spec ProductListing {\n    field category: String {\n        value IN [\"electronics\", \"home-office\", \"gaming\", \"accessories\"];\n    }\n    field price_usd: Number {\n        value >= 1.0;\n        value <= 5000.0;\n    }\n    field description: String {\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "enum": ["electronics", "home-office", "gaming", "accessories"] },
+          "price_usd": { "type": "number", "minimum": 1.0, "maximum": 5000.0 },
+          "description": { "type": "string", "description": "A detailed, unconstrained product description, at least several sentences long." }
+        },
+        "required": ["category", "price_usd", "description"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "category", "choices": ["electronics", "home-office", "gaming", "accessories"] },
+        { "type": "range", "field": "price_usd", "min": 1.0, "max": 5000.0 }
+      ]
+    },
+
+    "FT_support_ticket": {
+      "id": "FT_support_ticket",
+      "name": "Customer Support Ticket",
+      "domain": "Customer Service",
+      "root_spec": "SupportTicket",
+      "description": "priority is a small enum for structure; body is a long, fully unconstrained free-text field simulating a real support ticket description.",
+      "prompts": {
+        "system": "You are a customer support intake system generating a validated support ticket. Output ONLY raw, valid JSON.",
+        "user": "Generate a support ticket for a customer whose software subscription renewed at the wrong price. Write a thorough, detailed ticket body (at least 5 sentences) describing the issue, what the customer expected, and what they've already tried."
+      },
+      "invariants_dsl": "spec SupportTicket {\n    field priority: String {\n        value IN [\"low\", \"normal\", \"high\", \"urgent\"];\n    }\n    field subject: String {\n    }\n    field body: String {\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "priority": { "type": "string", "enum": ["low", "normal", "high", "urgent"] },
+          "subject": { "type": "string", "description": "A short unconstrained subject line." },
+          "body": { "type": "string", "description": "A detailed, unconstrained ticket body, at least several sentences long." }
+        },
+        "required": ["priority", "subject", "body"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "priority", "choices": ["low", "normal", "high", "urgent"] }
+      ]
+    },
+
+    "FT_article_summary": {
+      "id": "FT_article_summary",
+      "name": "News Article Summary",
+      "domain": "Media & Content",
+      "root_spec": "ArticleSummary",
+      "description": "category is an enum and word_count is a numeric range for structure; summary is a long, fully unconstrained free-text field.",
+      "prompts": {
+        "system": "You are a content management system generating a validated article summary record. Output ONLY raw, valid JSON.",
+        "user": "Generate a summary record for a news article about a new international climate agreement. Write a thorough, detailed summary (at least 5-6 sentences) covering the agreement's key provisions, which countries are involved, and reactions."
+      },
+      "invariants_dsl": "spec ArticleSummary {\n    field category: String {\n        value IN [\"politics\", \"technology\", \"business\", \"science\", \"world\"];\n    }\n    field word_count: Integer {\n        value >= 50;\n        value <= 2000;\n    }\n    field summary: String {\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "category": { "type": "string", "enum": ["politics", "technology", "business", "science", "world"] },
+          "word_count": { "type": "integer", "minimum": 50, "maximum": 2000 },
+          "summary": { "type": "string", "description": "A detailed, unconstrained article summary, at least several sentences long." }
+        },
+        "required": ["category", "word_count", "summary"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "category", "choices": ["politics", "technology", "business", "science", "world"] },
+        { "type": "range", "field": "word_count", "min": 50, "max": 2000 }
+      ]
+    }
+  }
+}

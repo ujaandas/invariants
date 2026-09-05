@@ -353,17 +353,36 @@ PYBIND11_MODULE(invariants_cpp, m) {
 
             bool in_escape = false;
             bool is_closed = false;
+            bool has_raw_control_char = false;
             size_t close_pos = std::string_view::npos;
             for (size_t j = 1; j < clean_sv.size(); ++j) {
-              if (in_escape)
+              unsigned char cj = static_cast<unsigned char>(clean_sv[j]);
+              if (in_escape) {
                 in_escape = false;
-              else if (clean_sv[j] == '\\')
+              } else if (cj == '\\') {
                 in_escape = true;
-              else if (clean_sv[j] == '"') {
+              } else if (cj == '"') {
                 is_closed = true;
                 close_pos = j;
                 break;
+              } else if (cj < 0x20) {
+                // RFC 8259 requires control characters inside a JSON string
+                // to be written as an escape sequence (\n, \t, ...); a raw
+                // literal one (e.g. an actual newline byte, which a model
+                // generating a multi-paragraph free-text field will often
+                // reach for) is never legal JSON. Reject the token outright
+                // rather than let it through and later fail json.loads().
+                has_raw_control_char = true;
+                break;
               }
+            }
+
+            if (has_raw_control_char) {
+              if (trace_token)
+                std::cout << "   -> REJECTED: raw control character in "
+                             "string literal (must be escaped).\n";
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
             }
 
             // 2b. ORIGINAL PARTIAL VALIDATION (Strips opening quote, checks raw

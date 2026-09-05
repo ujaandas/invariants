@@ -1,0 +1,164 @@
+{
+  "version": "1.0",
+  "level_description": "Dead-End Stress Test (Deliberately adversarial, not representative of typical usage. Two incidental no-backtrack failures showed up in L4_data_center_topology and DEP_flight_multi_leg_itinerary: greedy decoding committed to a leading digit that, combined with an upper bound capping total digit count, made the field's own lower bound unreachable -- and since this engine never backtracks, that is an unrecoverable dead end. This suite deliberately constructs that shape at graded tightness levels to measure failure rate as a function of how much of the field's range is actually reachable, rather than reporting it as a one-off anecdote. Six cases use a fixed literal threshold (isolating tightness as the only variable); one uses a sibling-dependent threshold (matching the original failure's shape for ecological validity). An initial run showed the model's own greedy default for this prompt is always '85', which trivially satisfies the 10/30/50/70/85 thresholds regardless of tightness -- so tightness alone did not explain failure; DED_tightness_92pct was added specifically to exclude that default and isolate whether a fixed bound can still trigger the failure once the model's preferred value is off the table.",
+  "benchmarks": {
+    "DED_tightness_10pct": {
+      "id": "DED_tightness_10pct",
+      "name": "Percentile Score (tightness ~10%)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "Loosest window: value must be in [10, 96], i.e. ~90% of [0,96] is valid. A leading digit of 1-9 almost always has a viable completion.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 10;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 10, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 10, "max": 96 }
+      ]
+    },
+
+    "DED_tightness_30pct": {
+      "id": "DED_tightness_30pct",
+      "name": "Percentile Score (tightness ~31%)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "value must be in [30, 96] -- a leading '0','1','2' each foreclose more of the window than in the 10% case.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 30;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 30, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 30, "max": 96 }
+      ]
+    },
+
+    "DED_tightness_50pct": {
+      "id": "DED_tightness_50pct",
+      "name": "Percentile Score (tightness ~52%)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "value must be in [50, 96] -- roughly the same window-start-to-upper-bound ratio (~0.59) as the DEP_flight_multi_leg_itinerary case that already failed.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 50;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 50, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 50, "max": 96 }
+      ]
+    },
+
+    "DED_tightness_70pct": {
+      "id": "DED_tightness_70pct",
+      "name": "Percentile Score (tightness ~73%)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "value must be in [70, 96] -- only leading digits 7-9 (plus a lucky two-digit 70-96 from a lower start) reach the window at all.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 70;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 70, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 70, "max": 96 }
+      ]
+    },
+
+    "DED_tightness_85pct": {
+      "id": "DED_tightness_85pct",
+      "name": "Percentile Score (tightness ~89%)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "value must be in [85, 96] -- the tightest single-field case: only 12 of 97 possible values are valid, and only leading digit 8-9 has any chance.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 85;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 85, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 85, "max": 96 }
+      ]
+    },
+
+    "DED_tightness_92pct": {
+      "id": "DED_tightness_92pct",
+      "name": "Percentile Score (tightness ~94%, excludes model default)",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "PercentileScore",
+      "description": "value must be in [92, 96]. Added after an initial run showed this model's greedy default completion for this exact prompt is always '85', which happens to satisfy every one of the 10/30/50/70/85 thresholds and so never actually stresses the mechanism. This threshold deliberately excludes 85 to test whether a FIXED literal bound (not just a sibling-dependent one) can trigger a genuine dead end once it excludes the model's own default guess.",
+      "prompts": {
+        "system": "You are a scoring service generating a validated percentile score. Output ONLY raw, valid JSON.",
+        "user": "Generate a percentile score for a candidate's assessment result."
+      },
+      "invariants_dsl": "spec PercentileScore {\n    field score: Integer {\n        value >= 92;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": { "score": { "type": "integer", "minimum": 92, "maximum": 96 } },
+        "required": ["score"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "score", "min": 92, "max": 96 }
+      ]
+    },
+
+    "DED_sibling_dependent": {
+      "id": "DED_sibling_dependent",
+      "name": "Sibling-Dependent Sequential Slots",
+      "domain": "Synthetic Stress Test",
+      "root_spec": "SlotPair",
+      "description": "Matches the original failure's actual shape (DEP_flight_multi_leg_itinerary): the lower bound is not a fixed literal but computed from an already-generated sibling field, so the model can't see the threshold coming from the schema text alone. slot_b must be >= slot_a + 55, capped at 96 -- tightness varies with whatever slot_a the model happens to pick.",
+      "prompts": {
+        "system": "You are a resource scheduler generating validated sequential time slots. Output ONLY raw, valid JSON.",
+        "user": "Generate two sequential time slots where the second starts well after the first, within the shift's bounds."
+      },
+      "invariants_dsl": "spec SlotPair {\n    field slot_a: Integer {\n        value >= 0;\n        value <= 20;\n    }\n    field slot_b: Integer {\n        value >= this.slot_a + 55;\n        value <= 96;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "slot_a": { "type": "integer", "minimum": 0, "maximum": 20 },
+          "slot_b": { "type": "integer", "description": "Must be >= slot_a + 55, and <= 96" }
+        },
+        "required": ["slot_a", "slot_b"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "slot_a", "min": 0, "max": 20 },
+        { "type": "math", "expr": "slot_b >= slot_a + 55" },
+        { "type": "range", "field": "slot_b", "min": 0, "max": 96 }
+      ]
+    }
+  }
+}

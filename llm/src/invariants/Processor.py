@@ -20,6 +20,31 @@ class GenerationResult:
     mask_calls: int = 0
 
 
+def is_inside_open_string(text: str) -> bool:
+    """Whether `text` currently has an unescaped opening quote with no
+    matching unescaped closing quote yet -- i.e. a "," or "}" appearing next
+    would be literal string content, not a JSON structural character.
+    Non-string values (numbers, booleans) never open a quote, so this is
+    always False for them and their exit-char handling is unaffected."""
+    opened = False
+    closed = False
+    escaped = False
+    for c in text:
+        if not opened:
+            if c == '"':
+                opened = True
+            continue
+        if closed:
+            break
+        if escaped:
+            escaped = False
+        elif c == "\\":
+            escaped = True
+        elif c == '"':
+            closed = True
+    return opened and not closed
+
+
 class ConstraintProcessor:
     def __init__(self, runtime, buffer, engine):
         self.runtime = runtime
@@ -65,7 +90,8 @@ class ConstrainedGenerator:
         self.engine = engine
 
     def generate(
-        self, dsl_source: str, root_spec: str, system_prompt: str, verbose: bool = True
+        self, dsl_source: str, root_spec: str, system_prompt: str, verbose: bool = True,
+        temperature: float = 0.0,
     ) -> GenerationResult:
         session = invariants_cpp.EngineSession(dsl_source, root_spec)
         rt = session.runtime
@@ -115,7 +141,8 @@ class ConstrainedGenerator:
                 buffer = FieldBuffer(self.engine)
                 processor = ConstraintProcessor(rt, buffer, self.engine)
                 state = self.engine.prefill(
-                    f"{system_prompt}\n{final_json}", logits_processor=processor
+                    f"{system_prompt}\n{final_json}", logits_processor=processor,
+                    temperature=temperature,
                 )
 
                 generated_val = ""
@@ -127,8 +154,16 @@ class ConstrainedGenerator:
                     tokens_sampled += 1
                     char_chunk = self.engine.decode([token])
 
+                    # A "," or "}" only means "the value is done" once we're
+                    # not still inside an open, unescaped JSON string -- a
+                    # free-text field naturally contains commas as normal
+                    # punctuation (e.g. "...climate, agreement..."), and
+                    # treating every comma as an exit signal truncated the
+                    # value before the model ever reached a closing quote.
                     exit_chars = [",", "}"]
-                    if any(c in char_chunk for c in exit_chars):
+                    if not is_inside_open_string(generated_val + char_chunk) and any(
+                        c in char_chunk for c in exit_chars
+                    ):
                         for c in exit_chars:
                             if c in char_chunk:
                                 char_chunk = char_chunk.split(c)[0]

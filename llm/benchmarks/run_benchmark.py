@@ -98,6 +98,23 @@ def _strip_markdown_fence(text: str) -> str:
     return stripped
 
 
+def crash_assertions(case: BenchmarkCase, error: Exception) -> list[dict]:
+    # A crashed system produced no output at all -- every assertion the case
+    # would have checked must count as failed, not be silently dropped from
+    # the tally. An empty list here would let field-level aggregation treat
+    # a crash as "this case just didn't contribute any data" instead of
+    # "every field in this case failed," which is what actually happened.
+    return [
+        {
+            "type": a.type,
+            "field": a.field,
+            "passed": False,
+            "detail": f"system crashed before producing output: {error}",
+        }
+        for a in case.eval_assertions
+    ]
+
+
 def run_evaluations(case: BenchmarkCase, output_text: str) -> tuple[bool, list[dict]]:
     print(output_text)
 
@@ -160,7 +177,7 @@ def load_baseline_llm() -> Llama:
     )
 
 
-def run_baseline_case(llm: Llama, case: BenchmarkCase) -> dict:
+def run_baseline_case(llm: Llama, case: BenchmarkCase, temperature: float = 0.7) -> dict:
     t0 = time.perf_counter()
     response = llm.create_chat_completion(
         messages=[
@@ -168,7 +185,7 @@ def run_baseline_case(llm: Llama, case: BenchmarkCase) -> dict:
             {"role": "user", "content": case.prompts.user},
         ],
         response_format={"type": "json_object", "schema": case.json_schema},
-        temperature=0.7,
+        temperature=temperature,
         max_tokens=400,
     )
     wall_time = time.perf_counter() - t0
@@ -187,7 +204,7 @@ def run_baseline_case(llm: Llama, case: BenchmarkCase) -> dict:
     }
 
 
-def run_plain_prompt_case(llm: Llama, case: BenchmarkCase) -> dict:
+def run_plain_prompt_case(llm: Llama, case: BenchmarkCase, temperature: float = 0.7) -> dict:
     # Same prompt as run_baseline_case, but with no grammar constraint at all.
     t0 = time.perf_counter()
     response = llm.create_chat_completion(
@@ -195,7 +212,7 @@ def run_plain_prompt_case(llm: Llama, case: BenchmarkCase) -> dict:
             {"role": "system", "content": case.prompts.system},
             {"role": "user", "content": case.prompts.user},
         ],
-        temperature=0.7,
+        temperature=temperature,
         max_tokens=400,
     )
     wall_time = time.perf_counter() - t0
@@ -215,11 +232,13 @@ def run_plain_prompt_case(llm: Llama, case: BenchmarkCase) -> dict:
 
 
 def run_invariants_case(
-    generator: ConstrainedGenerator, case: BenchmarkCase, verbose: bool = False
+    generator: ConstrainedGenerator, case: BenchmarkCase, verbose: bool = False,
+    temperature: float = 0.0,
 ) -> dict:
     prompt_str = f"{case.prompts.system}\n\n{case.prompts.user}"
     result = generator.generate(
-        case.invariants_dsl, case.root_spec, prompt_str, verbose=verbose
+        case.invariants_dsl, case.root_spec, prompt_str, verbose=verbose,
+        temperature=temperature,
     )
 
     tokens = result.tokens_sampled
@@ -382,7 +401,7 @@ def main():
                         baseline = {
                             "raw_output": None,
                             "success": False,
-                            "assertions": [],
+                            "assertions": crash_assertions(case, e),
                             "tokens": 0,
                             "wall_time_s": 0.0,
                             "tokens_per_sec": 0.0,
@@ -399,7 +418,7 @@ def main():
                         plain_prompt = {
                             "raw_output": None,
                             "success": False,
-                            "assertions": [],
+                            "assertions": crash_assertions(case, e),
                             "tokens": 0,
                             "wall_time_s": 0.0,
                             "tokens_per_sec": 0.0,
@@ -418,7 +437,7 @@ def main():
                     invariants = {
                         "raw_output": None,
                         "success": False,
-                        "assertions": [],
+                        "assertions": crash_assertions(case, e),
                         "tokens": 0,
                         "fields_bypassed": 0,
                         "total_fields": 0,
