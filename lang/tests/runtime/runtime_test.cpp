@@ -124,6 +124,55 @@ TEST(RuntimeSrcTest, EnforcesPartialValidationRejections) {
   EXPECT_EQ(std::get<int>(runtime.getEnvironment().at("age")), 21);
 }
 
+TEST(RuntimeSrcTest, PrunesDeadNumericMembershipPrefixes) {
+  // IN against a computed array previously fell back to exact-equality
+  // comparison even for a still-growing partial value, which almost never
+  // holds mid-generation: a lone "-" (all elements positive) and "85" (not
+  // a prefix of 80, 443, or 8080) both looked exactly as invalid as a value
+  // that could never complete, when only the sign case actually can't --
+  // the mask would keep offering "8", "5", ... down a branch that was
+  // already dead the moment it diverged from every element's digits.
+  std::string source = R"(
+    spec PortSelection {
+      field allowed_ports: Array<Integer> {
+        value == [80, 443, 8080];
+      }
+      field chosen_port: Integer {
+        value IN this.allowed_ports;
+      }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "PortSelection");
+
+  Runtime runtime(bound, schedule);
+  runtime.solveDeterministic();  // allowed_ports
+  ASSERT_EQ(runtime.getActiveFieldName(), "chosen_port");
+
+  // A leading sign with no positive array member is dead immediately.
+  EXPECT_EQ(runtime.validatePartial("-", false), ValidationStatus::Invalid);
+
+  // Live prefixes of 80, 443, and 8080 respectively.
+  EXPECT_EQ(runtime.validatePartial("8", false), ValidationStatus::PartialValid);
+  EXPECT_EQ(runtime.validatePartial("4", false), ValidationStatus::PartialValid);
+  EXPECT_EQ(runtime.validatePartial("80", false), ValidationStatus::PartialValid);
+
+  // "85" diverges from every element's digits at the second character --
+  // dead even though it hasn't hit its declared length yet.
+  EXPECT_EQ(runtime.validatePartial("85", false), ValidationStatus::Invalid);
+  EXPECT_EQ(runtime.validatePartial("9", false), ValidationStatus::Invalid);
+
+  // Exact members still validate as complete; non-members are rejected.
+  EXPECT_EQ(runtime.validatePartial("443", true), ValidationStatus::Valid);
+  EXPECT_EQ(runtime.validatePartial("8080", true), ValidationStatus::Valid);
+  EXPECT_EQ(runtime.validatePartial("22", true), ValidationStatus::Invalid);
+}
+
 TEST(RuntimeSrcTest, KahnsAlgorithmForcesFieldReordering) {
   // Fields are declared in [a, b, c, d] order.
   // Dependencies: a relies on b & c. b relies on c. d relies on a.

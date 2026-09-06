@@ -173,6 +173,83 @@ bool isDeadNegativeSign(const binder::BoundExpr& expr, const std::string& active
   return false;
 }
 
+// Recognizes `(this.field | value) IN <array-expr>` and returns the
+// right-hand array's elements as doubles, evaluated as an already-known
+// constant (the array itself must already be committed -- true for the
+// deterministic literal-array fields this is meant for; anything else
+// simply fails to evaluate and this returns nullopt, same as every other
+// "not a recognized shape" case in this file). NotIn is deliberately
+// excluded: for exclusion, a partial value that isn't yet an exact match to
+// an excluded element should stay tentatively valid (more digits could
+// still diverge from it), so the existing exact-equality-based check is
+// already safe and this asymmetry isn't a gap worth closing.
+std::optional<std::vector<double>> numericInMembershipSet(
+    const binder::BoundExpr& expr, const std::string& activePath,
+    const std::string& instancePrefix, const Environment& env,
+    const Evaluator& evaluator) {
+  if (!std::holds_alternative<binder::BoundBinaryExpr>(expr.value))
+    return std::nullopt;
+  const auto& bin = std::get<binder::BoundBinaryExpr>(expr.value);
+  if (bin.op != ast::BinaryOp::In) return std::nullopt;
+  if (!isActiveValueRef(*bin.left, activePath, instancePrefix)) return std::nullopt;
+
+  try {
+    Value arr = evaluator.evaluate(*bin.right, env, /*partial=*/false, instancePrefix);
+    auto arrPtr = std::get_if<std::shared_ptr<ArrayValue>>(&arr);
+    if (!arrPtr) return std::nullopt;
+    std::vector<double> out;
+    for (const auto& el : (*arrPtr)->elements) {
+      if (std::holds_alternative<int>(el) || std::holds_alternative<double>(el)) {
+        out.push_back(asDouble(el));
+      } else {
+        return std::nullopt;  // non-numeric elements -- not our concern here
+      }
+    }
+    return out;
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
+// A whole-number double formats without a trailing ".0" -- matching how a
+// digit-by-digit Integer (or whole-valued Number) field is actually typed,
+// which is what proposedChars is being compared against. Every numeric
+// literal loses its Integer/Number distinction by the time it's a Value
+// (see the binder's bindLiteral), so this infers formatting from the value
+// itself rather than from a declared type that isn't available here.
+std::string formatForPrefixMatch(double v) {
+  if (v == std::floor(v) && std::abs(v) < 1e15) {
+    std::ostringstream oss;
+    oss << static_cast<long long>(v);
+    return oss.str();
+  }
+  std::ostringstream oss;
+  oss << v;
+  return oss.str();
+}
+
+// Same principle as the existing partial-string prefix check (a string
+// constrained by IN is allowed to keep growing as long as it's still a
+// prefix of some allowed value): more digits can only extend a number's
+// text, never rewrite digits already typed, so a numeric prefix is dead
+// the moment it stops being a prefix of every candidate's formatted text.
+// Without this, IN-against-an-array falls back to exact equality even for
+// a partial value, which almost never holds mid-generation -- e.g. "-" or
+// "85" against [80, 443, 8080] would otherwise look identically invalid to
+// a value that can never complete correctly, when only the sign case
+// actually can't.
+bool isDeadNumericMembershipPrefix(const std::vector<double>& elements,
+                                   std::string_view proposedChars) {
+  for (double el : elements) {
+    std::string candidate = formatForPrefixMatch(el);
+    if (candidate.size() >= proposedChars.size() &&
+        candidate.compare(0, proposedChars.size(), proposedChars) == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 }  // namespace
 
 static std::vector<std::string> splitPath(const std::string& s) {
@@ -451,6 +528,13 @@ ValidationStatus Runtime::validatePartial(std::string_view proposedChars,
                                  trigger.instancePrefix, environment, evaluator)) {
             return ValidationStatus::Invalid;
           }
+          auto members = numericInMembershipSet(*trigger.constraint->expr, activePath,
+                                               trigger.instancePrefix, environment,
+                                               evaluator);
+          if (members.has_value() &&
+              isDeadNumericMembershipPrefix(*members, proposedChars)) {
+            return ValidationStatus::Invalid;
+          }
         }
       }
     }
@@ -475,6 +559,14 @@ ValidationStatus Runtime::validatePartial(std::string_view proposedChars,
           // Not yet provably violated -- skip the plain comparison below,
           // which isn't partial-safe.
           continue;
+        }
+
+        auto members = numericInMembershipSet(*trigger.constraint->expr, activePath,
+                                             trigger.instancePrefix, tempEnv, evaluator);
+        if (members.has_value()) {
+          if (isDeadNumericMembershipPrefix(*members, proposedChars))
+            return ValidationStatus::Invalid;
+          continue;  // same reasoning: not partial-safe to fall through below
         }
       }
 
