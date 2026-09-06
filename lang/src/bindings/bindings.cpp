@@ -163,6 +163,135 @@ inline bool isPureTokenizerSpace(std::string_view s) {
   return start_idx == s.size();
 }
 
+// Advances `pos` past ASCII whitespace and tokenizer-space markers
+// (SentencePiece '\xE2\x96\x81' / BPE 'Ġ' = 0xC4 0xA0), mirroring the
+// stripping already done piecemeal elsewhere in this file, generalized so
+// the array scanner below can call it at every position whitespace is
+// syntactically allowed (after '[', after ',', before ']').
+inline size_t skipWhitespaceAndTokenizerSpace(std::string_view s, size_t pos) {
+  while (pos < s.size()) {
+    unsigned char c = s[pos];
+    if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+      pos++;
+    } else if (pos + 2 < s.size() && s.substr(pos, 3) == "\xE2\x96\x81") {
+      pos += 3;
+    } else if (c == 0xC4 && pos + 1 < s.size() &&
+               static_cast<unsigned char>(s[pos + 1]) == 0xA0) {
+      pos += 2;
+    } else {
+      break;
+    }
+  }
+  return pos;
+}
+
+enum class ArrayScanOutcome { Invalid, OpenPrefix, ClosedComplete };
+
+struct ArrayScanResult {
+  ArrayScanOutcome outcome;
+  // Index of the closing ']' in `sv`, valid only when outcome is
+  // ClosedComplete -- avoids re-deriving it with a fragile rfind(']'),
+  // which a string element containing a literal ']' could mislead.
+  size_t closeBracketPos = 0;
+};
+
+// Scans `sv`, the accumulated buffer for an Array<elementType> field, for
+// structural validity as a prefix of some well-formed JSON array of
+// elementType -- bracket and comma structure, plus each element checked
+// against elementType using the same per-type helpers (or, for strings,
+// the same quote/escape-aware scanning) already used for scalar fields.
+// This is what lets an Array<T> field be masked at all instead of falling
+// through to the generic numeric fallback, which would treat the whole
+// buffer -- brackets included -- as if it were a single malformed number.
+// Semantic constraints on the completed array (if the field has any) are
+// left to the existing validatePartial()/parseLLMString path once the
+// array is closed; this only enforces syntax.
+ArrayScanResult scanArrayPrefix(std::string_view sv, BuiltinType elementType) {
+  size_t pos = skipWhitespaceAndTokenizerSpace(sv, 0);
+  if (pos >= sv.size()) return {ArrayScanOutcome::OpenPrefix};
+  if (sv[pos] != '[') return {ArrayScanOutcome::Invalid};
+  pos++;
+
+  bool expectElementOrClose = true;
+  while (true) {
+    pos = skipWhitespaceAndTokenizerSpace(sv, pos);
+    if (pos >= sv.size()) return {ArrayScanOutcome::OpenPrefix};
+
+    if (sv[pos] == ']') return {ArrayScanOutcome::ClosedComplete, pos};
+
+    if (!expectElementOrClose) {
+      if (sv[pos] == ',') {
+        pos++;
+        expectElementOrClose = true;
+        continue;
+      }
+      return {ArrayScanOutcome::Invalid};
+    }
+
+    if (elementType == BuiltinType::String) {
+      if (sv[pos] != '"') return {ArrayScanOutcome::Invalid};
+      size_t j = pos + 1;
+      bool esc = false, closed = false;
+      for (; j < sv.size(); ++j) {
+        if (esc) {
+          esc = false;
+        } else if (sv[j] == '\\') {
+          esc = true;
+        } else if (sv[j] == '"') {
+          closed = true;
+          ++j;
+          break;
+        } else if (static_cast<unsigned char>(sv[j]) < 0x20) {
+          return {ArrayScanOutcome::Invalid};  // raw control char, same rule as top-level strings
+        }
+      }
+      if (!closed) return {ArrayScanOutcome::OpenPrefix};
+      pos = j;
+      expectElementOrClose = false;
+      continue;
+    }
+
+    if (elementType == BuiltinType::Boolean) {
+      std::string_view rest = sv.substr(pos);
+      constexpr std::string_view kTrue = "true", kFalse = "false";
+      if (rest.size() >= kTrue.size() && rest.substr(0, kTrue.size()) == kTrue) {
+        pos += kTrue.size();
+        expectElementOrClose = false;
+        continue;
+      }
+      if (rest.size() >= kFalse.size() && rest.substr(0, kFalse.size()) == kFalse) {
+        pos += kFalse.size();
+        expectElementOrClose = false;
+        continue;
+      }
+      size_t n = rest.size();
+      if ((n <= kTrue.size() && rest == kTrue.substr(0, n)) ||
+          (n <= kFalse.size() && rest == kFalse.substr(0, n))) {
+        return {ArrayScanOutcome::OpenPrefix};
+      }
+      return {ArrayScanOutcome::Invalid};
+    }
+
+    // Integer / Number: scan up to the next delimiter or end-of-buffer and
+    // reuse the exact scalar-field validity helpers on that isolated span.
+    size_t j = pos;
+    while (j < sv.size() && sv[j] != ',' && sv[j] != ']' && sv[j] != ' ' &&
+           sv[j] != '\t' && sv[j] != '\r' && sv[j] != '\n') {
+      ++j;
+    }
+    std::string_view elemText = sv.substr(pos, j - pos);
+    bool canExit = false;
+    bool ok = (elementType == BuiltinType::Integer)
+                  ? isValidPartialJsonInteger(elemText, canExit)
+                  : isValidPartialJsonNumber(elemText, canExit);
+    if (!ok) return {ArrayScanOutcome::Invalid};
+    if (j >= sv.size()) return {ArrayScanOutcome::OpenPrefix};  // still typing this element
+    if (!canExit) return {ArrayScanOutcome::Invalid};  // e.g. "12." right before a delimiter
+    pos = j;
+    expectElementOrClose = false;
+  }
+}
+
 class EngineSession {
   std::unique_ptr<invariants::ast::ModuleStmt> ast;
   invariants::binder::Binder binder;
@@ -238,6 +367,8 @@ PYBIND11_MODULE(invariants_cpp, m) {
 
         bool isString = false, isInteger = false, isNumber = false,
              isBool = false;
+        bool isArrayOfBuiltin = false;
+        BuiltinType arrayElementType = BuiltinType::String;
 
         // Based on binder.hpp, ResolvedType is strictly the base type!
         // Constraints are external, so isBuiltin() is 100% accurate.
@@ -250,9 +381,20 @@ PYBIND11_MODULE(invariants_cpp, m) {
           if (verbose)
             std::cout << "[C++ Mask] Base Type: Builtin (Integer=" << isInteger
                       << ")\n";
+        } else if (field_type.isArray()) {
+          auto arrType = std::get<std::shared_ptr<invariants::binder::ResolvedArrayType>>(
+              field_type.type);
+          if (arrType->element.isBuiltin()) {
+            isArrayOfBuiltin = true;
+            arrayElementType = std::get<BuiltinType>(arrType->element.type);
+          }
+          if (verbose)
+            std::cout << "[C++ Mask] Base Type: Array<"
+                      << (isArrayOfBuiltin ? "builtin" : "unsupported")
+                      << ">\n";
         } else {
           if (verbose)
-            std::cout << "[C++ Mask] Base Type: Complex (Spec/Array/Map)\n";
+            std::cout << "[C++ Mask] Base Type: Complex (Spec/Map)\n";
         }
 
         int surviving_tokens = 0;
@@ -277,18 +419,23 @@ PYBIND11_MODULE(invariants_cpp, m) {
           std::string proposed = current_buffer + token_str;
           std::string_view sv(proposed);
 
-          // 0. MAX LENGTH SAFETY VALVE: no legitimate value here needs more
-          // than a few dozen characters. Caps unbounded-padding patterns
-          // (whitespace, redundant decimal/exponent digits, etc) that would
-          // otherwise run until n_ctx. Tokens that close out the value are
-          // still allowed through to normal validation.
-          constexpr size_t kMaxOpenFieldValueLength = 40;
-          if (current_buffer.size() >= kMaxOpenFieldValueLength &&
+          // 0. MAX LENGTH SAFETY VALVE: no legitimate scalar value here
+          // needs more than a few dozen characters. Caps unbounded-padding
+          // patterns (whitespace, redundant decimal/exponent digits, etc)
+          // that would otherwise run until n_ctx. Tokens that close out the
+          // value are still allowed through to normal validation. Arrays
+          // get a much larger cap: a handful of elements routinely exceeds
+          // 40 characters on their own, and (unlike a scalar) a ',' inside
+          // the value is a normal mid-array separator, not a sign of being
+          // done, so it can't be used the same way as the exit-character
+          // escape hatch below implies.
+          size_t maxOpenFieldValueLength = isArrayOfBuiltin ? 300 : 40;
+          if (current_buffer.size() >= maxOpenFieldValueLength &&
               sv.find_first_of(",}\n") == std::string_view::npos) {
             if (trace_token)
               std::cout << "   -> REJECTED: exceeded max open field-value "
                            "length ("
-                        << kMaxOpenFieldValueLength << ").\n";
+                        << maxOpenFieldValueLength << ").\n";
             ptr[i] = -std::numeric_limits<float>::infinity();
             continue;
           }
@@ -314,6 +461,55 @@ PYBIND11_MODULE(invariants_cpp, m) {
               std::cout << "   -> REJECTED: whitespace padding onto "
                            "already-whitespace-terminated buffer.\n";
             ptr[i] = -std::numeric_limits<float>::infinity();
+            continue;
+          }
+
+          // 1c. ARRAY-OF-BUILTIN-ELEMENT-TYPE VALIDATION
+          if (isArrayOfBuiltin) {
+            ArrayScanResult scan = scanArrayPrefix(sv, arrayElementType);
+
+            if (scan.outcome == ArrayScanOutcome::Invalid) {
+              if (trace_token)
+                std::cout << "   -> REJECTED: invalid Array<T> structure.\n";
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
+            }
+
+            if (scan.outcome == ArrayScanOutcome::OpenPrefix) {
+              if (trace_token)
+                std::cout << "   -> ACCEPTED: Array<T> still open.\n";
+              surviving_tokens++;
+              continue;
+            }
+
+            // ClosedComplete: whatever follows ']' must be a legal JSON
+            // delimiter, same rule as the trailing check after a closed
+            // string.
+            std::string_view trailing = sv.substr(scan.closeBracketPos + 1);
+            size_t t_first = trailing.find_first_not_of(" \t\r\n");
+            if (t_first != std::string_view::npos) {
+              char exit_c = trailing[t_first];
+              if (exit_c != ',' && exit_c != '}' && exit_c != '\n') {
+                if (trace_token)
+                  std::cout << "   -> REJECTED: invalid trailing content "
+                               "after closed array.\n";
+                ptr[i] = -std::numeric_limits<float>::infinity();
+                continue;
+              }
+            }
+
+            std::string arrayText(sv.substr(0, scan.closeBracketPos + 1));
+            if (rt.validatePartial(arrayText) != ValidationStatus::Valid) {
+              if (trace_token)
+                std::cout << "   -> REJECTED: Array failed semantic "
+                             "validation.\n";
+              ptr[i] = -std::numeric_limits<float>::infinity();
+              continue;
+            }
+
+            if (trace_token)
+              std::cout << "   -> ACCEPTED: Array<T> closed and valid.\n";
+            surviving_tokens++;
             continue;
           }
 

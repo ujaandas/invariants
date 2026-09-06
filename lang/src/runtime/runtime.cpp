@@ -1,6 +1,7 @@
 #include "runtime.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <iomanip>
 #include <optional>
@@ -264,6 +265,79 @@ static std::vector<std::string> splitPath(const std::string& s) {
 
 static Value parseLLMString(std::string_view raw,
                             const binder::ResolvedType& type) {
+  if (type.isArray()) {
+    auto arrType =
+        std::get<std::shared_ptr<binder::ResolvedArrayType>>(type.type);
+    if (!arrType->element.isBuiltin()) {
+      // Arrays of Spec/Array/Map elements aren't supported yet -- only the
+      // mask's structural scanning (bindings.cpp) and this parser agree on
+      // scalar element types for now.
+      throw std::runtime_error(
+          "Nested object parsing from LLM not supported directly.");
+    }
+
+    std::string s(raw);
+    std::size_t start = s.find_first_not_of(" \t\r\n");
+    std::size_t end = s.find_last_not_of(" \t\r\n");
+    if (start == std::string::npos || s[start] != '[' || s[end] != ']') {
+      throw std::runtime_error("Malformed array literal from LLM: '" + s + "'.");
+    }
+    std::string_view inner(s.data() + start + 1,
+                           end > start ? end - start - 1 : 0);
+
+    auto arrayVal = std::make_shared<ArrayValue>();
+    std::size_t pos = 0;
+    while (pos < inner.size()) {
+      while (pos < inner.size() &&
+             std::isspace(static_cast<unsigned char>(inner[pos]))) {
+        pos++;
+      }
+      if (pos >= inner.size()) break;
+
+      // Scan one element's text, respecting string-quoting and bracket
+      // nesting so a comma inside a nested string/array doesn't split it.
+      std::size_t elemStart = pos;
+      int depth = 0;
+      bool inString = false, esc = false;
+      while (pos < inner.size()) {
+        char c = inner[pos];
+        if (inString) {
+          if (esc) {
+            esc = false;
+          } else if (c == '\\') {
+            esc = true;
+          } else if (c == '"') {
+            inString = false;
+          }
+        } else {
+          if (c == '"') {
+            inString = true;
+          } else if (c == '[' || c == '{') {
+            depth++;
+          } else if (c == ']' || c == '}') {
+            depth--;
+          } else if (c == ',' && depth == 0) {
+            break;
+          }
+        }
+        pos++;
+      }
+
+      std::string_view elemText = inner.substr(elemStart, pos - elemStart);
+      std::size_t trimEnd = elemText.find_last_not_of(" \t\r\n");
+      if (trimEnd == std::string_view::npos) {
+        throw std::runtime_error("Malformed array literal from LLM: '" + s + "'.");
+      }
+      elemText = elemText.substr(0, trimEnd + 1);
+
+      arrayVal->elements.push_back(parseLLMString(elemText, arrType->element));
+
+      if (pos < inner.size() && inner[pos] == ',') pos++;
+    }
+
+    return arrayVal;
+  }
+
   if (!type.isBuiltin()) {
     throw std::runtime_error(
         "Nested object parsing from LLM not supported directly.");
