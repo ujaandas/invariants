@@ -18,11 +18,18 @@ import pandas as pd
 RESULTS_ROOT = Path("benchmarks/results")
 PLOTS_DIR = Path("benchmarks/plots")
 
-# Categorical palette, fixed order (dataviz skill reference palette, slots 1-3 --
-# these three validate together for both adjacent and all-pairs CVD checks).
-COLOR_PLAIN = "#2a78d6"
-COLOR_BASELINE = "#eb6834"
-COLOR_INVARIANTS = "#1baf7a"
+# Categorical palette, fixed order (dataviz skill reference palette). Slots
+# 1-3 (Plain/Baseline/Invariants) are unchanged from every earlier plot in
+# this project for visual continuity. Slots 4-5 (Outlines/Guidance) extend
+# the SAME documented 8-slot sequence in its validated adjacent order --
+# node wasn't available to re-validate a custom permutation, so bars are
+# drawn in exact slot order (1,2,3,4,5) rather than a reordered narrative
+# grouping, to keep the adjacent-pair CVD-safety guarantee intact.
+COLOR_PLAIN = "#2a78d6"       # slot 1
+COLOR_BASELINE = "#eb6834"    # slot 2
+COLOR_INVARIANTS = "#1baf7a"  # slot 3
+COLOR_OUTLINES = "#eda100"    # slot 4
+COLOR_GUIDANCE = "#e87ba4"    # slot 5
 # Diverging pair, for the one polarity chart (faster/slower than baseline).
 COLOR_DIV_FASTER = "#2a78d6"
 COLOR_DIV_SLOWER = "#e34948"
@@ -31,21 +38,27 @@ TEXT_PRIMARY = "#0b0b0b"
 TEXT_SECONDARY = "#52514e"
 GRID_COLOR = "#e3e2dd"
 
-SYSTEM_ORDER = ["Plain_Prompt", "Baseline_CFG", "Invariants"]
+SYSTEM_ORDER = ["Plain_Prompt", "Baseline_CFG", "Invariants", "Outlines", "Guidance"]
 SYSTEM_COLORS = {
     "Plain_Prompt": COLOR_PLAIN,
     "Baseline_CFG": COLOR_BASELINE,
     "Invariants": COLOR_INVARIANTS,
+    "Outlines": COLOR_OUTLINES,
+    "Guidance": COLOR_GUIDANCE,
 }
 SYSTEM_LABELS = {
     "Plain_Prompt": "Plain Prompt",
     "Baseline_CFG": "Baseline (GBNF)",
     "Invariants": "Invariants",
+    "Outlines": "Outlines",
+    "Guidance": "Guidance",
 }
 JSON_KEY_FOR_SYSTEM = {
     "Plain_Prompt": "plain_prompt",
     "Baseline_CFG": "baseline",
     "Invariants": "invariants",
+    "Outlines": "outlines",
+    "Guidance": "guidance",
 }
 
 SUITES = [
@@ -228,7 +241,7 @@ def plot_field_level_pass_rate_by_suite(suite_json: dict):
 
     print_values("Field-level pass rate by suite (passed/total, rate)", raw)
 
-    fig, ax = plt.subplots(figsize=(13, 5))
+    fig, ax = plt.subplots(figsize=(15, 5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel("Individual assertions passed (%)")
     ax.set_ylim(0, 108)
@@ -268,7 +281,7 @@ def plot_success_rate_by_suite(df: pd.DataFrame):
 
     print_values("Case-level (all-assertions-pass) success rate by suite", raw)
 
-    fig, ax = plt.subplots(figsize=(13, 5))
+    fig, ax = plt.subplots(figsize=(15, 5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel("Cases passed (%)")
     ax.set_ylim(0, 108)
@@ -369,7 +382,7 @@ def plot_assertion_pass_rate_by_type(suite_json: dict):
         for t in present_types
     })
 
-    fig, ax = plt.subplots(figsize=(11, 5.5))
+    fig, ax = plt.subplots(figsize=(13, 5.5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel("Passed (%)")
     ax.set_ylim(0, 108)
@@ -444,7 +457,7 @@ def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title:
 
     print_values(f"Mean {column} by suite", raw)
 
-    fig, ax = plt.subplots(figsize=(13, 5))
+    fig, ax = plt.subplots(figsize=(15, 5))
     grouped_bars(ax, labels, series, SYSTEM_COLORS, SYSTEM_LABELS)
     ax.set_ylabel(ylabel)
     ax.set_title(title, fontsize=13, fontweight="bold")
@@ -550,11 +563,16 @@ def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
         return
 
     temps = sorted(sweep_df["Temperature"].unique())
-    labels = [SYSTEM_LABELS[s] for s in SYSTEM_ORDER]
+    # Only the systems actually present in this sweep -- Outlines/Guidance
+    # were added to the main suites later and were never run through this
+    # sweep, so iterating the full SYSTEM_ORDER would render them as a
+    # misleading 0% rather than simply absent.
+    swept_systems = [s for s in SYSTEM_ORDER if s in sweep_df["System"].unique()]
+    labels = [SYSTEM_LABELS[s] for s in swept_systems]
     series = {f"temp={t}": [] for t in temps}
     errs = {f"temp={t}": [] for t in temps}
     raw = {}
-    for sys_ in SYSTEM_ORDER:
+    for sys_ in swept_systems:
         raw[SYSTEM_LABELS[sys_]] = {}
         for t in temps:
             rows = sweep_df[(sweep_df["System"] == sys_) & (sweep_df["Temperature"] == t)]

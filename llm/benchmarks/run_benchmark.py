@@ -8,6 +8,8 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
+import guidance
+import outlines
 from helper import BenchmarkCase, BenchmarkSuite
 from invariants.Engine import Engine, resolve_cached_model_path
 from invariants.Processor import ConstrainedGenerator
@@ -20,6 +22,8 @@ SYSTEM_ROLLUP_FILES = {
     "Baseline_CFG": "baseline_cfg.csv",
     "Plain_Prompt": "plain_prompt.csv",
     "Invariants": "invariants.csv",
+    "Outlines": "outlines.csv",
+    "Guidance": "guidance.csv",
 }
 
 
@@ -231,6 +235,59 @@ def run_plain_prompt_case(llm: Llama, case: BenchmarkCase, temperature: float = 
     }
 
 
+def run_outlines_case(
+    outlines_model, llm: Llama, case: BenchmarkCase, temperature: float = 0.7
+) -> dict:
+    # outlines' Generator returns only the final text -- no token-count API
+    # is exposed for a llama.cpp-backed steerable model, so tokens are
+    # counted by re-tokenizing the output with the same tokenizer used for
+    # every other system, for a consistent (if not live-sampling-exact)
+    # basis of comparison.
+    generator = outlines.Generator(outlines_model, outlines.json_schema(case.json_schema))
+    prompt = f"{case.prompts.system}\n\n{case.prompts.user}"
+
+    t0 = time.perf_counter()
+    text = generator(prompt, max_tokens=400, temperature=temperature)
+    wall_time = time.perf_counter() - t0
+    tokens = len(llm.tokenize(text.encode("utf-8")))
+    tps = tokens / wall_time if wall_time > 0 else 0
+
+    success, assertions = run_evaluations(case, text)
+    return {
+        "raw_output": text,
+        "success": success,
+        "assertions": assertions,
+        "tokens": tokens,
+        "wall_time_s": wall_time,
+        "tokens_per_sec": tps,
+    }
+
+
+def run_guidance_case(
+    guidance_model, llm: Llama, case: BenchmarkCase, temperature: float = 0.7
+) -> dict:
+    prompt = f"{case.prompts.system}\n\n{case.prompts.user}"
+
+    t0 = time.perf_counter()
+    lm = guidance_model + prompt + guidance.json(
+        name="result", schema=case.json_schema, max_tokens=400, temperature=temperature
+    )
+    wall_time = time.perf_counter() - t0
+    text = lm["result"]
+    tokens = len(llm.tokenize(text.encode("utf-8")))
+    tps = tokens / wall_time if wall_time > 0 else 0
+
+    success, assertions = run_evaluations(case, text)
+    return {
+        "raw_output": text,
+        "success": success,
+        "assertions": assertions,
+        "tokens": tokens,
+        "wall_time_s": wall_time,
+        "tokens_per_sec": tps,
+    }
+
+
 def run_invariants_case(
     generator: ConstrainedGenerator, case: BenchmarkCase, verbose: bool = False,
     temperature: float = 0.0,
@@ -350,9 +407,20 @@ def main():
 
     try:
         llm = None
+        outlines_model = None
+        guidance_model = None
         if not args.invariants_only:
             print("Initializing baseline (SOTA CFG / JSON Schema) model...")
             llm = load_baseline_llm()
+            # Both wrap the SAME already-loaded Llama instance rather than
+            # loading their own copy, so all three CFG-based systems (plus
+            # Plain_Prompt) run against identical weights/context/KV cache
+            # behavior -- only the constraint-enforcement implementation
+            # differs between them.
+            print("Initializing Outlines...")
+            outlines_model = outlines.models.LlamaCpp(llm)
+            print("Initializing Guidance...")
+            guidance_model = guidance.models.LlamaCpp(llm, echo=False)
 
         print("Initializing invariants engine...")
         engine = Engine()
@@ -425,6 +493,40 @@ def main():
                             "error": str(e),
                         }
                     case_payload["plain_prompt"] = plain_prompt
+
+                    print("\n>>> Running Outlines")
+                    try:
+                        outlines_result = run_outlines_case(outlines_model, llm, case)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"    Outlines generation crashed: {e}")
+                        traceback.print_exc()
+                        outlines_result = {
+                            "raw_output": None,
+                            "success": False,
+                            "assertions": crash_assertions(case, e),
+                            "tokens": 0,
+                            "wall_time_s": 0.0,
+                            "tokens_per_sec": 0.0,
+                            "error": str(e),
+                        }
+                    case_payload["outlines"] = outlines_result
+
+                    print("\n>>> Running Guidance")
+                    try:
+                        guidance_result = run_guidance_case(guidance_model, llm, case)
+                    except Exception as e:  # noqa: BLE001
+                        print(f"    Guidance generation crashed: {e}")
+                        traceback.print_exc()
+                        guidance_result = {
+                            "raw_output": None,
+                            "success": False,
+                            "assertions": crash_assertions(case, e),
+                            "tokens": 0,
+                            "wall_time_s": 0.0,
+                            "tokens_per_sec": 0.0,
+                            "error": str(e),
+                        }
+                    case_payload["guidance"] = guidance_result
 
                 print("\n>>> Running Invariants Architecture")
                 try:
@@ -506,6 +608,54 @@ def main():
                         f"Tokens: {plain_prompt['tokens']}"
                     )
 
+                    outlines_passed = sum(1 for a in outlines_result["assertions"] if a["passed"])
+                    outlines_total = len(outlines_result["assertions"])
+                    csv_writer.writerow(
+                        [
+                            case_id,
+                            "Outlines",
+                            outlines_result["success"],
+                            outlines_passed,
+                            outlines_total,
+                            outlines_result["tokens"],
+                            0,
+                            0,
+                            f"{outlines_result['wall_time_s']:.3f}",
+                            f"{outlines_result['tokens_per_sec']:.2f}",
+                            "0.000",
+                            0,
+                        ]
+                    )
+                    print(
+                        f"Outlines   | Success: {outlines_result['success']} | "
+                        f"Speed: {outlines_result['tokens_per_sec']:.2f} t/s | "
+                        f"Tokens: {outlines_result['tokens']}"
+                    )
+
+                    guidance_passed = sum(1 for a in guidance_result["assertions"] if a["passed"])
+                    guidance_total = len(guidance_result["assertions"])
+                    csv_writer.writerow(
+                        [
+                            case_id,
+                            "Guidance",
+                            guidance_result["success"],
+                            guidance_passed,
+                            guidance_total,
+                            guidance_result["tokens"],
+                            0,
+                            0,
+                            f"{guidance_result['wall_time_s']:.3f}",
+                            f"{guidance_result['tokens_per_sec']:.2f}",
+                            "0.000",
+                            0,
+                        ]
+                    )
+                    print(
+                        f"Guidance   | Success: {guidance_result['success']} | "
+                        f"Speed: {guidance_result['tokens_per_sec']:.2f} t/s | "
+                        f"Tokens: {guidance_result['tokens']}"
+                    )
+
                 inv_passed = sum(1 for a in invariants["assertions"] if a["passed"])
                 inv_total = len(invariants["assertions"])
                 csv_writer.writerow(
@@ -540,6 +690,10 @@ def main():
         print(f"  CSV:        {csv_path}")
         print(f"  JSON:       {json_path}")
         if not args.invariants_only:
+            # log_file is still open and buffered at this point -- flush it
+            # before copying, or update_latest_pointer() can race the write
+            # buffer and copy a truncated (sometimes empty) run.log.
+            log_file.flush()
             update_latest_pointer(out_dir, level_dir)
             rebuild_rollups()
             print(f"  Latest:     {level_dir / 'latest'}")
