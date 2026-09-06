@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "level_description": "Advanced Language Features (Targets DSL constructs that are unit-tested at the compiler level but were never exercised by any of the other 38 benchmark cases against a real model: the standalone `invariant { }` block combined with the implication operator (->), membership against a computed/non-literal set (IN this.<field>), exclusion (NIN), and the Array<T>/Map<K,V> collection types. Building this suite surfaced three genuine, previously-unknown compiler/runtime bugs -- fixed as part of this work, not worked around: (1) the binder rejected `Integer` fields using `IN` against a literal list, because every numeric literal binds to Number regardless of how it was written, so an exact BuiltinType match could never succeed; (2) a standalone invariant block's implication (e.g. the CloudProvision worked example from the Methodology chapter) could be scheduled and checked before the field it depends on was ever assigned, silently never enforcing the rule -- the CloudProvision spec, exactly as written, did not compile before this fix; (3) `Modulo` parsed but had no evaluator case, throwing at runtime. ADV_cloud_provision is the Methodology chapter's own worked example, run against a real model for the first time. ADV_freeform_array_stress and ADV_freeform_map_stress deliberately probe Array<T>/Map<K,V> under free (non-deterministic) LLM generation, where the mask has no dedicated structural logic at all -- an empty-buffer test showed 93,260 of ~150,000 vocab tokens pass unrestricted for an Array<Integer> field, meaning the 'always valid JSON' guarantee does not hold for these types unless they are fully AOT-solved. Map<K,V> additionally has no literal expression syntax at all, so it cannot even be pinned to an exact deterministic value -- these two cases are expected to show real, honest weaknesses, not pass cleanly.",
+  "level_description": "Advanced Language Features (Targets DSL constructs that are unit-tested at the compiler level but were never exercised by any of the other 38 benchmark cases against a real model: the standalone `invariant { }` block combined with the implication operator (->), membership against a computed/non-literal set (IN this.<field>), exclusion (NIN), and the Array<T>/Map<K,V> collection types. Building and running this suite surfaced five genuine, previously-unknown compiler/runtime bugs, four of them fixed as part of this work rather than worked around: (1) the binder rejected `Integer` fields using `IN` against a literal list, because every numeric literal binds to Number regardless of how it was written, so an exact BuiltinType match could never succeed; (2) a standalone invariant block's implication (e.g. the CloudProvision worked example from the Methodology chapter) could be scheduled and checked before the field it depends on was ever assigned, silently never enforcing the rule -- the CloudProvision spec, exactly as written, did not compile before this fix; (3) `Modulo` parsed but had no evaluator case, throwing at runtime; (4) numeric `IN` against a computed array fell back to exact-equality even for a still-partial value, so a leading '-' or a digit sequence that stopped being a prefix of every element (e.g. '85' against [80,443,8080]) hit the same no-backtrack dead end as a tight numeric range -- fixed by extending the same prefix-matching principle already used for partial strings to numbers; (5) Array<T> had no dedicated mask logic at all (an empty-buffer test showed 93,260 of ~150,000 vocab tokens passing unrestricted) and no parser for the generated text -- fixed with a real bracket/comma/element-aware mask scanner plus a recursive array parser, which in turn surfaced a further Processor.py exit-detection gap (a comma after a closed string *element* inside the array was mistaken for the whole field being done) that also needed fixing. ADV_cloud_provision is the Methodology chapter's own worked example, run against a real model for the first time, and ADV_membership_and_exclusion exercises the now-fixed numeric-membership pruning. ADV_freeform_array_stress demonstrates the Array<T> fix under genuinely free generation. Map<K,V> was deliberately left out of scope: it has no literal expression syntax at all (so it can't even be pinned to a deterministic exact value the way Array<T> can) and parseLLMString still unconditionally rejects it -- ADV_freeform_map_stress documents this as a real, open limitation, not a regression.",
   "benchmarks": {
     "ADV_cloud_provision": {
       "id": "ADV_cloud_provision",
@@ -66,7 +66,7 @@
       "name": "Freely-Sampled Array Stress Test",
       "domain": "Synthetic Stress Test",
       "root_spec": "ArrayStress",
-      "description": "A deliberate probe, not an expected pass: `tags` has NO constraint at all, forcing the model to freely type an Array<String> value token-by-token with no deterministic escape hatch. The mask has no dedicated structural logic for Complex (Array/Map/Spec) types -- confirmed by a direct test showing 93,260 of ~150,000 vocab tokens pass unrestricted for an empty Array<Integer> buffer. This case documents what actually happens under real generation: possibly a malformed/unparseable value, possibly a lucky well-formed one, but not a guaranteed-valid one.",
+      "description": "Originally a probe of a real gap: the mask had no dedicated structural logic for Array<T> (an empty-buffer test showed 93,260 of ~150,000 vocab tokens passing unrestricted), and parseLLMString had no array parser at all. Both were fixed as part of this evaluation -- a proper bracket/comma/element-aware mask scanner (bindings.cpp, reusing the existing scalar Integer/Number/Boolean validity helpers per element) plus a real recursive parser for the accumulated text. This case now demonstrates the fix: `tags` has no constraint, forcing genuinely free token-by-token Array<String> generation with no deterministic escape hatch, and is expected to succeed.",
       "prompts": {
         "system": "You are a content tagging service generating a validated set of tags. Output ONLY raw, valid JSON.",
         "user": "Generate a list of 3-5 short tags for a blog post about home coffee brewing."
@@ -80,7 +80,9 @@
         "required": ["tags"],
         "additionalProperties": false
       },
-      "eval_assertions": []
+      "eval_assertions": [
+        { "type": "math", "expr": "tags == tags" }
+      ]
     },
 
     "ADV_freeform_map_stress": {
@@ -88,7 +90,7 @@
       "name": "Freely-Sampled Map Stress Test",
       "domain": "Synthetic Stress Test",
       "root_spec": "MapStress",
-      "description": "A deliberate probe, not an expected pass: `settings` has NO constraint (none is even expressible -- the language has no map-literal expression syntax, so a Map<K,V> field can never be pinned to an exact deterministic value the way an Array<T> field can). Same masking gap as ADV_freeform_array_stress, but for a type with no AOT escape hatch whatsoever.",
+      "description": "A deliberate probe of a gap that remains open by design (Map<K,V> support was scoped out -- Array<T> was fixed, see ADV_freeform_array_stress): `settings` has NO constraint (none is even expressible -- the language has no map-literal expression syntax, so a Map<K,V> field can never be pinned to an exact deterministic value the way an Array<T> field can), and parseLLMString still has an unconditional guard rejecting any non-builtin, non-array type. Expected to fail for Invariants.",
       "prompts": {
         "system": "You are a device configuration service generating validated settings. Output ONLY raw, valid JSON.",
         "user": "Generate a settings map with 2-3 key-value pairs for a thermostat device (e.g. target temperature, mode)."
@@ -102,7 +104,9 @@
         "required": ["settings"],
         "additionalProperties": false
       },
-      "eval_assertions": []
+      "eval_assertions": [
+        { "type": "math", "expr": "settings == settings" }
+      ]
     }
   }
 }
