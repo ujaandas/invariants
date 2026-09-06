@@ -104,6 +104,34 @@ ExecutionSchedule DependencyAnalyzer::analyze(const binder::BoundModule& module,
           inDegree[trigger.ownerFieldPath]++;
         }
       }
+    } else if (std::holds_alternative<binder::BoundBinaryExpr>(
+                   trigger.constraint->expr->value) &&
+               std::get<binder::BoundBinaryExpr>(trigger.constraint->expr->value)
+                       .op == ast::BinaryOp::Imply) {
+      // A standalone `invariant { }` block has no owning field of its own
+      // (ownerFieldPath is always empty for these), so a general validation
+      // constraint referencing multiple fields has no principled "check
+      // this one last" target -- which field a boolean expression is
+      // really validating isn't recoverable from its syntax in general.
+      // An implication is the one shape where it IS recoverable: `A -> B`
+      // reads as "given A, B must hold", so A's fields are a precondition
+      // that must be known before B's fields can be meaningfully checked.
+      // Without this edge, e.g. `this.total_ram > 32 -> this.tier ==
+      // "enterprise"` could schedule `tier` before `total_ram` is ever
+      // assigned, and the implication would be checked against an
+      // unassigned value -- silently never enforced.
+      const auto& binExpr =
+          std::get<binder::BoundBinaryExpr>(trigger.constraint->expr->value);
+      auto antecedentDeps = extractDeps(*binExpr.left, trigger.instancePrefix);
+      auto consequentDeps = extractDeps(*binExpr.right, trigger.instancePrefix);
+      for (const auto& a : antecedentDeps) {
+        for (const auto& c : consequentDeps) {
+          if (a != c) {
+            adj[a].push_back(c);
+            inDegree[c]++;
+          }
+        }
+      }
     }
   }
 
