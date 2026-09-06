@@ -1,5 +1,7 @@
 #include "evaluator.hpp"
 
+#include <cmath>
+
 namespace invariants::runtime {
 
 Value Evaluator::evaluate(const binder::BoundExpr& expr, const Environment& env,
@@ -148,6 +150,14 @@ Value Evaluator::operator()(const binder::BoundBinaryExpr& expr) const {
             "Division by zero encountered during evaluation.");
       if (is_double(leftVal, rightVal)) return get_double(leftVal) / r;
       return std::get<int>(leftVal) / std::get<int>(rightVal);
+    }
+    case ast::BinaryOp::Modulo: {
+      double r = get_double(rightVal);
+      if (r == 0.0)
+        throw std::runtime_error(
+            "Modulo by zero encountered during evaluation.");
+      if (is_double(leftVal, rightVal)) return std::fmod(get_double(leftVal), r);
+      return std::get<int>(leftVal) % std::get<int>(rightVal);
     }
 
     // Relational & equality

@@ -217,6 +217,27 @@ static Value parseLLMString(std::string_view raw,
   }
 }
 
+static std::string valueToString(const Value& val);
+
+// Elements nested inside an array need their own quoting (the array's
+// serialized text is the whole value, with no outer wrapper adding quotes
+// the way callers do for a top-level string field), so this is kept
+// separate from valueToString rather than reusing its unquoted string case.
+static std::string arrayElementToString(const Value& val) {
+  if (std::holds_alternative<std::string>(val))
+    return "\"" + std::get<std::string>(val) + "\"";
+  if (auto arrPtr = std::get_if<std::shared_ptr<ArrayValue>>(&val)) {
+    std::string s = "[";
+    for (std::size_t i = 0; i < (*arrPtr)->elements.size(); ++i) {
+      if (i > 0) s += ", ";
+      s += arrayElementToString((*arrPtr)->elements[i]);
+    }
+    s += "]";
+    return s;
+  }
+  return valueToString(val);
+}
+
 static std::string valueToString(const Value& val) {
   if (std::holds_alternative<int>(val))
     return std::to_string(std::get<int>(val));
@@ -235,6 +256,15 @@ static std::string valueToString(const Value& val) {
     return std::get<bool>(val) ? "true" : "false";
   if (std::holds_alternative<std::string>(val))
     return std::get<std::string>(val);
+  if (auto arrPtr = std::get_if<std::shared_ptr<ArrayValue>>(&val)) {
+    std::string s = "[";
+    for (std::size_t i = 0; i < (*arrPtr)->elements.size(); ++i) {
+      if (i > 0) s += ", ";
+      s += arrayElementToString((*arrPtr)->elements[i]);
+    }
+    s += "]";
+    return s;
+  }
   return "null";
 }
 
