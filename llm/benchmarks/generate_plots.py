@@ -73,6 +73,7 @@ SUITES = [
     "schemas_scheduling_stress",
     "schemas_deadend_stress",
     "schemas_long_freetext",
+    "schemas_advanced_features",
 ]
 SUITE_LABELS = {
     "schemas_l1": "L1",
@@ -86,6 +87,7 @@ SUITE_LABELS = {
     "schemas_scheduling_stress": "SchedFix",
     "schemas_deadend_stress": "DeadEnd*",
     "schemas_long_freetext": "FreeText*",
+    "schemas_advanced_features": "AdvFeat*",
 }
 # Suites marked with * are deliberately adversarial stress tests, not
 # representative-usage suites -- included in every per-suite chart so
