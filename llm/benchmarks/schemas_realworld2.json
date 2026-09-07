@@ -1,0 +1,128 @@
+{
+  "version": "1.0",
+  "level_description": "Real-World Schemas, Round 2 (More production JSON Schemas and documented API/platform constraints -- Docker Compose, AWS RDS, GitHub branch protection, and common observability/alerting convention. Deliberately built to have little-to-no deterministic bypass: almost every field here is a genuine input an LLM would have to supply, validated against another independently-generated field, not a derived output a real system would compute post-hoc.)",
+  "benchmarks": {
+    "RW2_docker_compose_resources": {
+      "id": "RW2_docker_compose_resources",
+      "name": "Docker Compose Service Resource Limits",
+      "domain": "Containers & Local Orchestration",
+      "root_spec": "ServiceResources",
+      "description": "Adapted from the Docker Compose Specification's deploy.resources block: a service's resource limits must be >= its reservations (the scheduler reserves at minimum, and caps at maximum) -- the same real relational rule as Kubernetes, in a different, equally common config format.",
+      "prompts": {
+        "system": "You are a container orchestration tool generating a validated Docker Compose service resource block. Output ONLY raw, valid JSON.",
+        "user": "Generate CPU and memory reservations/limits for a service. Limits must never be lower than reservations."
+      },
+      "invariants_dsl": "spec ServiceResources {\n    field cpu_reservation: Number {\n        value >= 0.1;\n        value <= 32.0;\n    }\n    field cpu_limit: Number {\n        value >= this.cpu_reservation;\n        value <= 64.0;\n    }\n    field memory_reservation_mb: Integer {\n        value >= 64;\n        value <= 65536;\n    }\n    field memory_limit_mb: Integer {\n        value >= this.memory_reservation_mb;\n        value <= 131072;\n    }\n    field restart_policy: String {\n        value IN [\"no\", \"always\", \"on-failure\", \"unless-stopped\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "cpu_reservation": { "type": "number", "minimum": 0.1, "maximum": 32.0, "description": "Reserved CPU cores" },
+          "cpu_limit": { "type": "number", "minimum": 0.1, "maximum": 64.0, "description": "CPU core limit (must be >= reservation)" },
+          "memory_reservation_mb": { "type": "integer", "minimum": 64, "maximum": 65536, "description": "Reserved memory in MB" },
+          "memory_limit_mb": { "type": "integer", "minimum": 64, "maximum": 131072, "description": "Memory limit in MB (must be >= reservation)" },
+          "restart_policy": { "type": "string", "enum": ["no", "always", "on-failure", "unless-stopped"], "description": "Docker Compose restart policy" }
+        },
+        "required": ["cpu_reservation", "cpu_limit", "memory_reservation_mb", "memory_limit_mb", "restart_policy"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "cpu_reservation", "min": 0.1, "max": 32.0 },
+        { "type": "range", "field": "cpu_limit", "min": 0.1, "max": 64.0 },
+        { "type": "range", "field": "memory_reservation_mb", "min": 64, "max": 65536 },
+        { "type": "range", "field": "memory_limit_mb", "min": 64, "max": 131072 },
+        { "type": "membership", "field": "restart_policy", "choices": ["no", "always", "on-failure", "unless-stopped"] },
+        { "type": "math", "expr": "cpu_limit >= cpu_reservation" },
+        { "type": "math", "expr": "memory_limit_mb >= memory_reservation_mb" }
+      ]
+    },
+
+    "RW2_rds_storage_autoscaling": {
+      "id": "RW2_rds_storage_autoscaling",
+      "name": "AWS RDS Storage Autoscaling Configuration",
+      "domain": "Cloud Infrastructure (AWS)",
+      "root_spec": "RDSInstance",
+      "description": "Adapted from AWS RDS's documented storage-autoscaling rule (docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PIOPS.Autoscaling.html): max_allocated_storage must be >= allocated_storage (equal disables autoscaling, greater enables it). A real, citable AWS API validation rule, not a synthetic invention.",
+      "prompts": {
+        "system": "You are the AWS RDS control plane generating a validated storage-autoscaling configuration. Output ONLY raw, valid JSON.",
+        "user": "Generate an RDS instance storage configuration with autoscaling enabled."
+      },
+      "invariants_dsl": "spec RDSInstance {\n    field engine: String {\n        value IN [\"mysql\", \"postgres\", \"mariadb\", \"sqlserver-ex\", \"oracle-se2\"];\n    }\n    field allocated_storage_gb: Integer {\n        value >= 20;\n        value <= 65536;\n    }\n    field max_allocated_storage_gb: Integer {\n        value >= this.allocated_storage_gb;\n        value <= 65536;\n    }\n    field multi_az: Boolean {}\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "engine": { "type": "string", "enum": ["mysql", "postgres", "mariadb", "sqlserver-ex", "oracle-se2"], "description": "RDS database engine" },
+          "allocated_storage_gb": { "type": "integer", "minimum": 20, "maximum": 65536, "description": "Initial allocated storage in GB" },
+          "max_allocated_storage_gb": { "type": "integer", "minimum": 20, "maximum": 65536, "description": "Autoscaling ceiling (must be >= allocated_storage_gb)" },
+          "multi_az": { "type": "boolean", "description": "Multi-AZ deployment flag" }
+        },
+        "required": ["engine", "allocated_storage_gb", "max_allocated_storage_gb", "multi_az"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "engine", "choices": ["mysql", "postgres", "mariadb", "sqlserver-ex", "oracle-se2"] },
+        { "type": "range", "field": "allocated_storage_gb", "min": 20, "max": 65536 },
+        { "type": "range", "field": "max_allocated_storage_gb", "min": 20, "max": 65536 },
+        { "type": "math", "expr": "max_allocated_storage_gb >= allocated_storage_gb" }
+      ]
+    },
+
+    "RW2_branch_protection_rule": {
+      "id": "RW2_branch_protection_rule",
+      "name": "GitHub Branch Protection Rule",
+      "domain": "CI/CD & Source Control",
+      "root_spec": "BranchProtectionRule",
+      "description": "Adapted from GitHub's branch protection REST API (docs.github.com/en/rest/branches/branch-protection): required_approving_review_count is an integer field GitHub's own UI/API caps at 6. No cross-field arithmetic here, deliberately -- this case isolates the plain range/enum enforcement gap in a CFG baseline, without any deterministic assignment to lean on.",
+      "prompts": {
+        "system": "You are a source control platform generating a validated branch protection rule. Output ONLY raw, valid JSON.",
+        "user": "Generate a branch protection rule for a production branch with code review requirements."
+      },
+      "invariants_dsl": "spec BranchProtectionRule {\n    field required_approving_review_count: Integer {\n        value >= 0;\n        value <= 6;\n    }\n    field require_code_owner_reviews: Boolean {}\n    field enforce_admins: Boolean {}\n    field required_status_check: String {\n        value IN [\"ci/build\", \"ci/test\", \"ci/lint\", \"ci/security-scan\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "required_approving_review_count": { "type": "integer", "minimum": 0, "maximum": 6, "description": "Required approving reviews before merge" },
+          "require_code_owner_reviews": { "type": "boolean", "description": "Whether CODEOWNERS review is required" },
+          "enforce_admins": { "type": "boolean", "description": "Whether the rule also applies to admins" },
+          "required_status_check": { "type": "string", "enum": ["ci/build", "ci/test", "ci/lint", "ci/security-scan"], "description": "Required passing status check context" }
+        },
+        "required": ["required_approving_review_count", "require_code_owner_reviews", "enforce_admins", "required_status_check"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "required_approving_review_count", "min": 0, "max": 6 },
+        { "type": "membership", "field": "required_status_check", "choices": ["ci/build", "ci/test", "ci/lint", "ci/security-scan"] }
+      ]
+    },
+
+    "RW2_monitoring_alert_rule": {
+      "id": "RW2_monitoring_alert_rule",
+      "name": "Observability Alert Rule Thresholds",
+      "domain": "Observability & Monitoring",
+      "root_spec": "AlertRule",
+      "description": "Modeled on common alerting-platform convention (Prometheus Alertmanager, Datadog monitors): a critical threshold must be at least as severe as the warning threshold for the same metric. Not tied to one vendor's schema file, but a standard, widely-documented practice across the observability industry -- described honestly as such rather than over-cited to one spec.",
+      "prompts": {
+        "system": "You are a monitoring platform generating a validated alert rule. Output ONLY raw, valid JSON.",
+        "user": "Generate an alert rule for a system metric with warning and critical thresholds."
+      },
+      "invariants_dsl": "spec AlertRule {\n    field metric_name: String {\n        value IN [\"cpu_utilization\", \"memory_utilization\", \"disk_io_wait\", \"error_rate\", \"request_latency_p99\"];\n    }\n    field warning_threshold: Number {\n        value >= 0.0;\n        value <= 100.0;\n    }\n    field critical_threshold: Number {\n        value >= this.warning_threshold;\n        value <= 100.0;\n    }\n    field evaluation_window_seconds: Integer {\n        value >= 30;\n        value <= 3600;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "metric_name": { "type": "string", "enum": ["cpu_utilization", "memory_utilization", "disk_io_wait", "error_rate", "request_latency_p99"], "description": "Monitored metric" },
+          "warning_threshold": { "type": "number", "minimum": 0.0, "maximum": 100.0, "description": "Warning-level threshold" },
+          "critical_threshold": { "type": "number", "minimum": 0.0, "maximum": 100.0, "description": "Critical-level threshold (must be >= warning_threshold)" },
+          "evaluation_window_seconds": { "type": "integer", "minimum": 30, "maximum": 3600, "description": "Evaluation window in seconds" }
+        },
+        "required": ["metric_name", "warning_threshold", "critical_threshold", "evaluation_window_seconds"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "metric_name", "choices": ["cpu_utilization", "memory_utilization", "disk_io_wait", "error_rate", "request_latency_p99"] },
+        { "type": "range", "field": "warning_threshold", "min": 0.0, "max": 100.0 },
+        { "type": "range", "field": "critical_threshold", "min": 0.0, "max": 100.0 },
+        { "type": "range", "field": "evaluation_window_seconds", "min": 30, "max": 3600 },
+        { "type": "math", "expr": "critical_threshold >= warning_threshold" }
+      ]
+    }
+  }
+}

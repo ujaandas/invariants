@@ -1,0 +1,262 @@
+{
+  "level_description": "Multi-Spec Cascades & Kahn Topological Inversion (Nested specs, cross-object member resolution via dot-notation, and fields declared in reverse topological dependency order)",
+  "benchmarks": {
+    "L3_cloud_cluster_quote": {
+      "id": "L3_cloud_cluster_quote",
+      "name": "Multi-Tier Cloud Cluster Infrastructure Quote",
+      "domain": "Cloud Computing & Systems Architecture",
+      "root_spec": "CloudClusterQuote",
+      "description": "Evaluates nested compute and storage specifications. Aggregated bill and composite sub-costs are declared first, requiring Kahn's topological sort to reorder resolution to downstream node metrics.",
+      "prompts": {
+        "system": "You are an automated provisioning orchestrator configuring enterprise Kubernetes cluster quotes. Output ONLY raw, valid JSON.",
+        "user": "Generate an enterprise cluster configuration quote with valid node hardware profiles and persistent storage tiers. Calculate all dependent costs accurately."
+      },
+      "invariants_dsl": "spec NodeProfile {    field vcpu_cores: Number {}\n    field ram_gb: Number {}\n    invariant node_hardware_balance {\n        this.vcpu_cores >= 2.0;\n        this.vcpu_cores <= 64.0;\n        this.ram_gb >= this.vcpu_cores * 2.0;\n        this.ram_gb <= 256.0;\n    }\n}\n\nspec StorageProfile {\n    field storage_tb: Number {}\n    field redundancy: String {\n        value IN [\"Standard-LRS\", \"Geo-Redundant\"];\n    }\n    invariant capacity_limits {\n        this.storage_tb >= 1.0;\n        this.storage_tb <= 100.0;\n    }\n}\n\nspec CloudClusterQuote {\n    field total_monthly_bill: Number {\n        value == this.compute_cost + this.storage_cost;\n    }\n    field compute_cost: Number {\n        value == (this.profile.vcpu_cores * 15.0 + this.profile.ram_gb * 4.0) * this.node_count;\n    }\n    field storage_cost: Number {\n        value == this.storage.storage_tb * 65.0;\n    }\n    field node_count: Number {}\n    field profile: NodeProfile {}\n    field storage: StorageProfile {}\n    invariant cluster_scale {\n        this.node_count >= 2.0;\n        this.node_count <= 16.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "total_monthly_bill": {
+            "type": "number",
+            "description": "Calculated: compute_cost + storage_cost"
+          },
+          "compute_cost": {
+            "type": "number",
+            "description": "Calculated: (profile.vcpu_cores * 15.0 + profile.ram_gb * 4.0) * node_count"
+          },
+          "storage_cost": {
+            "type": "number",
+            "description": "Calculated: storage.storage_tb * 65.0"
+          },
+          "node_count": {
+            "type": "number",
+            "minimum": 2.0,
+            "maximum": 16.0,
+            "description": "Cluster worker node quantity"
+          },
+          "profile": {
+            "type": "object",
+            "properties": {
+              "vcpu_cores": {
+                "type": "number",
+                "minimum": 2.0,
+                "maximum": 64.0,
+                "description": "vCPU allocation per node"
+              },
+              "ram_gb": {
+                "type": "number",
+                "minimum": 4.0,
+                "maximum": 256.0,
+                "description": "Memory allocation per node (must be >= vcpu_cores * 2.0)"
+              }
+            },
+            "required": ["vcpu_cores", "ram_gb"],
+            "additionalProperties": false
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "storage_tb": {
+                "type": "number",
+                "minimum": 1.0,
+                "maximum": 100.0,
+                "description": "Provisioned persistent storage in TB"
+              },
+              "redundancy": {
+                "type": "string",
+                "enum": ["Standard-LRS", "Geo-Redundant"],
+                "description": "Storage replication tier"
+              }
+            },
+            "required": ["storage_tb", "redundancy"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "total_monthly_bill",
+          "compute_cost",
+          "storage_cost",
+          "node_count",
+          "profile",
+          "storage"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "node_count", "min": 2.0, "max": 16.0 },
+        { "type": "range", "field": "profile.vcpu_cores", "min": 2.0, "max": 64.0 },
+        { "type": "range", "field": "profile.ram_gb", "min": 4.0, "max": 256.0 },
+        { "type": "math", "expr": "profile['ram_gb'] >= (profile['vcpu_cores'] * 2.0)" },
+        { "type": "range", "field": "storage.storage_tb", "min": 1.0, "max": 100.0 },
+        { "type": "membership", "field": "storage.redundancy", "choices": ["Standard-LRS", "Geo-Redundant"] },
+        { "type": "math", "expr": "abs(compute_cost - ((profile['vcpu_cores'] * 15.0 + profile['ram_gb'] * 4.0) * node_count)) < 0.01" },
+        { "type": "math", "expr": "abs(storage_cost - (storage['storage_tb'] * 65.0)) < 0.01" },
+        { "type": "math", "expr": "abs(total_monthly_bill - (compute_cost + storage_cost)) < 0.01" }
+      ]
+    },
+
+    "L3_clinical_drug_dosage": {
+      "id": "L3_clinical_drug_dosage",
+      "name": "Clinical Pharmacokinetics & Weight-Tiered Regimen",
+      "domain": "Healthcare & Precision Medicine",
+      "root_spec": "DrugRegimen",
+      "description": "Calculates weight-adjusted therapeutic dosages from nested patient biometrics. Total daily dose and per-administration limits are inverted ahead of base patient measurements.",
+      "prompts": {
+        "system": "You are a clinical pharmacokinetics dosing calculator generating verified prescription regimens. Output ONLY raw, valid JSON.",
+        "user": "Generate a verified prescription dosage regimen for an adult patient. Derive safe per-kilogram weight adjustments and determine total daily dose."
+      },
+      "invariants_dsl": "spec PatientBiometrics {\n    field weight_kg: Number {}\n    field age_years: Integer {}\n    field serum_creatinine: Number {}\n    invariant patient_bounds {\n        this.weight_kg >= 40.0;\n        this.weight_kg <= 160.0;\n        this.age_years >= 18;\n        this.age_years <= 90;\n        this.serum_creatinine >= 0.5;\n        this.serum_creatinine <= 3.0;\n    }\n}\n\nspec DrugRegimen {\n    field total_daily_dose_mg: Number {\n        value == this.single_dose_mg * this.doses_per_day;\n    }\n    field single_dose_mg: Number {\n        value == this.patient.weight_kg * this.dose_per_kg_mg;\n    }\n    field dose_per_kg_mg: Number {}\n    field doses_per_day: Integer {}\n    field administration_route: String {\n        value IN [\"ORAL_TABLET\", \"IV_INFUSION\"];\n    }\n    field patient: PatientBiometrics {}\n    invariant regimen_limits {\n        this.dose_per_kg_mg >= 1.5;\n        this.dose_per_kg_mg <= 8.0;\n        this.doses_per_day >= 1;\n        this.doses_per_day <= 4;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "total_daily_dose_mg": {
+            "type": "number",
+            "description": "Calculated: single_dose_mg * doses_per_day"
+          },
+          "single_dose_mg": {
+            "type": "number",
+            "description": "Calculated: patient.weight_kg * dose_per_kg_mg"
+          },
+          "dose_per_kg_mg": {
+            "type": "number",
+            "minimum": 1.5,
+            "maximum": 8.0,
+            "description": "Prescribed mg per kg of body weight"
+          },
+          "doses_per_day": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4,
+            "description": "Daily administration frequency count"
+          },
+          "administration_route": {
+            "type": "string",
+            "enum": ["ORAL_TABLET", "IV_INFUSION"],
+            "description": "Clinical administration delivery route"
+          },
+          "patient": {
+            "type": "object",
+            "properties": {
+              "weight_kg": {
+                "type": "number",
+                "minimum": 40.0,
+                "maximum": 160.0,
+                "description": "Patient body weight in kilograms"
+              },
+              "age_years": {
+                "type": "integer",
+                "minimum": 18,
+                "maximum": 90,
+                "description": "Patient chronological age in years"
+              },
+              "serum_creatinine": {
+                "type": "number",
+                "minimum": 0.5,
+                "maximum": 3.0,
+                "description": "Serum creatinine level in mg/dL"
+              }
+            },
+            "required": ["weight_kg", "age_years", "serum_creatinine"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "total_daily_dose_mg",
+          "single_dose_mg",
+          "dose_per_kg_mg",
+          "doses_per_day",
+          "administration_route",
+          "patient"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "dose_per_kg_mg", "min": 1.5, "max": 8.0 },
+        { "type": "range", "field": "doses_per_day", "min": 1, "max": 4 },
+        { "type": "membership", "field": "administration_route", "choices": ["ORAL_TABLET", "IV_INFUSION"] },
+        { "type": "range", "field": "patient.weight_kg", "min": 40.0, "max": 160.0 },
+        { "type": "range", "field": "patient.age_years", "min": 18, "max": 90 },
+        { "type": "range", "field": "patient.serum_creatinine", "min": 0.5, "max": 3.0 },
+        { "type": "math", "expr": "abs(single_dose_mg - (patient['weight_kg'] * dose_per_kg_mg)) < 0.01" },
+        { "type": "math", "expr": "abs(total_daily_dose_mg - (single_dose_mg * doses_per_day)) < 0.01" }
+      ]
+    },
+
+    "L3_portfolio_rebalance": {
+      "id": "L3_portfolio_rebalance",
+      "name": "Quantitative Portfolio Rebalance & Fee Schedule",
+      "domain": "Wealth Management & Quantitative Finance",
+      "root_spec": "PortfolioRebalance",
+      "description": "Rebalances capital across equity and bond sub-allocations. Combined execution fees and individual transaction levies are declared before portfolio capital parameters.",
+      "prompts": {
+        "system": "You are a quantitative portfolio management system generating rebalancing trade allocations. Output ONLY raw, valid JSON.",
+        "user": "Generate a portfolio rebalance schedule across asset classes. Specify allocation percentages, calculate transaction costs for each tier, and provide the total execution fee."
+      },
+      "invariants_dsl": "spec AssetAllocation {\n    field equity_pct: Number {}\n    field bond_pct: Number {}\n    invariant allocation_bounds {\n        this.equity_pct >= 20.0;\n        this.equity_pct <= 80.0;\n        this.bond_pct >= 20.0;\n        this.bond_pct <= 80.0;\n    }\n}\n\nspec PortfolioRebalance {\n    field total_execution_fee: Number {\n        value == this.equity_fee + this.bond_fee;\n    }\n    field equity_fee: Number {\n        value == (this.total_portfolio_usd * (this.allocation.equity_pct / 100.0)) * 0.002;\n    }\n    field bond_fee: Number {\n        value == (this.total_portfolio_usd * (this.allocation.bond_pct / 100.0)) * 0.0005;\n    }\n    field total_portfolio_usd: Number {}\n    field strategy_name: String {\n        value IN [\"CAPITAL_PRESERVATION\", \"BALANCED_GROWTH\", \"AGGRESSIVE_EXPANSION\"];\n    }\n    field allocation: AssetAllocation {}\n    invariant portfolio_limits {\n        this.total_portfolio_usd >= 10000.0;\n        this.total_portfolio_usd <= 5000000.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "total_execution_fee": {
+            "type": "number",
+            "description": "Calculated: equity_fee + bond_fee"
+          },
+          "equity_fee": {
+            "type": "number",
+            "description": "Calculated: (total_portfolio_usd * (allocation.equity_pct / 100.0)) * 0.002"
+          },
+          "bond_fee": {
+            "type": "number",
+            "description": "Calculated: (total_portfolio_usd * (allocation.bond_pct / 100.0)) * 0.0005"
+          },
+          "total_portfolio_usd": {
+            "type": "number",
+            "minimum": 10000.0,
+            "maximum": 5000000.0,
+            "description": "Total assets under management (AUM) in USD"
+          },
+          "strategy_name": {
+            "type": "string",
+            "enum": ["CAPITAL_PRESERVATION", "BALANCED_GROWTH", "AGGRESSIVE_EXPANSION"],
+            "description": "Investment mandate classification"
+          },
+          "allocation": {
+            "type": "object",
+            "properties": {
+              "equity_pct": {
+                "type": "number",
+                "minimum": 20.0,
+                "maximum": 80.0,
+                "description": "Target equity weighting percentage"
+              },
+              "bond_pct": {
+                "type": "number",
+                "minimum": 20.0,
+                "maximum": 80.0,
+                "description": "Target fixed-income bond weighting percentage"
+              }
+            },
+            "required": ["equity_pct", "bond_pct"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "total_execution_fee",
+          "equity_fee",
+          "bond_fee",
+          "total_portfolio_usd",
+          "strategy_name",
+          "allocation"
+        ],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "total_portfolio_usd", "min": 10000.0, "max": 5000000.0 },
+        { "type": "membership", "field": "strategy_name", "choices": ["CAPITAL_PRESERVATION", "BALANCED_GROWTH", "AGGRESSIVE_EXPANSION"] },
+        { "type": "range", "field": "allocation.equity_pct", "min": 20.0, "max": 80.0 },
+        { "type": "range", "field": "allocation.bond_pct", "min": 20.0, "max": 80.0 },
+        { "type": "math", "expr": "abs(equity_fee - ((total_portfolio_usd * (allocation['equity_pct'] / 100.0)) * 0.002)) < 0.01" },
+        { "type": "math", "expr": "abs(bond_fee - ((total_portfolio_usd * (allocation['bond_pct'] / 100.0)) * 0.0005)) < 0.01" },
+        { "type": "math", "expr": "abs(total_execution_fee - (equity_fee + bond_fee)) < 0.01" }
+      ]
+    }
+  }
+}

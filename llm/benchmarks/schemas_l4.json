@@ -1,0 +1,162 @@
+{
+  "level_description": "Recursive Structures & FSM Stress Traps (4+ level deep nested objects, extreme topological inversion, and multi-tier calculation rollups designed to trigger FSM state explosion and LLM arithmetic failure)",
+  "benchmarks": {
+    "L4_org_hierarchy_rollup": {
+      "id": "L4_org_hierarchy_rollup",
+      "name": "Corporate Hierarchy Budget Rollup",
+      "domain": "Enterprise Resource Planning (ERP)",
+      "root_spec": "CorporateOrg",
+      "description": "A 4-deep organizational chart. The total corporate budget is declared at the root, but mathematically depends on salaries bubbling up from ICs -> Managers -> Directors -> VPs -> CEO.",
+      "prompts": {
+        "system": "You are an enterprise HR system generating departmental budget reports. Output ONLY raw, valid JSON.",
+        "user": "Generate a full corporate hierarchy budget. Include headcount and salaries for all levels, and accurately calculate the total corporate budget rollup."
+      },
+      "invariants_dsl": "spec Manager {\n    field ic_count: Integer {}\n    field ic_avg_salary: Number {}\n    field manager_salary: Number {}\n    field team_budget: Number {\n        value == this.manager_salary + (this.ic_count * this.ic_avg_salary);\n    }\n    invariant bounds {\n        this.ic_count >= 2;\n        this.ic_count <= 15;\n    }\n}\n\nspec Director {\n    field director_salary: Number {}\n    field department_budget: Number {\n        value == this.director_salary + this.mgr.team_budget;\n    }\n    field mgr: Manager {}\n}\n\nspec VicePresident {\n    field vp_salary: Number {}\n    field division_budget: Number {\n        value == this.vp_salary + this.dir.department_budget;\n    }\n    field dir: Director {}\n}\n\nspec CorporateOrg {\n    field total_corporate_budget: Number {\n        value == this.ceo_salary + this.vp.division_budget;\n    }\n    field ceo_salary: Number {}\n    field vp: VicePresident {}\n    invariant ceo_pay {\n        this.ceo_salary >= 300000.0;\n        this.ceo_salary <= 2000000.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "total_corporate_budget": {
+            "type": "number",
+            "description": "Calculated: ceo_salary + vp.division_budget"
+          },
+          "ceo_salary": {
+            "type": "number",
+            "minimum": 300000.0,
+            "maximum": 2000000.0
+          },
+          "vp": {
+            "type": "object",
+            "properties": {
+              "vp_salary": { "type": "number" },
+              "division_budget": { "type": "number", "description": "Calculated: vp_salary + dir.department_budget" },
+              "dir": {
+                "type": "object",
+                "properties": {
+                  "director_salary": { "type": "number" },
+                  "department_budget": { "type": "number", "description": "Calculated: director_salary + mgr.team_budget" },
+                  "mgr": {
+                    "type": "object",
+                    "properties": {
+                      "ic_count": { "type": "integer", "minimum": 2, "maximum": 15 },
+                      "ic_avg_salary": { "type": "number" },
+                      "manager_salary": { "type": "number" },
+                      "team_budget": { "type": "number", "description": "Calculated: manager_salary + (ic_count * ic_avg_salary)" }
+                    },
+                    "required": ["ic_count", "ic_avg_salary", "manager_salary", "team_budget"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["director_salary", "department_budget", "mgr"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["vp_salary", "division_budget", "dir"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["total_corporate_budget", "ceo_salary", "vp"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "vp.dir.mgr.ic_count", "min": 2, "max": 15 },
+        { "type": "math", "expr": "abs(vp['dir']['mgr']['team_budget'] - (vp['dir']['mgr']['manager_salary'] + (vp['dir']['mgr']['ic_count'] * vp['dir']['mgr']['ic_avg_salary']))) < 0.01" },
+        { "type": "math", "expr": "abs(vp['dir']['department_budget'] - (vp['dir']['director_salary'] + vp['dir']['mgr']['team_budget'])) < 0.01" },
+        { "type": "math", "expr": "abs(vp['division_budget'] - (vp['vp_salary'] + vp['dir']['department_budget'])) < 0.01" },
+        { "type": "math", "expr": "abs(total_corporate_budget - (ceo_salary + vp['division_budget'])) < 0.01" }
+      ]
+    },
+
+    "L4_data_center_topology": {
+      "id": "L4_data_center_topology",
+      "name": "Data Center Power & Cooling Cascade",
+      "domain": "Infrastructure Engineering",
+      "root_spec": "Facility",
+      "description": "A 4-deep physical infrastructure model (Facility -> Row -> Rack -> Blade). Leaf-node power draw cascades upward into intermediate rack totals, row kW conversions, and final facility-wide PUE overheads.",
+      "prompts": {
+        "system": "You are a data center facility management system. Output ONLY raw, valid JSON.",
+        "user": "Generate a power draw report for a data center facility. Start from server blade wattage, calculate rack and row aggregations, and compute total facility power usage."
+      },
+      "invariants_dsl": "spec ServerBlade {\n    field power_draw_watts: Number {}\n    field cooling_btu: Number {\n        value == this.power_draw_watts * 3.412;\n    }\n    invariant blade_limits {\n        this.power_draw_watts >= 250.0;\n        this.power_draw_watts <= 1500.0;\n    }\n}\n\nspec ServerRack {\n    field blade_a: ServerBlade {}\n    field blade_b: ServerBlade {}\n    field switch_overhead_watts: Number {}\n    field total_rack_power: Number {\n        value == this.blade_a.power_draw_watts + this.blade_b.power_draw_watts + this.switch_overhead_watts;\n    }\n    field total_rack_cooling: Number {\n        value == this.blade_a.cooling_btu + this.blade_b.cooling_btu;\n    }\n}\n\nspec DataCenterRow {\n    field rack_1: ServerRack {}\n    field rack_2: ServerRack {}\n    field total_row_power_kw: Number {\n        value == (this.rack_1.total_rack_power + this.rack_2.total_rack_power) / 1000.0;\n    }\n}\n\nspec Facility {\n    field facility_name: String {}\n    field total_facility_power_kw: Number {\n        value == this.row.total_row_power_kw * this.facility_pue;\n    }\n    field facility_pue: Number {}\n    field row: DataCenterRow {}\n    invariant facility_limits {\n        this.facility_pue >= 1.1;\n        this.facility_pue <= 2.5;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "facility_name": { "type": "string" },
+          "total_facility_power_kw": { "type": "number", "description": "Calculated: row.total_row_power_kw * facility_pue" },
+          "facility_pue": { "type": "number", "minimum": 1.1, "maximum": 2.5 },
+          "row": {
+            "type": "object",
+            "properties": {
+              "total_row_power_kw": { "type": "number" },
+              "rack_1": {
+                "type": "object",
+                "properties": {
+                  "switch_overhead_watts": { "type": "number" },
+                  "total_rack_power": { "type": "number" },
+                  "total_rack_cooling": { "type": "number" },
+                  "blade_a": {
+                    "type": "object",
+                    "properties": {
+                      "power_draw_watts": { "type": "number", "minimum": 250.0, "maximum": 1500.0 },
+                      "cooling_btu": { "type": "number" }
+                    },
+                    "required": ["power_draw_watts", "cooling_btu"],
+                    "additionalProperties": false
+                  },
+                  "blade_b": {
+                    "type": "object",
+                    "properties": {
+                      "power_draw_watts": { "type": "number", "minimum": 250.0, "maximum": 1500.0 },
+                      "cooling_btu": { "type": "number" }
+                    },
+                    "required": ["power_draw_watts", "cooling_btu"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["switch_overhead_watts", "total_rack_power", "total_rack_cooling", "blade_a", "blade_b"],
+                "additionalProperties": false
+              },
+              "rack_2": {
+                "type": "object",
+                "properties": {
+                  "switch_overhead_watts": { "type": "number" },
+                  "total_rack_power": { "type": "number" },
+                  "total_rack_cooling": { "type": "number" },
+                  "blade_a": {
+                    "type": "object",
+                    "properties": {
+                      "power_draw_watts": { "type": "number", "minimum": 250.0, "maximum": 1500.0 },
+                      "cooling_btu": { "type": "number" }
+                    },
+                    "required": ["power_draw_watts", "cooling_btu"],
+                    "additionalProperties": false
+                  },
+                  "blade_b": {
+                    "type": "object",
+                    "properties": {
+                      "power_draw_watts": { "type": "number", "minimum": 250.0, "maximum": 1500.0 },
+                      "cooling_btu": { "type": "number" }
+                    },
+                    "required": ["power_draw_watts", "cooling_btu"],
+                    "additionalProperties": false
+                  }
+                },
+                "required": ["switch_overhead_watts", "total_rack_power", "total_rack_cooling", "blade_a", "blade_b"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["total_row_power_kw", "rack_1", "rack_2"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["facility_name", "total_facility_power_kw", "facility_pue", "row"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "math", "expr": "abs(row['rack_1']['blade_a']['cooling_btu'] - (row['rack_1']['blade_a']['power_draw_watts'] * 3.412)) < 0.01" },
+        { "type": "math", "expr": "abs(row['rack_1']['total_rack_power'] - (row['rack_1']['blade_a']['power_draw_watts'] + row['rack_1']['blade_b']['power_draw_watts'] + row['rack_1']['switch_overhead_watts'])) < 0.01" },
+        { "type": "math", "expr": "abs(row['total_row_power_kw'] - ((row['rack_1']['total_rack_power'] + row['rack_2']['total_rack_power']) / 1000.0)) < 0.01" },
+        { "type": "math", "expr": "abs(total_facility_power_kw - (row['total_row_power_kw'] * facility_pue)) < 0.01" }
+      ]
+    }
+  }
+}

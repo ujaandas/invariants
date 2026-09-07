@@ -383,8 +383,18 @@ BoundExprPtr Binder::bindBinary(const ast::BinaryExpr& expr) {
     bool isMatch = false;
 
     if (left->type.isBuiltin() && arrayType->element.isBuiltin()) {
-      isMatch = std::get<ast::BuiltinType>(left->type.type) ==
-                std::get<ast::BuiltinType>(arrayType->element.type);
+      auto leftBt = std::get<ast::BuiltinType>(left->type.type);
+      auto rightBt = std::get<ast::BuiltinType>(arrayType->element.type);
+      // Every numeric literal binds to BuiltinType::Number regardless of
+      // whether it was written as "1" or "1.0" (bindLiteral has no way to
+      // recover integer-ness from a bare double), so an Integer-typed field
+      // could never match a literal list's element type without this --
+      // Integer and Number are treated as the same numeric family here, the
+      // same way arithmetic operators already don't distinguish them.
+      auto isNumeric = [](ast::BuiltinType t) {
+        return t == ast::BuiltinType::Integer || t == ast::BuiltinType::Number;
+      };
+      isMatch = (leftBt == rightBt) || (isNumeric(leftBt) && isNumeric(rightBt));
     }
 
     if (!isMatch) {

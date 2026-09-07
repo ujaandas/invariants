@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "level_description": "Scheduling Regression Confirmation (Not a new-weakness hunt -- this suite is a regression/confirmation artifact. Earlier this project, the field-generation scheduler (dependency_analyzer.cpp) had a bug where a field's own inline constraint referencing a sibling declared LATER in the DSL source could be generated before that sibling existed, silently skipping the check. That was fixed by adding scheduler edges for field-owned validation constraints, not just deterministic-assignment constraints, and confirmed by a synthetic unit test. These two cases reproduce the exact bug shape in realistic, benchmark-style schemas (a 'backwards-declared' field order that a real schema author might plausibly write) to confirm the fix generalizes outside the unit-test harness. Both cases are expected to PASS -- a failure here would indicate the scheduler fix does not hold in practice.",
+  "benchmarks": {
+    "SCH_price_markdown": {
+      "id": "SCH_price_markdown",
+      "name": "Price Markdown (backwards-declared sibling)",
+      "domain": "Retail Pricing",
+      "root_spec": "PriceMarkdown",
+      "description": "final_price (declared first) has an inline constraint 'value <= this.original_price', but original_price is declared second. Requires the scheduler to generate original_price before final_price despite the declaration order.",
+      "prompts": {
+        "system": "You are a retail pricing service generating a validated markdown record. Output ONLY raw, valid JSON.",
+        "user": "Generate a markdown pricing record for a clearance item, where the final price is discounted below the original price."
+      },
+      "invariants_dsl": "spec PriceMarkdown {\n    field final_price: Number {\n        value <= this.original_price;\n        value >= 1.0;\n    }\n    field original_price: Number {\n        value >= 1.0;\n        value <= 1000.0;\n    }\n    field discount_reason: String {\n        value IN [\"clearance\", \"seasonal\", \"loyalty\", \"bulk\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "final_price": { "type": "number", "description": "Must be <= original_price, and >= 1.0" },
+          "original_price": { "type": "number", "minimum": 1.0, "maximum": 1000.0 },
+          "discount_reason": { "type": "string", "enum": ["clearance", "seasonal", "loyalty", "bulk"] }
+        },
+        "required": ["final_price", "original_price", "discount_reason"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "math", "expr": "final_price <= original_price" },
+        { "type": "range", "field": "original_price", "min": 1.0, "max": 1000.0 },
+        { "type": "range", "field": "final_price", "min": 1.0, "max": 1000.0 },
+        { "type": "membership", "field": "discount_reason", "choices": ["clearance", "seasonal", "loyalty", "bulk"] }
+      ]
+    },
+
+    "SCH_bonus_plan": {
+      "id": "SCH_bonus_plan",
+      "name": "Bonus Plan (backwards-declared nested sibling)",
+      "domain": "HR / Compensation",
+      "root_spec": "BonusPlan",
+      "description": "bonus_amount (declared first) has an inline constraint referencing 'this.salary_info.base_salary', a field inside a NESTED spec (salary_info) declared second. Tests the scheduler fix combined with multi-segment nested field-path resolution.",
+      "prompts": {
+        "system": "You are an HR compensation system generating a validated bonus plan record. Output ONLY raw, valid JSON.",
+        "user": "Generate a performance bonus plan for an employee, where the bonus amount is capped relative to their base salary."
+      },
+      "invariants_dsl": "spec SalaryInfo {\n    field base_salary: Number {\n        value >= 30000.0;\n        value <= 300000.0;\n    }\n}\n\nspec BonusPlan {\n    field bonus_amount: Number {\n        value <= this.salary_info.base_salary * 0.5;\n        value >= 0.0;\n    }\n    field salary_info: SalaryInfo {\n    }\n    field bonus_type: String {\n        value IN [\"performance\", \"retention\", \"signing\", \"referral\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "bonus_amount": { "type": "number", "description": "Must be <= 0.5 * salary_info.base_salary, and >= 0.0" },
+          "salary_info": {
+            "type": "object",
+            "properties": {
+              "base_salary": { "type": "number", "minimum": 30000.0, "maximum": 300000.0 }
+            },
+            "required": ["base_salary"],
+            "additionalProperties": false
+          },
+          "bonus_type": { "type": "string", "enum": ["performance", "retention", "signing", "referral"] }
+        },
+        "required": ["bonus_amount", "salary_info", "bonus_type"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "math", "expr": "bonus_amount <= salary_info['base_salary'] * 0.5" },
+        { "type": "range", "field": "salary_info.base_salary", "min": 30000.0, "max": 300000.0 },
+        { "type": "membership", "field": "bonus_type", "choices": ["performance", "retention", "signing", "referral"] }
+      ]
+    }
+  }
+}

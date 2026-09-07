@@ -26,8 +26,13 @@ class Runtime {
   bool isActiveFieldDeterministic() const;
   std::string solveDeterministic();
 
-  // Evaluates an incomplete/complete LLM string against the field's triggers
-  ValidationStatus validatePartial(std::string_view proposedChars) const;
+  // Evaluates an incomplete/complete LLM string against the field's triggers.
+  // isComplete=false means proposedChars is a still-open/unterminated value
+  // (e.g. an unclosed JSON string): constraints like IN are checked against
+  // it as a PREFIX rather than requiring an exact match, and the result caps
+  // out at PartialValid rather than Valid.
+  ValidationStatus validatePartial(std::string_view proposedChars,
+                                   bool isComplete = true) const;
 
   // Commits a validated LLM generation to the C++ Environment and advances the
   // step

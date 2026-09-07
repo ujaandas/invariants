@@ -1,0 +1,199 @@
+{
+  "version": "1.0",
+  "level_description": "Real-World Schemas (Adapted from production JSON Schemas and documented API/platform constraints -- GitHub Actions, Kubernetes, AWS Auto Scaling, Stripe, GeoJSON/RFC 7946, and carrier shipping-rate rules -- rather than synthetic benchmark authoring. Each field's bounds and cross-field relationships are sourced from real, citable documentation, not invented for this project.)",
+  "benchmarks": {
+    "SS_ci_job_config": {
+      "id": "SS_ci_job_config",
+      "name": "CI Job Configuration (GitHub Actions)",
+      "domain": "CI/CD & DevOps",
+      "root_spec": "CIJobConfig",
+      "description": "Adapted from GitHub's public workflow JSON Schema (github-workflow.json on SchemaStore) and GitHub Actions documentation: runs-on/permissions enums, and documented platform limits for timeout-minutes (360 min hard cap on GitHub-hosted runners) and a matrix strategy's max-parallel (GitHub caps a matrix at 256 generated jobs).",
+      "prompts": {
+        "system": "You are a CI/CD platform generating a validated GitHub Actions job configuration. Output ONLY raw, valid JSON.",
+        "user": "Generate a job configuration for a GitHub-hosted runner within GitHub's documented platform limits."
+      },
+      "invariants_dsl": "spec CIJobConfig {\n    field runner_os: String {\n        value IN [\"linux\", \"macos\", \"windows\"];\n    }\n    field permission_level: String {\n        value IN [\"read\", \"write\", \"none\"];\n    }\n    field timeout_minutes: Integer {\n        value >= 1;\n        value <= 360;\n    }\n    field max_parallel: Integer {\n        value >= 1;\n        value <= 256;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "runner_os": { "type": "string", "enum": ["linux", "macos", "windows"], "description": "GitHub Actions runs-on platform" },
+          "permission_level": { "type": "string", "enum": ["read", "write", "none"], "description": "GITHUB_TOKEN permissions level" },
+          "timeout_minutes": { "type": "integer", "minimum": 1, "maximum": 360, "description": "Job timeout (GitHub-hosted hard cap is 360 minutes)" },
+          "max_parallel": { "type": "integer", "minimum": 1, "maximum": 256, "description": "strategy.max-parallel (GitHub caps a matrix at 256 jobs)" }
+        },
+        "required": ["runner_os", "permission_level", "timeout_minutes", "max_parallel"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "runner_os", "choices": ["linux", "macos", "windows"] },
+        { "type": "membership", "field": "permission_level", "choices": ["read", "write", "none"] },
+        { "type": "range", "field": "timeout_minutes", "min": 1, "max": 360 },
+        { "type": "range", "field": "max_parallel", "min": 1, "max": 256 }
+      ]
+    },
+
+    "SS_k8s_container_resources": {
+      "id": "SS_k8s_container_resources",
+      "name": "Kubernetes Container Resource Limits",
+      "domain": "Cloud Infrastructure & Container Orchestration",
+      "root_spec": "ContainerResources",
+      "description": "Adapted from Kubernetes' documented resource-management rules (kubernetes.io/docs/concepts/configuration/manage-resources-containers): a container's resource limit must be at least its resource request, for both CPU (millicores) and memory (Mi) -- enforced by the kubelet/API server in real clusters, and structurally inexpressible in a context-free JSON Schema grammar.",
+      "prompts": {
+        "system": "You are a Kubernetes admission controller generating a validated container resource specification. Output ONLY raw, valid JSON.",
+        "user": "Generate CPU and memory requests/limits for a container. Limits must never be lower than the corresponding request."
+      },
+      "invariants_dsl": "spec ContainerResources {\n    field cpu_request_millicores: Integer {\n        value >= 10;\n        value <= 4000;\n    }\n    field cpu_limit_millicores: Integer {\n        value >= this.cpu_request_millicores;\n        value <= 8000;\n    }\n    field memory_request_mi: Integer {\n        value >= 16;\n        value <= 16384;\n    }\n    field memory_limit_mi: Integer {\n        value >= this.memory_request_mi;\n        value <= 32768;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "cpu_request_millicores": { "type": "integer", "minimum": 10, "maximum": 4000, "description": "CPU request in millicores" },
+          "cpu_limit_millicores": { "type": "integer", "minimum": 10, "maximum": 8000, "description": "CPU limit in millicores (must be >= request)" },
+          "memory_request_mi": { "type": "integer", "minimum": 16, "maximum": 16384, "description": "Memory request in Mi" },
+          "memory_limit_mi": { "type": "integer", "minimum": 16, "maximum": 32768, "description": "Memory limit in Mi (must be >= request)" }
+        },
+        "required": ["cpu_request_millicores", "cpu_limit_millicores", "memory_request_mi", "memory_limit_mi"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "cpu_request_millicores", "min": 10, "max": 4000 },
+        { "type": "range", "field": "cpu_limit_millicores", "min": 10, "max": 8000 },
+        { "type": "range", "field": "memory_request_mi", "min": 16, "max": 16384 },
+        { "type": "range", "field": "memory_limit_mi", "min": 16, "max": 32768 },
+        { "type": "math", "expr": "cpu_limit_millicores >= cpu_request_millicores" },
+        { "type": "math", "expr": "memory_limit_mi >= memory_request_mi" }
+      ]
+    },
+
+    "SS_aws_autoscaling_group": {
+      "id": "SS_aws_autoscaling_group",
+      "name": "AWS Auto Scaling Group Capacity",
+      "domain": "Cloud Infrastructure (AWS)",
+      "root_spec": "AutoScalingGroup",
+      "description": "Adapted from AWS's documented Auto Scaling Group validation rule (CreateAutoScalingGroup/UpdateAutoScalingGroup API reference): DesiredCapacity must be >= MinSize and <= MaxSize. This three-way relational constraint across independently-generated fields is exactly the class of rule a context-free grammar cannot express.",
+      "prompts": {
+        "system": "You are the AWS Auto Scaling control plane generating a validated Auto Scaling Group capacity configuration. Output ONLY raw, valid JSON.",
+        "user": "Generate a capacity configuration for an Auto Scaling Group. DesiredCapacity must always be between MinSize and MaxSize inclusive."
+      },
+      "invariants_dsl": "spec AutoScalingGroup {\n    field min_size: Integer {\n        value >= 0;\n        value <= 100;\n    }\n    field max_size: Integer {\n        value >= this.min_size;\n        value <= 200;\n    }\n    field desired_capacity: Integer {\n        value >= this.min_size;\n        value <= this.max_size;\n    }\n    field instance_tier: String {\n        value IN [\"small\", \"medium\", \"large\", \"xlarge\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "min_size": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Minimum group size" },
+          "max_size": { "type": "integer", "minimum": 0, "maximum": 200, "description": "Maximum group size (must be >= min_size)" },
+          "desired_capacity": { "type": "integer", "minimum": 0, "maximum": 200, "description": "Desired capacity (must be between min_size and max_size)" },
+          "instance_tier": { "type": "string", "enum": ["small", "medium", "large", "xlarge"], "description": "Instance sizing tier" }
+        },
+        "required": ["min_size", "max_size", "desired_capacity", "instance_tier"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "min_size", "min": 0, "max": 100 },
+        { "type": "range", "field": "max_size", "min": 0, "max": 200 },
+        { "type": "membership", "field": "instance_tier", "choices": ["small", "medium", "large", "xlarge"] },
+        { "type": "math", "expr": "max_size >= min_size" },
+        { "type": "math", "expr": "min_size <= desired_capacity <= max_size" }
+      ]
+    },
+
+    "SS_stripe_invoice": {
+      "id": "SS_stripe_invoice",
+      "name": "Payment Invoice (Stripe Invoice object)",
+      "domain": "Payments & Fintech",
+      "root_spec": "Invoice",
+      "description": "Adapted from Stripe's public Invoice API object (docs.stripe.com/api/invoices): subtotal, tax, total, amount_paid, amount_remaining, and status are real field names from Stripe's documented schema. Models the real relations total = subtotal + tax and amount_remaining = total - amount_paid, plus the real constraint that amount_paid can never exceed total.",
+      "prompts": {
+        "system": "You are a payments platform generating a validated invoice record, in the shape of Stripe's Invoice API object. Output ONLY raw, valid JSON.",
+        "user": "Generate an invoice for a paid business transaction. Compute tax, total, and remaining balance exactly."
+      },
+      "invariants_dsl": "spec Invoice {\n    field subtotal_cents: Integer {\n        value >= 100;\n        value <= 10000000;\n    }\n    field tax_rate_pct: Number {\n        value >= 0.0;\n        value <= 25.0;\n    }\n    field tax_cents: Number {\n        value == this.subtotal_cents * (this.tax_rate_pct / 100.0);\n    }\n    field total_cents: Number {\n        value == this.subtotal_cents + this.tax_cents;\n    }\n    field amount_paid_cents: Number {\n        value >= 0.0;\n        value <= this.total_cents;\n    }\n    field amount_remaining_cents: Number {\n        value == this.total_cents - this.amount_paid_cents;\n    }\n    field status: String {\n        value IN [\"draft\", \"open\", \"paid\", \"void\", \"uncollectible\"];\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "subtotal_cents": { "type": "integer", "minimum": 100, "maximum": 10000000, "description": "Subtotal before tax, in cents" },
+          "tax_rate_pct": { "type": "number", "minimum": 0.0, "maximum": 25.0, "description": "Applied tax rate percentage" },
+          "tax_cents": { "type": "number", "description": "Calculated: subtotal_cents * (tax_rate_pct / 100.0)" },
+          "total_cents": { "type": "number", "description": "Calculated: subtotal_cents + tax_cents" },
+          "amount_paid_cents": { "type": "number", "description": "Amount already paid (cannot exceed total_cents)" },
+          "amount_remaining_cents": { "type": "number", "description": "Calculated: total_cents - amount_paid_cents" },
+          "status": { "type": "string", "enum": ["draft", "open", "paid", "void", "uncollectible"], "description": "Stripe invoice status" }
+        },
+        "required": ["subtotal_cents", "tax_rate_pct", "tax_cents", "total_cents", "amount_paid_cents", "amount_remaining_cents", "status"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "subtotal_cents", "min": 100, "max": 10000000 },
+        { "type": "range", "field": "tax_rate_pct", "min": 0.0, "max": 25.0 },
+        { "type": "membership", "field": "status", "choices": ["draft", "open", "paid", "void", "uncollectible"] },
+        { "type": "math", "expr": "abs(tax_cents - (subtotal_cents * (tax_rate_pct / 100.0))) < 0.01" },
+        { "type": "math", "expr": "abs(total_cents - (subtotal_cents + tax_cents)) < 0.01" },
+        { "type": "math", "expr": "amount_paid_cents <= total_cents" },
+        { "type": "math", "expr": "abs(amount_remaining_cents - (total_cents - amount_paid_cents)) < 0.01" }
+      ]
+    },
+
+    "SS_geojson_feature": {
+      "id": "SS_geojson_feature",
+      "name": "Geospatial Feature Coordinates (GeoJSON / RFC 7946)",
+      "domain": "Geospatial Systems",
+      "root_spec": "GeoFeature",
+      "description": "Adapted from RFC 7946 (the GeoJSON specification): longitude in [-180, 180], latitude in [-90, 90] are normative bounds every conforming GeoJSON position must satisfy. Elevation is bounded to Earth's real documented extremes (Mariana Trench to Mount Everest). Exercises small-magnitude decimal range constraints, a distinct numeric shape from the currency/count fields in the other real-world schemas here.",
+      "prompts": {
+        "system": "You are a geospatial data service generating a validated GeoJSON Feature's coordinates. Output ONLY raw, valid JSON.",
+        "user": "Generate a valid geographic point feature with coordinates that fall within a real location on Earth."
+      },
+      "invariants_dsl": "spec GeoFeature {\n    field geometry_type: String {\n        value IN [\"Point\", \"LineString\", \"Polygon\", \"MultiPoint\", \"MultiLineString\", \"MultiPolygon\"];\n    }\n    field longitude: Number {\n        value >= -180.0;\n        value <= 180.0;\n    }\n    field latitude: Number {\n        value >= -90.0;\n        value <= 90.0;\n    }\n    field elevation_m: Number {\n        value >= -11000.0;\n        value <= 9000.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "geometry_type": { "type": "string", "enum": ["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"], "description": "RFC 7946 geometry type" },
+          "longitude": { "type": "number", "minimum": -180.0, "maximum": 180.0, "description": "RFC 7946 longitude bound" },
+          "latitude": { "type": "number", "minimum": -90.0, "maximum": 90.0, "description": "RFC 7946 latitude bound" },
+          "elevation_m": { "type": "number", "minimum": -11000.0, "maximum": 9000.0, "description": "Elevation in meters (Mariana Trench to Everest)" }
+        },
+        "required": ["geometry_type", "longitude", "latitude", "elevation_m"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "membership", "field": "geometry_type", "choices": ["Point", "LineString", "Polygon", "MultiPoint", "MultiLineString", "MultiPolygon"] },
+        { "type": "range", "field": "longitude", "min": -180.0, "max": 180.0 },
+        { "type": "range", "field": "latitude", "min": -90.0, "max": 90.0 },
+        { "type": "range", "field": "elevation_m", "min": -11000.0, "max": 9000.0 }
+      ]
+    },
+
+    "SS_shipping_package": {
+      "id": "SS_shipping_package",
+      "name": "Carrier Shipping Rate (Dimensional Weight)",
+      "domain": "Logistics & Supply Chain",
+      "root_spec": "ShippingPackage",
+      "description": "Adapted from FedEx's publicly documented dimensional-weight formula (fedex.com: dim weight = L*W*H / 139 for inches/lbs) and the standard carrier billing rule that a shipment is billed at whichever is greater, its actual or dimensional weight. That 'billed = max(a, b)' relation -- expressed here as two simultaneous lower bounds -- is a real industry rule with no context-free equivalent.",
+      "prompts": {
+        "system": "You are a shipping carrier's rating engine generating a validated package rate calculation. Output ONLY raw, valid JSON.",
+        "user": "Generate package dimensions and weight for a shipment, and compute its dimensional weight and billable weight exactly."
+      },
+      "invariants_dsl": "spec ShippingPackage {\n    field length_in: Number {\n        value >= 1.0;\n        value <= 108.0;\n    }\n    field width_in: Number {\n        value >= 1.0;\n        value <= 108.0;\n    }\n    field height_in: Number {\n        value >= 1.0;\n        value <= 108.0;\n    }\n    field actual_weight_lbs: Number {\n        value >= 0.1;\n        value <= 150.0;\n    }\n    field dimensional_weight_lbs: Number {\n        value == (this.length_in * this.width_in * this.height_in) / 139.0;\n    }\n    field billable_weight_lbs: Number {\n        value >= this.actual_weight_lbs;\n        value >= this.dimensional_weight_lbs;\n        value <= 1000.0;\n    }\n}",
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "length_in": { "type": "number", "minimum": 1.0, "maximum": 108.0, "description": "Package length in inches" },
+          "width_in": { "type": "number", "minimum": 1.0, "maximum": 108.0, "description": "Package width in inches" },
+          "height_in": { "type": "number", "minimum": 1.0, "maximum": 108.0, "description": "Package height in inches" },
+          "actual_weight_lbs": { "type": "number", "minimum": 0.1, "maximum": 150.0, "description": "Actual scale weight in lbs" },
+          "dimensional_weight_lbs": { "type": "number", "description": "Calculated: (length_in * width_in * height_in) / 139.0" },
+          "billable_weight_lbs": { "type": "number", "description": "The greater of actual_weight_lbs and dimensional_weight_lbs" }
+        },
+        "required": ["length_in", "width_in", "height_in", "actual_weight_lbs", "dimensional_weight_lbs", "billable_weight_lbs"],
+        "additionalProperties": false
+      },
+      "eval_assertions": [
+        { "type": "range", "field": "length_in", "min": 1.0, "max": 108.0 },
+        { "type": "range", "field": "width_in", "min": 1.0, "max": 108.0 },
+        { "type": "range", "field": "height_in", "min": 1.0, "max": 108.0 },
+        { "type": "range", "field": "actual_weight_lbs", "min": 0.1, "max": 150.0 },
+        { "type": "math", "expr": "abs(dimensional_weight_lbs - ((length_in * width_in * height_in) / 139.0)) < 0.01" },
+        { "type": "math", "expr": "billable_weight_lbs >= actual_weight_lbs" },
+        { "type": "math", "expr": "billable_weight_lbs >= dimensional_weight_lbs" }
+      ]
+    }
+  }
+}

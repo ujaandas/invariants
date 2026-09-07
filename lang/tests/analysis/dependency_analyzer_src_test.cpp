@@ -466,3 +466,49 @@ TEST(DependencyAnalyzerSrcTest, DetectsCrossSpecCycles) {
   DependencyAnalyzer analyzer;
   EXPECT_THROW(analyzer.analyze(bound, "Container"), std::runtime_error);
 }
+
+TEST(DependencyAnalyzerSrcTest, SchedulesImplicationAntecedentBeforeConsequent) {
+  // Mirrors the CloudProvision shape from the methodology worked example:
+  // `computed` is a deterministic assignment (from a, b) with no incoming
+  // edge from `flag`, while `flag` has NO assignment edges at all -- so
+  // without an edge from the implication itself, `flag` starts at
+  // in-degree 0 and Kahn's algorithm schedules it before `computed` is
+  // ever assigned, letting `gate` be checked against an unassigned value
+  // and never actually enforced.
+  std::string source = R"(
+    spec Provision {
+      field a: Integer { }
+      field b: Integer { }
+      field computed: Integer { }
+      invariant calc { this.computed == this.a * this.b; }
+      field flag: String { value IN ["low", "high"]; }
+      invariant gate { this.computed > 100 -> this.flag == "high"; }
+    }
+  )";
+
+  auto ast = parseSource(source);
+  Binder binder;
+  BoundModule bound = binder.bind(*ast);
+
+  DependencyAnalyzer analyzer;
+  auto schedule = analyzer.analyze(bound, "Provision");
+
+  auto indexOf = [&](const std::string& name) {
+    return std::distance(schedule.order.begin(),
+                         std::ranges::find(schedule.order, name));
+  };
+
+  ASSERT_EQ(schedule.order.size(), 4);
+  EXPECT_LT(indexOf("computed"), indexOf("flag"));
+
+  // The implication's trigger must attach to `flag` (the consequent's
+  // field), not to `computed` -- checking it there is what actually
+  // enforces the rule once flag's candidate value is known.
+  bool foundOnFlag = false;
+  for (const auto& trigger : schedule.triggers["flag"]) {
+    if (trigger.parentInv != nullptr && trigger.parentInv->name == "gate") {
+      foundOnFlag = true;
+    }
+  }
+  EXPECT_TRUE(foundOnFlag);
+}
