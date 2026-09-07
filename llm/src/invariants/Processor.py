@@ -20,19 +20,12 @@ class GenerationResult:
     mask_calls: int = 0
 
 
-def is_inside_open_string_or_array(text: str) -> bool:
-    """Whether a "," or "}" appearing next in `text` would be literal
-    content rather than a genuine JSON structural character -- true while
-    inside an unescaped, unclosed string (a free-text field's own comma),
-    or while inside an Array<T> field's own brackets (the "," separating
-    array elements, or a "}" that could only belong to a string element's
-    content). Toggles string state across every quote seen (not just the
-    first pair), since an array can contain several string elements one
-    after another, each opening and closing its own quotes."""
+def find_field_end(text: str) -> int | None:
+    """Finds the index of the "," or "}" that ends this field's value, outside any open string or array."""
     in_string = False
     escaped = False
     bracket_depth = 0
-    for c in text:
+    for i, c in enumerate(text):
         if in_string:
             if escaped:
                 escaped = False
@@ -47,7 +40,9 @@ def is_inside_open_string_or_array(text: str) -> bool:
             bracket_depth += 1
         elif c == "]":
             bracket_depth -= 1
-    return in_string or bracket_depth > 0
+        elif c in (",", "}") and bracket_depth == 0:
+            return i
+    return None
 
 
 class ConstraintProcessor:
@@ -65,8 +60,7 @@ class ConstraintProcessor:
         # C contig mem
         scores_contiguous = np.ascontiguousarray(scores, dtype=np.float32)
 
-        # Isolates the mask computation itself (pure C++, O(vocab_size) per
-        # call) from LLM inference time, which happens outside __call__.
+        # Isolate mask computation time from LLM inference time
         mask_start = time.perf_counter()
         invariants_cpp.mask_logits_full_vocab(
             self.runtime,
@@ -101,9 +95,7 @@ class ConstrainedGenerator:
         session = invariants_cpp.EngineSession(dsl_source, root_spec)
         rt = session.runtime
 
-        # final_json is flat dotted-key text used only to prime the prompt.
-        # `values` tracks the same data as typed Python values, reassembled
-        # into real nested JSON for the returned result.
+        # final_json primes the prompt; values holds the typed result
         final_json = "{\n"
         values: dict[str, object] = {}
         if verbose:
@@ -159,25 +151,13 @@ class ConstrainedGenerator:
                     tokens_sampled += 1
                     char_chunk = self.engine.decode([token])
 
-                    # A "," or "}" only means "the value is done" once we're
-                    # not still inside an open, unescaped JSON string (a
-                    # free-text field naturally contains commas as normal
-                    # punctuation) or inside an Array<T> field's own
-                    # brackets (the "," separating array elements is not
-                    # the field's own exit signal -- only a delimiter after
-                    # the closing "]" is).
-                    exit_chars = [",", "}"]
-                    if not is_inside_open_string_or_array(
-                        generated_val + char_chunk
-                    ) and any(c in char_chunk for c in exit_chars):
-                        for c in exit_chars:
-                            if c in char_chunk:
-                                char_chunk = char_chunk.split(c)[0]
-                                break
-
-                        generated_val += char_chunk
+                    combined = generated_val + char_chunk
+                    end_pos = find_field_end(combined)
+                    if end_pos is not None:
+                        kept = combined[len(generated_val):end_pos]
+                        generated_val = combined[:end_pos]
                         if verbose:
-                            print(char_chunk, end="", flush=True)
+                            print(kept, end="", flush=True)
                         break
 
                     buffer.commit_token(token)
@@ -192,11 +172,7 @@ class ConstrainedGenerator:
                         f"LLM generated an empty value for field '{field_name}'. "
                         "Logit constraint mask prevented invalid tokens, but the model terminated generation early."
                     )
-                # submit_val_str() commits unconditionally without
-                # re-checking constraints, so if generation was cut short
-                # (e.g. forced EOS after the mask rejected everything), the
-                # accumulated text might not actually be valid -- check here
-                # rather than let it slip into the committed environment.
+                # Guard against a forced-EOS value that never got validated
                 final_status = rt.validate_partial(clean_val, True)
                 if final_status == invariants_cpp.ValidationStatus.Invalid:
                     raise RuntimeError(
@@ -223,8 +199,7 @@ class ConstrainedGenerator:
         if verbose:
             print("}\n")
 
-        # Reassemble the flat "profile.vcpu_cores" -> value pairs into genuinely
-        # nested JSON, e.g. {"profile": {"vcpu_cores": 2}}.
+        # Reassemble dotted-key pairs into nested JSON
         nested: dict[str, object] = {}
         for path, value in values.items():
             node = nested

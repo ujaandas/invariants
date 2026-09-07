@@ -1,13 +1,4 @@
-"""
-Generates comparison charts (Plain Prompt vs Baseline CFG vs Invariants) from
-benchmark results and writes them as PNGs to benchmarks/plots/.
-
-Reads two kinds of data:
-  - benchmarks/results/all_results.csv               (case-level metrics, all 3 systems)
-  - benchmarks/results/schemas_*/latest/results.json  (per-assertion detail, all 3 systems)
-  - benchmarks/results/mask_timing/schemas_*/*/       (mask-computation timing + total_fields,
-                                                        Invariants only, from --invariants-only runs)
-"""
+"""Generates comparison charts from benchmark results, written as PNGs to benchmarks/plots/."""
 
 import json
 from pathlib import Path
@@ -18,19 +9,13 @@ import pandas as pd
 RESULTS_ROOT = Path("benchmarks/results")
 PLOTS_DIR = Path("benchmarks/plots")
 
-# Categorical palette, fixed order (dataviz skill reference palette). Slots
-# 1-3 (Plain/Baseline/Invariants) are unchanged from every earlier plot in
-# this project for visual continuity. Slots 4-5 (Outlines/Guidance) extend
-# the SAME documented 8-slot sequence in its validated adjacent order --
-# node wasn't available to re-validate a custom permutation, so bars are
-# drawn in exact slot order (1,2,3,4,5) rather than a reordered narrative
-# grouping, to keep the adjacent-pair CVD-safety guarantee intact.
+# Fixed categorical palette, slot order kept for visual continuity
 COLOR_PLAIN = "#2a78d6"       # slot 1
 COLOR_BASELINE = "#eb6834"    # slot 2
 COLOR_INVARIANTS = "#1baf7a"  # slot 3
 COLOR_OUTLINES = "#eda100"    # slot 4
 COLOR_GUIDANCE = "#e87ba4"    # slot 5
-# Diverging pair, for the one polarity chart (faster/slower than baseline).
+# Diverging pair for the one polarity chart (faster/slower than baseline)
 COLOR_DIV_FASTER = "#2a78d6"
 COLOR_DIV_SLOWER = "#e34948"
 
@@ -89,10 +74,7 @@ SUITE_LABELS = {
     "schemas_long_freetext": "FreeText*",
     "schemas_advanced_features": "AdvFeat*",
 }
-# Suites marked with * are deliberately adversarial stress tests, not
-# representative-usage suites -- included in every per-suite chart so
-# failures show up in context rather than being cropped out, but worth
-# calling out in captions rather than silently averaged away.
+# Suites marked with * are deliberately adversarial stress tests
 ADVERSARIAL_SUITES = {"schemas_deadend_stress", "schemas_long_freetext"}
 
 TEMP_SWEEP_ROOT = RESULTS_ROOT / "temperature_sweep"
@@ -123,9 +105,7 @@ def save(fig, name):
 
 
 def print_values(title: str, data):
-    # Dumps the exact numbers a chart is about to render, so a wrong-looking
-    # bar can be checked against the underlying aggregate directly instead of
-    # reverse-engineered from the rendered PNG.
+    # Dumps the numbers behind a chart so they can be sanity-checked
     print(f"  [values] {title}:")
     if isinstance(data, dict):
         for k, v in data.items():
@@ -136,9 +116,7 @@ def print_values(title: str, data):
 
 def grouped_bars(ax, categories, series: dict, colors: dict, labels: dict,
                   value_fmt=None, min_visible_frac=0.006):
-    """series: {system: [value per category]}. A value of exactly 0 renders
-    as a thin stub (min_visible_frac of the axis range) rather than nothing
-    at all -- a true zero and a missing bar must not look identical."""
+    """series: {system: [value per category]}. A zero value renders as a thin stub, not nothing."""
     n = len(series)
     width = 0.8 / n
     x = range(len(categories))
@@ -159,9 +137,7 @@ def grouped_bars(ax, categories, series: dict, colors: dict, labels: dict,
     ax.set_xticklabels(categories)
 
 
-# ---------------------------------------------------------------------------
 # Data loading
-# ---------------------------------------------------------------------------
 
 def load_all_results() -> pd.DataFrame:
     df = pd.read_csv(RESULTS_ROOT / "all_results.csv")
@@ -180,18 +156,28 @@ def load_suite_json() -> dict:
 
 
 def load_mask_timing_json() -> dict:
+    # Prefer a dedicated --invariants-only run, fall back to a normal suite run
     data = {}
+    sources = {}
     for suite in SUITES:
         base = RESULTS_ROOT / "mask_timing" / suite
-        if not base.exists():
-            continue
-        runs = sorted(p for p in base.iterdir() if p.is_dir())
-        if not runs:
-            continue
-        p = runs[-1] / "results.json"
+        if base.exists():
+            runs = sorted(p for p in base.iterdir() if p.is_dir())
+            if runs:
+                p = runs[-1] / "results.json"
+                if p.exists():
+                    with open(p, encoding="utf-8") as f:
+                        data[suite] = json.load(f)
+                    sources[suite] = "dedicated --invariants-only run"
+                    continue
+
+        p = RESULTS_ROOT / suite / "latest" / "results.json"
         if p.exists():
             with open(p, encoding="utf-8") as f:
                 data[suite] = json.load(f)
+            sources[suite] = "fallback: regular multi-system run"
+
+    print_values("Mask-timing data source by suite", sources)
     return data
 
 
@@ -209,13 +195,7 @@ def load_temperature_sweep() -> pd.DataFrame | None:
     return df
 
 
-# ---------------------------------------------------------------------------
-# Chart 1: field-level (assertion) pass rate, by suite -- the primary
-# correctness figure. Case-level "all or nothing" success is relegated to a
-# secondary chart (01b) since it makes systems that get most fields right
-# but miss one (e.g. Plain_Prompt) look like they failed "literally
-# everything," which overstates the gap.
-# ---------------------------------------------------------------------------
+# Chart 1: field-level (assertion) pass rate by suite, the primary correctness figure
 
 def plot_field_level_pass_rate_by_suite(suite_json: dict):
     labels = []
@@ -254,10 +234,7 @@ def plot_field_level_pass_rate_by_suite(suite_json: dict):
     save(fig, "01_field_level_pass_rate_by_suite.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 1b: case-level ("all assertions in the case passed") success rate,
-# by suite -- secondary/supplementary view of the same underlying data.
-# ---------------------------------------------------------------------------
+# Chart 1b: case-level (all assertions passed) success rate by suite
 
 def plot_success_rate_by_suite(df: pd.DataFrame):
     labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
@@ -295,9 +272,7 @@ def plot_success_rate_by_suite(df: pd.DataFrame):
     save(fig, "01b_case_level_success_by_suite.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 2: assertion-level (field-level) pass rate, aggregated
-# ---------------------------------------------------------------------------
+# Chart 2: assertion-level pass rate, aggregated across all suites
 
 def plot_assertion_pass_rate_overall(suite_json: dict):
     totals = {sys_: [0, 0] for sys_ in SYSTEM_ORDER}  # [passed, total]
@@ -333,17 +308,10 @@ def plot_assertion_pass_rate_overall(suite_json: dict):
     save(fig, "02_assertion_pass_rate_overall.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 3: assertion pass rate, by assertion type -- the key chart
-# ---------------------------------------------------------------------------
+# Chart 3: assertion pass rate by assertion type
 
 def plot_assertion_pass_rate_by_type(suite_json: dict):
-    # "json_parse" is special: run_evaluations only ever records ONE when
-    # parsing FAILS (a successful parse just proceeds to check the schema's
-    # real assertions and never emits a "json_parse passed" entry). Pulling
-    # it from the assertions list the same way as the others would make it
-    # tautologically 0% for every system. Compute it per-case instead: did
-    # this case's output parse as JSON at all?
+    # "json_parse" passes are never recorded as assertions, so compute per-case instead
     types_order = ["json_parse", "range", "membership", "exact_value", "math"]
     type_labels = {
         "range": "Range", "membership": "Membership (enum)",
@@ -395,9 +363,7 @@ def plot_assertion_pass_rate_by_type(suite_json: dict):
     save(fig, "03_assertion_pass_rate_by_type.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 4: deterministic-bypass rate by suite (Invariants only) -- transparency
-# ---------------------------------------------------------------------------
+# Chart 4: deterministic-bypass rate by suite (Invariants only)
 
 def plot_bypass_rate_by_suite(mask_json: dict):
     labels, rates = [], []
@@ -418,7 +384,7 @@ def plot_bypass_rate_by_suite(mask_json: dict):
 
     print_values("Deterministic-bypass rate by suite (fields bypassed / total fields -- a field COUNT ratio, not a time share)", raw)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(15, 5))
     bars = ax.bar(labels, rates, width=0.55, color=COLOR_INVARIANTS, zorder=3)
     for b in bars:
         ax.text(b.get_x() + b.get_width() / 2, b.get_height(), f"{b.get_height():.0f}%",
@@ -431,9 +397,7 @@ def plot_bypass_rate_by_suite(mask_json: dict):
     save(fig, "04_bypass_rate_by_suite.png")
 
 
-# ---------------------------------------------------------------------------
 # Chart 5 & 6: tokens generated / wall time, by system
-# ---------------------------------------------------------------------------
 
 def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title: str, filename: str):
     labels = [SUITE_LABELS[s] for s in SUITES if s in df["Suite"].unique()]
@@ -469,19 +433,14 @@ def plot_mean_metric_by_suite(df: pd.DataFrame, column: str, ylabel: str, title:
     save(fig, filename)
 
 
-# ---------------------------------------------------------------------------
 # Chart 7: per-case wall-time speedup/slowdown vs. Baseline, as a percentage
-# -- a ratio bar chart anchored at 1.0 reads as "how far above the line," a
-# percentage reads directly as "how much faster/slower," so this is framed
-# as %% change rather than a raw ratio.
-# ---------------------------------------------------------------------------
 
 def plot_wall_time_ratio(df: pd.DataFrame):
     inv = df[df["System"] == "Invariants"][["Suite", "Benchmark_ID", "Wall_Time_s"]]
     base = df[df["System"] == "Baseline_CFG"][["Suite", "Benchmark_ID", "Wall_Time_s"]]
     merged = inv.merge(base, on=["Suite", "Benchmark_ID"], suffixes=("_inv", "_base"))
     merged = merged[(merged["Wall_Time_s_base"] > 0) & (merged["Wall_Time_s_inv"] > 0)]
-    # pct_change > 0 means Invariants took longer (slower); < 0 means faster.
+    # pct_change > 0 means slower; < 0 means faster
     merged["pct_change"] = 100 * (merged["Wall_Time_s_inv"] / merged["Wall_Time_s_base"] - 1)
     merged = merged.sort_values("pct_change")
 
@@ -508,9 +467,7 @@ def plot_wall_time_ratio(df: pd.DataFrame):
     save(fig, "07_wall_time_pct_change_per_case.png")
 
 
-# ---------------------------------------------------------------------------
 # Chart 8: mask-computation time as a share of total Invariants wall time
-# ---------------------------------------------------------------------------
 
 def plot_mask_overhead_share(mask_json: dict):
     labels, mask_frac, other_frac, mask_abs = [], [], [], []
@@ -533,7 +490,7 @@ def plot_mask_overhead_share(mask_json: dict):
 
     print_values("Mask time as share of total Invariants wall time, by suite", raw)
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=(15, 5))
     x = range(len(labels))
     ax.bar(x, other_frac, width=0.55, bottom=mask_frac, color="#d9d8d2",
            label="LLM inference & other", zorder=3)
@@ -553,11 +510,7 @@ def plot_mask_overhead_share(mask_json: dict):
     save(fig, "08_mask_overhead_share.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 9: temperature-sweep success rate per system, with error bars from
-# the N=5 repeats -- answers "does matching temperature change the picture"
-# and "is Invariants-at-temp=0 actually deterministic."
-# ---------------------------------------------------------------------------
+# Chart 9: temperature-sweep success rate per system, with error bars from N=5 repeats
 
 def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
     if sweep_df is None or sweep_df.empty:
@@ -565,10 +518,7 @@ def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
         return
 
     temps = sorted(sweep_df["Temperature"].unique())
-    # Only the systems actually present in this sweep -- Outlines/Guidance
-    # were added to the main suites later and were never run through this
-    # sweep, so iterating the full SYSTEM_ORDER would render them as a
-    # misleading 0% rather than simply absent.
+    # Only the systems actually present in this sweep
     swept_systems = [s for s in SYSTEM_ORDER if s in sweep_df["System"].unique()]
     labels = [SYSTEM_LABELS[s] for s in swept_systems]
     series = {f"temp={t}": [] for t in temps}
@@ -586,8 +536,7 @@ def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
 
     print_values("Temperature sweep: success rate per system (mean +/- std across N trials)", raw)
 
-    # Determinism check: for Invariants at temp=0.0, are all trials of a
-    # given case bit-identical (same Output_Hash)?
+    # Determinism check: are all trials at temp=0.0 bit-identical?
     if "Output_Hash" in sweep_df.columns:
         det_rows = sweep_df[(sweep_df["System"] == "Invariants") & (sweep_df["Temperature"] == 0.0)]
         print("  [values] Determinism check (Invariants, temp=0.0): distinct output hashes per case")
@@ -622,15 +571,9 @@ def plot_temperature_sweep(sweep_df: pd.DataFrame | None):
     save(fig, "09_temperature_sweep_success_rate.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 10: dead-end failure vs. constraint tightness -- characterizes the
-# no-backtrack failure mode across schemas_deadend_stress instead of leaving
-# it as a one-off anecdote.
-# ---------------------------------------------------------------------------
+# Chart 10: dead-end failure rate vs. constraint tightness
 
-# window_start / upper_bound for each fixed-threshold case; the
-# sibling-dependent case has no fixed ratio (the threshold depends on
-# whatever the model samples for the prior field), so it's plotted apart.
+# window_start / upper_bound for each fixed-threshold case; sibling-dependent has no fixed ratio
 DEADEND_TIGHTNESS = {
     "DED_tightness_10pct": 10 / 96,
     "DED_tightness_30pct": 30 / 96,
@@ -672,11 +615,7 @@ def plot_deadend_tightness(suite_json: dict):
 
     print_values("Dead-end stress: outcome per case (1 = Invariants completed, 0 = crashed / mask dead-end)", raw)
 
-    # This is a categorical (crashed / completed) outcome, not a magnitude --
-    # encoding it as bar HEIGHT (0 vs 1) makes the crashed cases invisible
-    # (a zero-height bar reads as "no data"). Every bar is drawn at the same
-    # height instead, with color + an explicit text label carrying the
-    # outcome, so a crash is exactly as visible as a pass.
+    # Categorical outcome, not a magnitude -- every bar is drawn the same height
     if sibling_outcome is not None:
         labels = [*labels, "sibling-\ndependent"]
         outcomes = [*outcomes, 0 if sibling_outcome else 1]
@@ -695,12 +634,7 @@ def plot_deadend_tightness(suite_json: dict):
     save(fig, "10_deadend_tightness.png")
 
 
-# ---------------------------------------------------------------------------
-# Chart 11: throughput on the long-free-text suite specifically -- the
-# deliberate worst case for this architecture (mask overhead paid on every
-# token with no bypass or rejection to compensate). Shown honestly even if
-# baseline wins here.
-# ---------------------------------------------------------------------------
+# Chart 11: throughput on the long-free-text suite, the worst case for this architecture
 
 def plot_long_freetext_throughput(df: pd.DataFrame):
     sub = df[df["Suite"] == "schemas_long_freetext"]

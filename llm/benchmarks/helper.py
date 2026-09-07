@@ -4,8 +4,7 @@ from typing import Any
 
 
 def eval_math_expr(expr: str, scope: dict) -> bool:
-    # expr strings come from schema files we author ourselves, so a plain
-    # eval() is fine -- builtins stripped, only `abs` exposed.
+    # Schema files are self-authored, so eval() is fine here
     return bool(eval(expr, {"__builtins__": {}, "abs": abs}, scope))  # noqa: S307
 
 

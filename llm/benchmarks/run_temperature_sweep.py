@@ -21,12 +21,7 @@ from run_benchmark import (
 
 RESULTS_ROOT = Path("benchmarks/results/temperature_sweep")
 
-# Six cases spanning bypass-heavy, zero-bypass, deep-dependency, and both new
-# adversarial categories -- not the full ~26-case corpus, to keep the N=5 x
-# 2-temperature x 3-system compute bill bounded while still answering:
-# (a) is Invariants-at-temp=0 actually bit-identical across repeats,
-# (b) does matching temperature change baseline's/plain's standing,
-# (c) does temperature give Invariants a way out of a dead end.
+# Six representative cases rather than the full corpus, to bound the compute cost
 SWEEP_CASES = [
     ("schemas_l1.json", "L1_user_onboarding"),
     ("schemas_l2.json", "L2_retail_order_billing"),

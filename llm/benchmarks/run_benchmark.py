@@ -69,6 +69,17 @@ def parse_args() -> argparse.Namespace:
         "of the normal per-level location -- does not touch latest/ or the "
         "by_system rollups, which need all three systems present.",
     )
+    parser.add_argument(
+        "--model-repo",
+        default=REPO_ID,
+        help=f"HuggingFace repo id for the GGUF model all 5 systems share "
+        f"(default: {REPO_ID}).",
+    )
+    parser.add_argument(
+        "--model-file",
+        default=MODEL_FILENAME,
+        help=f"GGUF filename/glob within --model-repo (default: {MODEL_FILENAME}).",
+    )
     return parser.parse_args()
 
 
@@ -89,8 +100,7 @@ def resolve_suite_path(suite_arg: str) -> Path:
 
 
 def _strip_markdown_fence(text: str) -> str:
-    # Plain-prompt models often wrap JSON in a ```json fence despite being
-    # told not to; strip it so we're grading JSON content, not formatting.
+    # Plain-prompt models often wrap JSON in a ```json fence anyway
     stripped = text.strip()
     if stripped.startswith("```"):
         lines = stripped.splitlines()
@@ -103,11 +113,7 @@ def _strip_markdown_fence(text: str) -> str:
 
 
 def crash_assertions(case: BenchmarkCase, error: Exception) -> list[dict]:
-    # A crashed system produced no output at all -- every assertion the case
-    # would have checked must count as failed, not be silently dropped from
-    # the tally. An empty list here would let field-level aggregation treat
-    # a crash as "this case just didn't contribute any data" instead of
-    # "every field in this case failed," which is what actually happened.
+    # A crash means every assertion the case would have checked failed
     return [
         {
             "type": a.type,
@@ -143,9 +149,7 @@ def run_evaluations(case: BenchmarkCase, output_text: str) -> tuple[bool, list[d
         if assertion.field is not None:
             print(f"    {status} {assertion.type} on '{assertion.field}': {msg}")
         else:
-            # "math" assertions span multiple fields via `expr` rather than
-            # naming one -- `msg` already includes the expression, so don't
-            # print a misleading "on 'None'".
+            # "math" assertions span multiple fields, no single field to name
             print(f"    {status} {assertion.type}: {msg}")
         assertions_detail.append(
             {
@@ -170,8 +174,7 @@ def load_baseline_llm() -> Llama:
             n_ctx=2048,
             verbose=False,
         )
-    # Not cached yet: fall back to the network-aware loader, which downloads
-    # and populates the cache for next time.
+    # Not cached: download and populate the cache
     return Llama.from_pretrained(
         repo_id=REPO_ID,
         filename=MODEL_FILENAME,
@@ -181,13 +184,31 @@ def load_baseline_llm() -> Llama:
     )
 
 
+def chat_completion_with_system_fallback(llm: Llama, case: BenchmarkCase, **kwargs):
+    # Some chat templates (e.g. Gemma's) reject a "system" role outright
+    try:
+        return llm.create_chat_completion(
+            messages=[
+                {"role": "system", "content": case.prompts.system},
+                {"role": "user", "content": case.prompts.user},
+            ],
+            **kwargs,
+        )
+    except ValueError as e:
+        if "system role" not in str(e).lower():
+            raise
+        return llm.create_chat_completion(
+            messages=[
+                {"role": "user", "content": f"{case.prompts.system}\n\n{case.prompts.user}"},
+            ],
+            **kwargs,
+        )
+
+
 def run_baseline_case(llm: Llama, case: BenchmarkCase, temperature: float = 0.7) -> dict:
     t0 = time.perf_counter()
-    response = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": case.prompts.system},
-            {"role": "user", "content": case.prompts.user},
-        ],
+    response = chat_completion_with_system_fallback(
+        llm, case,
         response_format={"type": "json_object", "schema": case.json_schema},
         temperature=temperature,
         max_tokens=400,
@@ -209,13 +230,10 @@ def run_baseline_case(llm: Llama, case: BenchmarkCase, temperature: float = 0.7)
 
 
 def run_plain_prompt_case(llm: Llama, case: BenchmarkCase, temperature: float = 0.7) -> dict:
-    # Same prompt as run_baseline_case, but with no grammar constraint at all.
+    # Same prompt as run_baseline_case, but with no grammar constraint
     t0 = time.perf_counter()
-    response = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": case.prompts.system},
-            {"role": "user", "content": case.prompts.user},
-        ],
+    response = chat_completion_with_system_fallback(
+        llm, case,
         temperature=temperature,
         max_tokens=400,
     )
@@ -238,11 +256,7 @@ def run_plain_prompt_case(llm: Llama, case: BenchmarkCase, temperature: float = 
 def run_outlines_case(
     outlines_model, llm: Llama, case: BenchmarkCase, temperature: float = 0.7
 ) -> dict:
-    # outlines' Generator returns only the final text -- no token-count API
-    # is exposed for a llama.cpp-backed steerable model, so tokens are
-    # counted by re-tokenizing the output with the same tokenizer used for
-    # every other system, for a consistent (if not live-sampling-exact)
-    # basis of comparison.
+    # No live token-count API, so tokens are counted by re-tokenizing the output
     generator = outlines.Generator(outlines_model, outlines.json_schema(case.json_schema))
     prompt = f"{case.prompts.system}\n\n{case.prompts.user}"
 
@@ -318,8 +332,7 @@ def run_invariants_case(
 
 
 def update_latest_pointer(out_dir: Path, level_dir: Path) -> None:
-    # Copies this run's output into <level_dir>/latest/ so there's always one
-    # unambiguous "current result" location.
+    # Copies this run's output into <level_dir>/latest/
     latest_dir = level_dir / "latest"
     latest_dir.mkdir(parents=True, exist_ok=True)
     for name in ("run.log", "results.csv", "results.json"):
@@ -329,8 +342,7 @@ def update_latest_pointer(out_dir: Path, level_dir: Path) -> None:
 
 
 def rebuild_rollups(results_root: Path = RESULTS_ROOT) -> None:
-    # Regenerates by_system/*.csv and all_results.csv from every level's
-    # latest/ run, tagged with a Suite column.
+    # Regenerates by_system/*.csv and all_results.csv from every level's latest/ run
     by_system: dict[str, list[list[str]]] = {name: [] for name in SYSTEM_ROLLUP_FILES}
     all_rows: list[list[str]] = []
     header: list[str] | None = None
@@ -370,16 +382,25 @@ def rebuild_rollups(results_root: Path = RESULTS_ROOT) -> None:
 
 
 def main():
+    global REPO_ID, MODEL_FILENAME, RESULTS_ROOT
+
     args = parse_args()
+    REPO_ID = args.model_repo
+    MODEL_FILENAME = args.model_file
+    if REPO_ID != "Qwen/Qwen2.5-3B-Instruct-GGUF":
+        # A different model gets its own results tree, never mixed with the primary one
+        model_slug = REPO_ID.split("/")[-1].lower().replace(".", "-")
+        RESULTS_ROOT = Path("benchmarks/results") / "cross_model" / model_slug
+        print(f"Cross-model run: {REPO_ID} ({MODEL_FILENAME}) -- "
+              f"writing to {RESULTS_ROOT}/")
+
     suite_path = resolve_suite_path(args.suite)
     suite = BenchmarkSuite.load_from_file(str(suite_path))
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
     level_dir = RESULTS_ROOT / suite_path.stem
     if args.invariants_only:
-        # Separate tree: this run is missing Baseline_CFG/Plain_Prompt rows
-        # entirely, so it must never become a level's latest/ or feed the
-        # by_system rollups, which assume all three systems are present.
+        # Missing Baseline_CFG/Plain_Prompt rows, so never becomes a level's latest/
         out_dir = RESULTS_ROOT / "mask_timing" / suite_path.stem / timestamp
     else:
         out_dir = level_dir / timestamp
@@ -412,18 +433,14 @@ def main():
         if not args.invariants_only:
             print("Initializing baseline (SOTA CFG / JSON Schema) model...")
             llm = load_baseline_llm()
-            # Both wrap the SAME already-loaded Llama instance rather than
-            # loading their own copy, so all three CFG-based systems (plus
-            # Plain_Prompt) run against identical weights/context/KV cache
-            # behavior -- only the constraint-enforcement implementation
-            # differs between them.
+            # Both wrap the same already-loaded Llama instance, not their own copy
             print("Initializing Outlines...")
             outlines_model = outlines.models.LlamaCpp(llm)
             print("Initializing Guidance...")
             guidance_model = guidance.models.LlamaCpp(llm, echo=False)
 
         print("Initializing invariants engine...")
-        engine = Engine()
+        engine = Engine(repo_id=REPO_ID, filename=MODEL_FILENAME)
         generator = ConstrainedGenerator(engine)
 
         with open(csv_path, mode="w", newline="", encoding="utf-8") as csv_file:
@@ -552,8 +569,7 @@ def main():
                 case_payload["invariants"] = invariants
 
                 run_payload["cases"].append(case_payload)
-                # Persist after every case so a crash later in the suite
-                # never loses data already gathered.
+                # Persist after every case so a later crash doesn't lose data
                 flush_json()
 
                 print(f"\n--- Summary for {case_id} ---")
@@ -690,12 +706,10 @@ def main():
         print(f"  CSV:        {csv_path}")
         print(f"  JSON:       {json_path}")
         if not args.invariants_only:
-            # log_file is still open and buffered at this point -- flush it
-            # before copying, or update_latest_pointer() can race the write
-            # buffer and copy a truncated (sometimes empty) run.log.
+            # Flush before copying, or the log file copy can come out truncated
             log_file.flush()
             update_latest_pointer(out_dir, level_dir)
-            rebuild_rollups()
+            rebuild_rollups(RESULTS_ROOT)
             print(f"  Latest:     {level_dir / 'latest'}")
             print(f"  Rollups:    {RESULTS_ROOT / 'by_system'} , {RESULTS_ROOT / 'all_results.csv'}")
         else:
